@@ -231,54 +231,6 @@ bool NS_Sql::TCtrlGroup::CorrectDelimeter(const TCtrlSql& title, const string& d
 	}
 };
 
-//преобразование поля в строку данных
-string NS_Sql::TField::to_Str(void) const
-{
-	using std::stringstream;
-	if (Empty()) return "";
-	stringstream ss;
-	ss << val << ' ' << delimeter << ' ' << title;
-	return ss.str();	
-}
-
-//Скорее всего данный тип TField - не нужен!!!
-//инициализация поля стрококой: [value] [delimeter] [title] -> d.ID as "ID" <-> d.ID as ID
-void NS_Sql::TField::Init_By_Str(const string& str, const string& d) noexcept(false)
-{
-	using std::size_t;
-	//если пустой разделитель или строка - выходим
-	if (str.empty() || d.empty()) return;
-	string s = LowerCase(str);
-	size_t pos = s.find_last_of(d);
-	//если нет разделителя:
-	if (pos == string::npos)
-	{
-		val = str;
-		return;
-	}
-	TCtrlGroup ctrl;
-	while (!ctrl.IsCorrectSym(s, pos, d.size()))
-		if (pos - 1 > 0) pos = s.rfind(d, pos - 1);
-		else pos = string::npos;
-	val = s.substr(0, pos);
-	delimeter = d;
-	pos += d.size();
-	title = s.substr(pos, s.size() - pos);//
-}
-
-NS_Sql::TField::TField(const string& str, const TCtrlGroup::TCtrlSql& d) noexcept(false)
-{
-	string sym = TCtrlGroup::CtrlSql2Str(d);
-	Init_By_Str(str, sym);
-}
-
-NS_Sql::TField::TField(const string& str, const TCtrlGroup::TCtrlSym& ch) noexcept(false)
-{
-	string sym;
-	sym.push_back(TCtrlGroup::CtrlSym2Char(ch));
-	Init_By_Str(str, sym);
-}
-
 void NS_Sql::TSection::set_data(const string& str)
 {
 	data = str;

@@ -44,40 +44,6 @@ namespace NS_Sql
 	//функция инкремента для TCtrlSql:
 	TCtrlGroup::TCtrlSql operator+(const TCtrlGroup::TCtrlSql& val, int x) noexcept(true);
 
-	//класс описывает лишь поля для колонок/таблиц(d.ID as "ID" -> val = d.ID; delimeter = as; title = "ID")
-	class TField
-	{
-	private:
-		string val;//значение поля
-		string title;//наименование поля
-		string delimeter;//разделитель полей
-		//инициализация по строке и разделителю
-		virtual void Init_By_Str(const string& str, const string& d) noexcept(false);
-	public:
-		//конструктор по умочанию:
-		TField(const string& par_val = "", const string& par_title = "", const string& par_delimeter = "") :
-			val(par_val), title(par_title), delimeter(par_delimeter) {};
-		TField(const TField& f) : val(f.val), title(f.title), delimeter(f.delimeter) {};
-		//инициализация по строке и sql-команде:
-		TField(const string& str, const TCtrlGroup::TCtrlSql& d) noexcept(false);
-		//инициализация по строке и разделителю:
-		TField(const string& str, const TCtrlGroup::TCtrlSym& ch) noexcept(false);
-		string Val() const { return val; };
-		string Title() const { return title; };
-		string Delimeter() const { return delimeter; };
-		void Val(const string& par_val) { val = par_val; };
-		void Title(const string& par_title) { title = par_title; };
-		void Delimeter(const string& par_delimeter) { delimeter = par_delimeter; };
-		TField& operator=(const TField& f) { val = f.val; title = f.title; delimeter = f.delimeter; return *this; };
-		//проверка пустой записи
-		bool Empty(void) const { return val.empty() && title.empty() && delimeter.empty(); };
-		~TField(void) {};
-		//преобразование в строку
-		string to_Str(void) const;
-	};
-	
-	using TFields = std::vector<TField>;
-
 	//класс описывающий область запросов with/select/from/where/order by/group by
 	class TSection
 	{

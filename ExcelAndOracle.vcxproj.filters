@@ -16,6 +16,9 @@
     <ClCompile Include="TSQLParser.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
+    <ClCompile Include="TuneParam.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Logger.h">
@@ -24,6 +27,7 @@
     <ClInclude Include="TSQLParser.h">
       <Filter>Исходные файлы</Filter>
     </ClInclude>
+    <ClInclude Include="TuneParam.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="config.ini">
