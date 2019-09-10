@@ -15,16 +15,19 @@
 //#include "TuneParam.h"
 #include "Logger.h"
 #include "TSQLParser.h"
+#include "TuneParam.h"
 //#include <consoleapi2.h>
 
 void excel_example(void);
 void oracle_example(void);
 
-//функция проверки парсера для TField:
-void TFieldParse(const std::string& str);
-
 //функция проверки парсинга для sql-запроса:
 void TSqlParse(const std::string& str);
+
+//функция парсинга настроек параметров:
+void parse_tune(const std::string& str);
+
+void parse_tune_file(const std::string& filename);
 
 //inline void SetRuConsole(int cp) { SetConsoleCP(cp); SetConsoleOutputCP(cp); };
 
@@ -36,8 +39,8 @@ int main()
 	using std::string;
 	//SetRuConsole(1251);
 	setlocale(LC_ALL, "RU");
-	string file_name("rib_docs_for_period.sql");
-	TSqlParse(file_name);
+	string file_name("config.ini");
+	parse_tune_file(file_name);
 	/*
 	cout << "Начало работы!" << endl;
 	try
@@ -62,15 +65,6 @@ int main()
 	return 0;
 }
 
-void TFieldParse(const std::string& str)
-{
-	using NS_Sql::TField;
-	using std::cout;
-	using std::endl;
-	TField col(str, NS_Sql::TCtrlGroup::TCtrlSym::Space);
-	cout << col.Val() << '\n' << col.Delimeter() << '\n' << col.Title() << endl;
-}
-
 void TSqlParse(const std::string& str)
 {
 	using std::ifstream;
@@ -93,6 +87,26 @@ void TSqlParse(const std::string& str)
 	cout << sql_txt.toStr() << endl;
 	sql_txt.AddField2Section(TCtrlGroup::TCtrlSql::Select, "sysdate as \"Дата отчета\"");
 	cout << sql_txt.toStr() << endl;
+};
+
+void parse_tune(const std::string& str)
+{
+	using std::string;
+	NS_Tune::TuneField f = NS_Tune::TuneField::UserName;
+	std::cout << "Значение параметра: " << NS_Tune::TuneFieldToStr(f) << " = " << NS_Tune::Get_TuneFiel_Val_From_Str(f, str) << std::endl;
+}
+
+void parse_tune_file(const std::string& filename)
+{
+	using NS_Tune::TUserData;
+	using std::cout;
+	using std::endl;
+	TUserData tune(filename);
+	cout << "Список колонок:" << endl;
+	tune.show_columns();
+	cout << "Список настроек:" << endl;
+	tune.show_tunes();
+	cout << "Значение настройки SQLText: " << tune.getValue(NS_Tune::TuneField::SqlText) << endl;
 };
 
 //пример работы с документами Excel

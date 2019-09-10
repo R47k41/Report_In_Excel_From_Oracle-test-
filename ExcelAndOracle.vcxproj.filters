@@ -27,7 +27,9 @@
     <ClInclude Include="TSQLParser.h">
       <Filter>Исходные файлы</Filter>
     </ClInclude>
-    <ClInclude Include="TuneParam.h" />
+    <ClInclude Include="TuneParam.h">
+      <Filter>Исходные файлы</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="config.ini">

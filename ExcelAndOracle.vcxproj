@@ -91,12 +91,12 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(CPP_LIB)oracle\occi-oracle\sdk\include;$(CPP_LIB)LibXL\libxl-3.8.5.0\include_cpp;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(CPP_LIB)oracle\occi-oracle\sdk\include;$(CPP_LIB)LibXL\libxl-3.8.5.0\include_cpp\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc;$(CPP_LIB)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc;$(CPP_LIB)LibXL\libxl-3.8.5.0\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>$(CPP_LIB)LibXL\libxl-3.8.5.0\lib\libxl.lib;$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc\oraocci10.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
