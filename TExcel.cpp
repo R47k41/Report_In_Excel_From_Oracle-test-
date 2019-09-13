@@ -212,7 +212,7 @@ void NS_Excel::TExcel::FillColumnsFormat(int TitleRow, int SHIndex)
 {
 	int oldindex = DefVal::Empty;
 	//проверяем есть ли листы в документе
-	if (SheetCount() > 0 and TitleRow > 0)
+	if (SheetCount() > 0 and TitleRow > 0 and isTemplate())
 	{
 		if (SHIndex != DefVal::Empty)
 		{
@@ -233,20 +233,20 @@ void NS_Excel::TExcel::FillColumnsFormat(int TitleRow, int SHIndex)
 	}
 }
 
-NS_Excel::TExcel::TExcel(const string& fname, bool crt_active_sh) : name(fname)
+NS_Excel::TExcel::TExcel(const string& tmp_name, const string& out_name, bool crt_active_sh = false) : name(out_name)
 {
 	//FAQ: http://www.libxl.com/workbook.html
 	//задаем имя выходного файла
-	if (fname.empty())
+	if (name.empty())
 		setDefOutFileName();
 	//формируем объект excel-файла
 	file = xlCreateBook();
 	if (file)
 	{
 		//пробуем загрузить книгу:
-		if (!fname.empty())
+		if (!tmp_name.empty())
 		{
-			if (!file->load(fname.c_str()))
+			if (!file->load(tmp_name.c_str()))
 				cerr << file->errorMessage() << endl;
 		}
 		else

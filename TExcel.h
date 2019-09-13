@@ -33,7 +33,7 @@ namespace NS_Excel
 		Book* file;//excel-файл
 		Sheet* active_sh;//активный рабочий лист
 		//Format* main_frmt;//основной формат
-		string name;//имя файла
+		string name;//имя выходного файла
 		std::vector<TDataType> OrdColumnsFormat;
 		//запрещаем инициализацию и присвоение
 		TExcel(const TExcel& exl);
@@ -62,9 +62,11 @@ namespace NS_Excel
 		//для инициализации используется шаблон отчета,
 		//чтобы распознать форматы строк и вставляемые в них значения
 		//если файл не указан - вставкаданных идет по умолчанию, как Общий формат
-		TExcel(const string& fname = "", bool crt_active_sh = false);
+		TExcel(const string& tmp_name = "", const string& out_name = "", bool crt_active_sh = false);
 		//деинициализация
 		virtual ~TExcel(void) { clear(); };
+		//является ли книга шаблоном:
+		bool isTemplate(void) const { return file->isTemplate(); };
 		//копирование для шрифта
 		virtual void copyFont(int index, Font* src);
 		//копирование для формата:
