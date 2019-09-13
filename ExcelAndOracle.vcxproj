@@ -30,7 +30,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -154,13 +154,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DoReport.cpp" />
     <ClCompile Include="ExcelAndOracle.cpp" />
     <ClCompile Include="Logger.cpp" />
+    <ClCompile Include="TExcel.cpp" />
     <ClCompile Include="TSQLParser.cpp" />
     <ClCompile Include="TuneParam.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Logger.h" />
+    <ClInclude Include="TExcel.h" />
     <ClInclude Include="TSQLParser.h" />
     <ClInclude Include="TuneParam.h" />
   </ItemGroup>

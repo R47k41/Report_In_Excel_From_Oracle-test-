@@ -4,7 +4,7 @@
 //модуль предназначен для описания класса работающего с файлом настроек
 #include <fstream>
 #include <string>
-//#include <vector>
+#include <vector>
 #include <map>
 #include <utility>
 
@@ -65,6 +65,8 @@ namespace NS_Tune
 		bool EmptyColumns(void) const { return cols.empty(); };
 		//получение значения:
 		string getValue(const TuneField& code) const;
+		//получение списка колонок:
+		std::vector<string> getColumns(void) const { return cols; };
 		//установка занчения:
 		void operator()(const TuneField& code, const string& val);
 		void setValue(const TuneField& code, const string& val) { operator()(code, val); };
@@ -72,8 +74,6 @@ namespace NS_Tune
 		void show_tunes(void) const;
 		//функция отображения списка колонок:
 		void show_columns(void) const;
-		//получение списка колонок:
-		//vector<string> getColumnsTitle(void) const;
 	};
 
 }

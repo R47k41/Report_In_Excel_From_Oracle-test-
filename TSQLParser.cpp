@@ -82,6 +82,7 @@ void NS_Sql::Trim_Left(string& str)
 	string::const_iterator b = std::find_if_not(str.begin(), str.end(), TTrimObj(syms));
 	if (b >= str.begin()) str.erase(str.begin(), b);
 };
+
 void NS_Sql::Trim_Right(string& str)
 {
 	string syms = { TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::Space),
@@ -90,6 +91,7 @@ void NS_Sql::Trim_Right(string& str)
 	string::const_reverse_iterator b = std::find_if_not(str.rbegin(), str.rend(), TTrimObj(syms));
 	if (b != str.rbegin()) str.erase(b.base(), str.end());
 };
+
 void NS_Sql::Trim(string& str)
 {
 	Trim_Left(str);
@@ -105,6 +107,15 @@ NS_Sql::TCtrlGroup::TCtrlSql NS_Sql::operator+(const NS_Sql::TCtrlGroup::TCtrlSq
 		return NS_Sql::TCtrlGroup::TCtrlSql::EOC;
 		//throw Logger::TLog("¬ыход за границы указанных sql-команд!");
 
+}
+
+bool NS_Sql::operator==(const TCtrlGroup::TCtrlSql& val, const string& str) noexcept(true)
+{
+	string tmp = TCtrlGroup::CtrlSql2Str(val);
+	//string s = LowerCase(str);
+	//Trim(s);
+	//return tmp == s;
+	return tmp == str;
 }
 
 string NS_Sql::TCtrlGroup::CtrlSym2Str(const TCtrlSym& ch)
@@ -126,13 +137,27 @@ string NS_Sql::TCtrlGroup::CtrlSql2Str(const NS_Sql::TCtrlGroup::TCtrlSql& val)
 	case TCtrlSql::Order: return "order by";
 	case TCtrlSql::Group: return "group by";
 	case TCtrlSql::As: return " as ";
-	case TCtrlSql::And: return " and ";
-	case TCtrlSql::Or: return " or ";
+	case TCtrlSql::And: return "and";
+	case TCtrlSql::Or: return "or";
 	case TCtrlSql::EOC: //return ";";//символ окончани€ команды
 		return CtrlSym2Str(TCtrlSym::EndCommand);
 	case TCtrlSql::D4L: //return ",";//разделитель строк в select/from/order/group
 		return CtrlSym2Str(TCtrlSym::EndCol);
 	default: return string();
+	}
+}
+
+string NS_Sql::TCtrlGroup::getClosedElem(const TCtrlSql& val) noexcept(true)
+{
+	switch (val)
+	{
+	case TCtrlSql::From:
+	case TCtrlSql::Where:
+	case TCtrlSql::Order:
+	case TCtrlSql::Group:
+		return CtrlSym2Str(TCtrlSym::EndCommand);
+	default:
+		return string();
 	}
 }
 
@@ -222,7 +247,7 @@ bool NS_Sql::TCtrlGroup::CorrectDelimeter(const TCtrlSql& title, const string& d
 	catch (const Logger::TLog& er)
 	{
 		if (title == TCtrlSql::Where)
-			return (CtrlSql2Str(TCtrlSql::And) == d || CtrlSql2Str(TCtrlSql::Or) == d);
+			return (CtrlSql2Str(TCtrlSql::And) == d || CtrlSql2Str(TCtrlSql::Or) == d || d.empty());
 		else
 		{
 			cerr << er.what() << endl;
@@ -258,34 +283,48 @@ std::size_t NS_Sql::TSection::find_word_pos(const string& str, const string& key
 	return pos;
 };
 
-void NS_Sql::TSection::set_fields(const TCtrlGroup::TCtrlSql& title, const string& str) noexcept(false)
+string NS_Sql::TSection::get_data_by_key_range(const string& str, size_t& pos,const TCtrlGroup::TCtrlSql& br,
+		const TCtrlGroup::TCtrlSql& er) noexcept(false)
 {
 	using std::size_t;
-	set_by_sql_name(title);
 	string in_str = LowerCase(str);
 	//если строка данных - пуста или не заполнено им€ секции - выход
-	if (in_str.empty()) return;
-	//определ€ем границы дл€ получени€ полей данных:
-	pair<string, string> range(get_first_range_val(), get_second_range_val());
+	if (in_str.empty() || br == TCtrlGroup::TCtrlSql::Empty 
+			|| er == TCtrlGroup::TCtrlSql::Empty) return string();
+	pair<string, string> range(TCtrlGroup::CtrlSql2Str(br), TCtrlGroup::CtrlSql2Str(er));
 	//ищем началюную позицию
-	size_t posb = find_word_pos(in_str, range.first, 0, TCtrlGroup::MustFound(name));
+	size_t posb = find_word_pos(in_str, range.first, pos, TCtrlGroup::MustFound(br));
 	if (posb == string::npos)
-	{
-		clear();
-		return;
-	};
+		return string();
 	posb += range.first.size();
-	size_t pose = find_word_pos(in_str, range.second, posb, TCtrlGroup::MustFound(name + 1));
+	size_t pose = find_word_pos(in_str, range.second, posb, TCtrlGroup::MustFound(er));
 	if (pose == string::npos)
 	{
-		range.second = TCtrlGroup::CtrlSql2Str(TCtrlGroup::TCtrlSql::EOC);
-		pose = find_word_pos(in_str, range.second, posb, TCtrlGroup::MustFound(TCtrlGroup::TCtrlSql::EOC));
-		if (pose == string::npos)
-			throw Logger::TLog("ќтсутствует символ окончани€ выражени€ ", range.second.c_str(), nullptr);
+		range.second = TCtrlGroup::getClosedElem(er);
+		if (!range.second.empty())
+		{
+			pose = find_word_pos(in_str, range.second, posb, TCtrlGroup::MustFound(TCtrlGroup::TCtrlSql::EOC));
+			if (pose == string::npos)
+				throw Logger::TLog("ќтсутствует символ окончани€ выражени€ ", range.second.c_str(), nullptr);
+		}
+		else
+			pose = str.size();
 	}
 	//формируем поле данных:
 	in_str = in_str.substr(posb + 1, pose - posb - 1);
-	set_data(in_str);
+	pos = pose;
+	return in_str;
+
+}
+
+void NS_Sql::TSection::set_fields(const TCtrlGroup::TCtrlSql& title, const string& str) noexcept(false)
+{
+	set_by_sql_name(title);
+	if (str.empty()) return;
+	size_t pos = 0;
+	string tmp = get_data_by_key_range(str, pos, title, title + 1);
+	if (!tmp.empty())
+		set_data(tmp);
 };
 
 void NS_Sql::TSection::clear(void)
@@ -367,6 +406,27 @@ NS_Sql::TText::TSectIndex NS_Sql::TText::operator[](const TCtrlGroup::TCtrlSql& 
 	if (title == TCtrlGroup::TCtrlSql::Empty) return sect.end();
 	return std::find_if(sect.begin(), sect.end(), TTrimObj(title));
 };
+
+NS_Sql::TSection NS_Sql::TText::operator[](const TCtrlGroup::TCtrlSql& title) const
+{
+	for (TSection s : sect)
+		if (s.Title() == title) return s;
+	return TSection(TCtrlGroup::TCtrlSql::Empty);
+}
+
+vector<string> NS_Sql::getColumnValue(const TSection& section)
+{
+	vector<string> result;
+	if (section.name != TCtrlGroup::TCtrlSql::Select) return result;
+	size_t pos = 0;
+	while (pos < section.data.size())
+	{
+		string tmp = TSection::get_data_by_key_range(section.data, pos, TCtrlGroup::TCtrlSql::As, TCtrlGroup::TCtrlSql::D4L);
+		if (!tmp.empty())
+			result.push_back(tmp);
+	}
+	return result;
+}
 
 void NS_Sql::TText::Init_Sectors(const string& str)
 {

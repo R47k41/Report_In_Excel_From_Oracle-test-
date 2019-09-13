@@ -1,4 +1,5 @@
 ﻿// ExcelAndOracle.cpp : Этот файл содержит функцию "main". Здесь начинается и заканчивается выполнение программы.
+//Описание работы с libxl: http://www.libxl.com/
 //FAQ OCCI:
 // https://docs.oracle.com/en/database/oracle/oracle-database/19/lncpp/introduction-to-occi.html#GUID-99077609-BFCC-4FF7-9D23-C45623DDD465
 //типы данных:
@@ -29,6 +30,9 @@ void parse_tune(const std::string& str);
 
 void parse_tune_file(const std::string& filename);
 
+//определение внешней функции
+extern void getReport(const std::string& file_name);
+
 //inline void SetRuConsole(int cp) { SetConsoleCP(cp); SetConsoleOutputCP(cp); };
 
 int main()
@@ -40,7 +44,8 @@ int main()
 	//SetRuConsole(1251);
 	setlocale(LC_ALL, "RU");
 	string file_name("config.ini");
-	parse_tune_file(file_name);
+	getReport(file_name);
+	//parse_tune_file(file_name);
 	/*
 	cout << "Начало работы!" << endl;
 	try
@@ -116,15 +121,15 @@ void excel_example(void)
 	using std::cout;
 	using std::endl;
 	libxl::Book* book = xlCreateBook();
-	book->load(L"C:\\1.xls");
+	book->load("C:\\1.xls");
 	if (book)
 	{
 		cout << "book is load" << endl;
-		libxl::Sheet* sheet = book->addSheet(L"MyList");
+		libxl::Sheet* sheet = book->addSheet("MyList");
 		if (sheet)
 		{
 			cout << "open sheet and write text!" << endl;
-			sheet->writeStr(1, 1, L"Hello World!");
+			sheet->writeStr(1, 1, "Hello World!");
 			sheet->writeNum(2, 1, 112);
 			sheet->writeNum(3, 1, 2.5);
 			libxl::Font* font = book->addFont();
@@ -132,7 +137,7 @@ void excel_example(void)
 			font->setBold(true);
 		}
 	}
-	book->save(L"C:\\1.xls");
+	book->save("C:\\1.xls");
 }
 
 //пример работы с базой oracle

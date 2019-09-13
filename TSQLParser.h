@@ -33,6 +33,8 @@ namespace NS_Sql
 		static bool CorrectDelimeter(const TCtrlSql& title, const string& d);
 		//функци€ провер€юща€ возможность использовани€ скобок в запросе:
 		static bool CanUseBrkt(const TCtrlSql& title) { return title == TCtrlSql::Where; };
+		//функци€ определ€юща€ закрывающий элемент по команде:
+		static string getClosedElem(const TCtrlSql& val) noexcept(true);
 		//инициализаци€
 		TCtrlGroup();
 		//проверка на корректность найденных данных:
@@ -44,16 +46,22 @@ namespace NS_Sql
 	//функци€ инкремента дл€ TCtrlSql:
 	TCtrlGroup::TCtrlSql operator+(const TCtrlGroup::TCtrlSql& val, int x) noexcept(true);
 
+	//функци€ сверки со строкой:
+	bool operator==(const TCtrlGroup::TCtrlSql& val, const string& str) noexcept(true);
+
 	//класс описывающий область запросов with/select/from/where/order by/group by
 	class TSection
 	{
 	private:
-		//по итогу не пригодилост вызывать разные функции поиска в строке
+		//по итогу не пригодилось вызывать разные функции поиска в строке
 		//using find_function = std::size_t (std::string::*)(const string& s, const size_t pos) const;
 		TCtrlGroup::TCtrlSql name;//наименование блока
 		string data;//данные строкой - полный sql-запрос
 		//функци€ поиска ключевого слова в строке:
 		static std::size_t find_word_pos(const string& str, const string& key, const size_t n, bool must_find = false);
+		//функци€ возвращ€юща€ данные между ключевыми словами:
+		static string get_data_by_key_range(const string& str, size_t& pos, const TCtrlGroup::TCtrlSql& br,
+			const TCtrlGroup::TCtrlSql& er) noexcept(false);
 		//функци€ добавлени€ пол€ к данным:
 		void add_field_to_data(const string& str, const string& ch, bool use_brkt) noexcept(false);
 		//функци€ установки данных дл€ пол€ data
@@ -69,7 +77,7 @@ namespace NS_Sql
 		inline string get_second_range_val(void) const { return TCtrlGroup::CtrlSql2Str(name + 1); };
 	public:
 		//инициализаци€ с помощью sql-команды
-		TSection(const TCtrlGroup::TCtrlSql& title, const string& str);
+		TSection(const TCtrlGroup::TCtrlSql& title, const string& str = "");
 		//можно заменить стандартным конструктором
 		TSection(const TSection& sect) : name(sect.name), data(sect.data) {};
 		//можно заменить стандартным присвоением:
@@ -89,6 +97,7 @@ namespace NS_Sql
 		void Data(const string& str) { set_data(str); }
 		//преобразование в строку
 		string to_Str(void) const;
+		friend vector<string> getColumnValue(const TSection& section);
 	};
 	
 	//класс дл€ работы с sql-текстом
@@ -113,6 +122,8 @@ namespace NS_Sql
 		TText(std::istream& stream);
 		//деинициализаци€
 		~TText() {};
+		//функци€ получени€ данных о секции:
+		TSection operator[](const TCtrlGroup::TCtrlSql& title) const;
 		//получить текст запроса:
 		string toStr(void) const;
 		//функци€ добавлени€ блока запроса(+):
