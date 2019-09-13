@@ -25,6 +25,9 @@
     <ClCompile Include="TExcel.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
+    <ClCompile Include="TOracle.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Logger.h">
@@ -37,6 +40,9 @@
       <Filter>Исходные файлы</Filter>
     </ClInclude>
     <ClInclude Include="TExcel.h">
+      <Filter>Исходные файлы</Filter>
+    </ClInclude>
+    <ClInclude Include="TOracle.h">
       <Filter>Исходные файлы</Filter>
     </ClInclude>
   </ItemGroup>

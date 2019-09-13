@@ -10,9 +10,9 @@
 #include <sstream>
 #include <algorithm>
 #include <iterator>
+#include <locale.h>
 #include "libxl.h"
 #include "occi.h"
-#include <locale.h>
 //#include "TuneParam.h"
 #include "Logger.h"
 #include "TSQLParser.h"
