@@ -233,7 +233,7 @@ void NS_Excel::TExcel::FillColumnsFormat(int TitleRow, int SHIndex)
 	}
 }
 
-NS_Excel::TExcel::TExcel(const string& tmp_name, const string& out_name, bool crt_active_sh = false) : name(out_name)
+NS_Excel::TExcel::TExcel(const string& tmp_name, const string& out_name, bool crt_active_sh) : name(out_name)
 {
 	//FAQ: http://www.libxl.com/workbook.html
 	//задаем имя выходного файла
