@@ -8,123 +8,60 @@
 //для корректной работы в свойствах проекта - отключил UNICODE(кодировка unicode), 
 //т.к. лень переписывать string на wstring
 #include <iostream>
+#include <fstream>
 #include "Logger.h"
 #include "TuneParam.h"
 #include "TSQLParser.h"
-#include "libxl.h"
-#include "occi.h"
+#include "TExcel.h"
+#include "TOracle.h"
+
 using std::string;
 using std::cout;
 using std::cerr;
 using std::endl;
-using namespace libxl;
-using libxl::Book;
-using libxl::Sheet;
 
-using StrRow = std::vector<string>;
+bool CreateSimpleReport(const string& config_file) noexcept(true);
 
-enum class TExctension { xls, xlsx, Default, DefName, DefSheet };
 
-//преобразование расширения в строку
-string getExctension(const TExctension& val);
-
-//функция формирования отчета
-void getReport(const string& file_name = "config.ini") noexcept(false);
-
-//функция формирования заголовка отчета:
-void SetTitleRow(Sheet* sh, const StrRow& row, Format* frmt = nullptr) noexcept(false);
-
-string getExctension(const TExctension& val)
+bool CreateSimpleReport(const string& config_file) noexcept(true)
 {
-	switch (val)
-	{
-	case TExctension::xls:
-	case TExctension::Default:
-		return ".xls";
-	case TExctension::xlsx: return ".xlsx";
-	case TExctension::DefName: return "NoFileName.xls";
-	case TExctension::DefSheet: return "Лист 1";
-	}
-	return string();
-}
-
-
-Format* SetTitileFormat(Book* file)
-{
-	if (file)
-	{
-		//создаем шрифт:
-		Font* titlefont = file->addFont();
-		if (titlefont)
-		{
-			titlefont->setSize(10);
-			titlefont->setBold();
-		}
-		//создаем формат для данных:
-		Format* titleFormat = file->addFormat();
-		if (titleFormat)
-		{
-			//выравнивание
-			titleFormat->setAlignH(ALIGNH_FILL);
-			titleFormat->setAlignV(ALIGNV_CENTER);
-			//шрифт:
-			titleFormat->setFont(titlefont);
-			//цвет:
-			titleFormat->setBorder(BORDERSTYLE_MEDIUM);
-			//titleFormat->setFillPattern(COLOR_GRAY80);
-			titleFormat->setFillPattern(FILLPATTERN_SOLID);
-			//titleFormat->setPatternBackgroundColor(COLOR_GRAY80);
-			titleFormat->setPatternForegroundColor(COLOR_GRAY25);
-		}
-		return titleFormat;
-	}
-	return nullptr;
-}
-
-void SetTitleRow(Sheet* sh, const StrRow& row, Format* frmt) noexcept(false)
-{
-	if (row.empty()) return;
-	if (sh)
-	{
-		int cnt = 0;
-		for (size_t i = 0; i < row.size(); i++)
-		{
-			if (!row[i].empty())
-			{
-				sh->writeStr(1, i, row[i].c_str(), frmt);
-				cnt++;
-			}
-		}
-		sh->setAutoFitArea(1, 1, 1, cnt);
-	}
-}
-
-void getReport(const string& file_name) noexcept(false)
-{
-	using libxl::Book;
-	using NS_Tune::TuneField;
 	using NS_Tune::TUserData;
-	//using libxl::xlCreateBook;
-	Book* file = xlCreateBook();
-	if (file)
+	using NS_Tune::TuneField;
+	using NS_Sql::TText;
+	using std::ifstream;
+	using std::ios_base;
+	using std::ostream;
+	auto no_report = [](ostream& stream)->bool { if (stream) stream << "Отчет не сформирован!" << endl; return false; };
+	TUserData config(config_file);
+	//если данные из настроек заполнены не корректно - выход:
+	if (config.Empty())
 	{
-		//формируем файл настроек:
-		TUserData tune(file_name);
-		string outFile = tune.getValue(TuneField::OutFile);
-		if (outFile.empty()) outFile = getExctension(TExctension::DefName);
-		//формируем лист на котором будут данные:
-		string sheet_name = getExctension(TExctension::DefSheet);
-		Format* title_frmt = SetTitileFormat(file);
-		Sheet* sh = file->addSheet(sheet_name.c_str());
-		//если лист создан
-		if (sh)
-		{
-			//проверяем есть ли колонки для записи:
-			if (!tune.EmptyColumns())
-				SetTitleRow(sh, tune.getColumns(), title_frmt);
-		}
-		file->save(outFile.c_str());
-		//уничтожаем файл
-		file->release();
+		cerr << "Не заполнен файл настроек: " << config_file << endl;
+		return no_report(cerr);;
 	}
+	//после получения данных из файла конфигурации - формируем текст sql-запроса:
+	TText sql;
+	if (!config.getFieldByCode(TuneField::SqlText).empty())
+		sql = TText(config.getFieldByCode(TuneField::SqlText));
+	else
+	{
+		ifstream sql_txt_file(config.getFieldByCode(TuneField::SqlFile), ios_base::in);
+		if (!sql_txt_file.is_open())
+		{
+			cerr << "Ошибка открытия файла: " << config.getFieldByCode(TuneField::SqlFile) << endl;
+			return no_report(cerr);
+		}
+		sql = TText(sql_txt_file);
+		sql_txt_file.close();
+	}
+	if (sql.isEmpty())
+	{
+		cerr << "Ошибка при получении SQL запроса! Проверьте файл настроек: " << config_file << endl;
+		return no_report(cerr);
+	}
+	//добавляем в sql-запрос параметр:
+	//не решена проблема, когда параметр будет в самом тексте запроса
+	//надо в конфиге сделать: param1="Дата начала"
+	//и заменять :1 в тексте sql-запроса на значениея param1
+	return true;
 }

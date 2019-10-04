@@ -2,7 +2,6 @@
 #define LOGGER_H_
 #include <ostream>
 #include <string>
-#include <string>
 
 //Класс Логирования
 namespace Logger

@@ -108,20 +108,22 @@ namespace NS_Sql
 		using TConstSectIndex = vector<TSection>::const_iterator;
 	private:
 		vector<TSection> sect;
-		TText(const vector<TSection>& val);
-		TText(const TText& val);
-		TText& operator=(const TText& val);
 		//функция инициализации секторов по строке:
 		void Init_Sectors(const string& str);
 		//функция получения/поиска блока запроса по имени select/from/where
 		TSectIndex operator[](const TCtrlGroup::TCtrlSql& title);
 	public:
 		//инициализация строкой
-		TText(const string& str);
+		TText(const string& str="");
 		//инициализация из потока данных
 		TText(std::istream& stream);
+		TText(const vector<TSection>& val) : sect(val) {};
+		TText(const TText& val) : sect(val.sect) {};
+		//TText& operator=(const TText& val);
 		//деинициализация
 		~TText() {};
+		//проверка на пустоту:
+		bool isEmpty() const { return sect.empty(); };
 		//функция получения данных о секции:
 		TSection operator[](const TCtrlGroup::TCtrlSql& title) const;
 		//получить текст запроса:

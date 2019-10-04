@@ -7,6 +7,8 @@
 //если забыл про ddl/dml: https://www.geeksforgeeks.org/sql-ddl-dql-dml-dcl-tcl-commands/
 //описание типов данных:
 //https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/Data-Types.html#GUID-7B72E154-677A-4342-A1EA-C74C1EA928E6
+//про методанные:
+//https://docs.oracle.com/database/121/LNCPP/metadata.htm#LNCPP20275
 #include <string>
 #include <vector>
 #include "occi.h"
@@ -21,6 +23,11 @@ namespace NS_Oracle
 	using oracle::occi::Statement;
 	using oracle::occi::ResultSet;
 	using oracle::occi::MetaData;
+	using EnvironmentPtr = Environment*;
+	using ConnectionPtr = Connection*;
+	using StatementPtr = Statement*;
+	using ResultSetPtr = ResultSet*;
+	//using MetaDataPtr = MetaData *;
 	using TDate = oracle::occi::Date;
 	using TSQLState = oracle::occi::Statement::Status;
 	using TDataSetState = oracle::occi::ResultSet::Status;
@@ -42,20 +49,20 @@ namespace NS_Oracle
 	class TBaseEnv
 	{
 	private:
-		Environment* env;
+		EnvironmentPtr env;
 		TBaseEnv(const TBaseEnv& e);
 		TBaseEnv& operator=(const TBaseEnv& e);
 	protected:
 		//создать соединение с базой
-		Connection* createConnection(const string& uname, const string& upass, const string& tns) noexcept(false);
+		Connection* crtConnection(const string& uname, const string& upass, const string& tns) noexcept(false);
 		virtual bool Connect2DB(const string& uname, const string& upass, const string& tns) = 0;
 		//закрыть соединение с базой
-		virtual bool closeConnection(Connection* c = nullptr);
+		virtual bool closeConnection(ConnectionPtr c = nullptr);
 	public:
 		TBaseEnv() { env = Environment::createEnvironment(); };
 		virtual ~TBaseEnv() { Environment::terminateEnvironment(env); };
 		//создать соединение с базой
-		virtual bool createConnection(const TConnectParam& param) { return Connect2DB(param.username, param.password, param.tns_name); };
+		virtual bool crtConnection(const TConnectParam& param) { return Connect2DB(param.username, param.password, param.tns_name); };
 		virtual bool isValid(void) const { return env; };
 	};
 	
@@ -64,14 +71,14 @@ namespace NS_Oracle
 	{
 	private:
 		bool commit_on_close;
-		Connection* connect;
+		ConnectionPtr connect;
 		TDBConnect(const TDBConnect& c);
-		TDBConnect(Connection* c);
+		TDBConnect(ConnectionPtr c);
 		TDBConnect& operator=(const TDBConnect& c);
 		//фиксакция транзакции:
-		static bool Commit(Connection* c) noexcept(true);
+		static bool Commit(ConnectionPtr c) noexcept(true);
 		//откат транзакции:
-		static bool RollBack(Connection* c) noexcept(true);
+		static bool RollBack(ConnectionPtr c) noexcept(true);
 		friend class TStatement;
 	public:
 		TDBConnect(const string& uname, const string& upas, const string& utns, bool commit_on_exit = false);
@@ -99,14 +106,14 @@ namespace NS_Oracle
 		//валидность данных:
 		virtual bool isValid() const = 0;
 		//набор функция получения значения параметра:
-		virtual int getInt(UInt& paramIndx) const = 0;
-		virtual double getDouble(UInt& paramIndx) const = 0;
-		virtual float getFloat(UInt& paramIndx) const = 0;
-		virtual string getString(UInt& paramIndx) const = 0;
-		virtual TDate getDate(UInt& paramIndx) const = 0;
-		virtual string getDateAsStr(UInt& paramIndx, const string& date_frmt = "DD.MM.YYYY") const = 0;
+		virtual int getIntVal(UInt& paramIndx) const = 0;
+		virtual double getDoubleVal(UInt& paramIndx) const = 0;
+		virtual float getFloatVal(UInt& paramIndx) const = 0;
+		virtual string getStringVal(UInt& paramIndx) const = 0;
+		virtual TDate getDateVal(UInt& paramIndx) const = 0;
+		virtual string getDateAsStrVal(UInt& paramIndx, const string& date_frmt = "DD.MM.YYYY") const = 0;
 		//функции проверки значений полей/параметров:
-		virtual bool isNull(UInt& paramIndx) const = 0;
+		virtual bool isNullVal(UInt& paramIndx) const = 0;
 		//включение/отключение возникновения исключения при пустом значении параметра/колонки
 		virtual void setExceptionOnNull(UInt& paramIndx, bool flg = false) = 0;
 	};
@@ -116,19 +123,19 @@ namespace NS_Oracle
 	{
 	private:
 		static const int prefetch_rows = 1;//число строк выбираемое при обращении к БД
-		Connection* connect;//указатель соединения
-		Statement* statement;//указатель на sql-команду
+		ConnectionPtr connect;//указатель соединения
+		StatementPtr statement;//указатель на sql-команду
 		UInt prefetch_cnt;//число предварительно выбираемых строк
 		//запрещаем копирование
-		TStatement(Connection* c, Statement* s);
+		TStatement(ConnectionPtr c, StatementPtr s);
 		TStatement& operator=(const TStatement& st);
 		//создаем команду на выполнение:
-		bool createStatement(Connection* c, const string& sql = "", bool auto_commit = false);
+		bool crtStatement(ConnectionPtr c, const string& sql = "", bool auto_commit = false);
 		//выполнить нетипизированную sql-команду:
-		TSQLState execute(const string& sql = "") noexcept(true);
+		TSQLState Execute(const string& sql = "") noexcept(true);
 		//установка числа выбираемых записей за одно обращение:
-		void setPrefetch();
-		TStatement(Connection* c, const string& sql = "", bool auto_commit = false,
+		void setPrefetchVal();
+		TStatement(ConnectionPtr c, const string& sql = "", bool auto_commit = false,
 			UInt prefetch = prefetch_rows);
 	public:
 		//инициализация строкой и ссылкой на соединение:
@@ -141,28 +148,28 @@ namespace NS_Oracle
 		TSQLState getState() const { return (isValid() ? statement->status() : TSQLState::UNPREPARED); };
 		//функции для работы с параметрами:
 		//получение значения параметра по индексу:
-		int getInt(UInt& paramIndx) const { return statement->getInt(paramIndx); };
-		double getDouble(UInt& paramIndx) const { return statement->getDouble(paramIndx); };
-		float getFloat(UInt& paramIndx) const { return statement->getFloat(paramIndx); };
-		string getString(UInt& paramIndx) const { return statement->getString(paramIndx); };
-		TDate getDate(UInt& paramIndx) const { return statement->getDate(paramIndx); };
-		string getDateAsStr(UInt& paramIndx, const string& date_frmt = "DD.MM.YYYY") const;
+		int getIntVal(UInt& paramIndx) const { return statement->getInt(paramIndx); };
+		double getDoubleVal(UInt& paramIndx) const { return statement->getDouble(paramIndx); };
+		float getFloatVal(UInt& paramIndx) const { return statement->getFloat(paramIndx); };
+		string getStringVal(UInt& paramIndx) const { return statement->getString(paramIndx); };
+		TDate getDateVal(UInt& paramIndx) const { return statement->getDate(paramIndx); };
+		string getDateAsStrVal(UInt& paramIndx, const string& date_frmt = "DD.MM.YYYY") const noexcept(true);
 		//набор функций установка значения парамента:
-		void setInt(UInt& paramIndx, int value) { statement->setInt(paramIndx, value); };
-		void setDouble(UInt& paramIndx, double value) { statement->setDouble(paramIndx, value); };
-		void setFloat(UInt& paramIndx, float value) { statement->setFloat(paramIndx, value); };
-		void setString(UInt& paramIndx, const string& value) { statement->setString(paramIndx, value); };
-		void setDate(UInt& paramIndx, const TDate& date) { statement->setDate(paramIndx, date); };
-		void setDateAsString(UInt& paramIndx, const string& date, const string& date_frmt = "DD.MM.YYYY");
+		void setIntVal(UInt& paramIndx, int value) { statement->setInt(paramIndx, value); };
+		void setDoubleVal(UInt& paramIndx, double value) { statement->setDouble(paramIndx, value); };
+		void setFloatVal(UInt& paramIndx, float value) { statement->setFloat(paramIndx, value); };
+		void setStringVal(UInt& paramIndx, const string& value) { statement->setString(paramIndx, value); };
+		void setDateVal(UInt& paramIndx, const TDate& date) { statement->setDate(paramIndx, date); };
+		void setDateAsStringVal(UInt& paramIndx, const string& date, const string& date_frmt = "DD.MM.YYYY");
 		//функции проверки значений полей/параметров:
-		virtual bool isNull(UInt& paramIndx) const { return statement->isNull(paramIndx); };
+		virtual bool isNullVal(UInt& paramIndx) const { return statement->isNull(paramIndx); };
 		//включение/отключение возникновения исключения при пустом значении параметра/колонки
 		void setExceptionOnNull(UInt& paramIndx, bool flg = false) { statement->setErrorOnNull(paramIndx, flg); };
 		//Определение собственных функций класса
 		//получение числа выбранных строк:
-		UInt getPrefetchRowCount() const { return prefetch_cnt; };
+		UInt getPrefetchRowCnt() const { return prefetch_cnt; };
 		//установка числа выбранных строк за одно обращение к БД
-		void setPrefetchRowCount(UInt row_cnt);
+		void setPrefetchRowCnt(UInt row_cnt);
 		//фиксация транзакции
 		bool Commit() { return TDBConnect::Commit(connect); };
 		//откат транзакции
@@ -172,15 +179,15 @@ namespace NS_Oracle
 		//получить текст текущего запроса:
 		string getSQL(void) const { return (isValid() ? statement->getSQL() : string()); };
 		//получение номера текущей итерации:
-		UInt getCurrentIteration() const;
+		UInt getCurIteration() const;
 		//получение обработанных строк dml-командой
 		UInt getProcessedCntRows() const;
 		//выполнить запрос не зависимо от типа sql-команды:
-		bool executeSQL(const string& sql = "") noexcept(true);
+		bool ExecuteSQL(const string& sql = "") noexcept(true);
 		//получение данных из выполненного запроса:
-		ResultSet* getResultSet() noexcept(true);
+		ResultSetPtr getResultSetVal() noexcept(true);
 		//выполнить запрос как DQL:
-		ResultSet* executeQuery(const string& sql = "") noexcept(true);
+		ResultSetPtr executeQuery(const string& sql = "") noexcept(true);
 		//выполнить запрос как DML
 		UInt executeDML(const string& sql = "") noexcept(true);
 	};
@@ -189,7 +196,7 @@ namespace NS_Oracle
 	class TResultSet: public TBaseSet
 	{
 	private:
-		ResultSet* result;//указатель на полученный набор данных
+		ResultSetPtr result;//указатель на полученный набор данных
 		TMetaDataArr meta;//метаданные для колонок
 		//запрет присвоения
 		TResultSet& operator=(const TResultSet& rs);
@@ -209,35 +216,32 @@ namespace NS_Oracle
 		//проверка валидности:
 		bool isValid() const { return result; };
 		//набор функция получения значения параметра:
-		int getInt(UInt& paramIndx) const { return result->getInt(paramIndx); };
-		double getDouble(UInt& paramIndx) const { return result->getDouble(paramIndx); };
-		float getFloat(UInt& paramIndx) const { return result->getFloat(paramIndx); };
-		string getString(UInt& paramIndx) const { return result->getString(paramIndx); };
-		TDate getDate(UInt& paramIndx) const { return result->getDate(paramIndx); };
-		string getDateAsStr(UInt& paramIndx, const string& date_frmt = "DD.MM.YYYY") const;
+		int getIntVal(UInt& paramIndx) const { return result->getInt(paramIndx); };
+		double getDoubleVal(UInt& paramIndx) const { return result->getDouble(paramIndx); };
+		float getFloatVal(UInt& paramIndx) const { return result->getFloat(paramIndx); };
+		string getStringVal(UInt& paramIndx) const { return result->getString(paramIndx); };
+		TDate getDateVal(UInt& paramIndx) const { return result->getDate(paramIndx); };
+		string getDateAsStrVal(UInt& paramIndx, const string& date_frmt = "DD.MM.YYYY") const noexcept(true);
 		//функции проверки значений полей/параметров:
-		bool isNull(UInt& paramIndx) const { return result->isNull(paramIndx); };
+		bool isNullVal(UInt& paramIndx) const { return result->isNull(paramIndx); };
 		//включение/отключение возникновения исключения при пустом значении параметра/колонки
 		void setExceptionOnNull(UInt& paramIndx, bool flg = false) { result->setErrorOnNull(paramIndx, flg); };
 		//собственный функционал:
 		//получение статуса считываемых данных:
 		TDataSetState getState() const { return result->status(); };
 		//проверка на урезание данных строки:
-		bool isTruncated(UInt& paramIndx) const { return result->isTruncated(paramIndx); };
+		bool isTruncatedVal(UInt& paramIndx) const { return result->isTruncated(paramIndx); };
 		//получение статуса
 		TDataSetState Next(UInt RowsCnt = 1) { return (isValid() ? result->status() : TDataSetState::END_OF_FETCH); };
 		//получение длины параметра перед truncate
-		int getPreTruncationLenght(UInt& paramIndx) const { return result->preTruncationLength(paramIndx); };
+		int getPreTruncLenght(UInt& paramIndx) const { return result->preTruncationLength(paramIndx); };
 		//вызывать ошибку при отрезанной длине параметра:
-		void setExceptionOnTruncate(UInt& paramIndx, bool flg = false) { result->setErrorOnTruncate(paramIndx, flg); };
+		void setExceptOnTruncate(UInt& paramIndx, bool flg = false) { result->setErrorOnTruncate(paramIndx, flg); };
 		//функция получения числа колонок в запросе
-		UInt getColumnsCount(void) const { return meta.size(); };
+		UInt getColumnsCnt(void) const { return meta.size(); };
 		//получение типа данных для колонки:
 		TType getColumnType(UInt& colIndx) const noexcept(false);
-		//дружественные функции по формированию отчетов:
 	};
-
 }
-
 
 #endif

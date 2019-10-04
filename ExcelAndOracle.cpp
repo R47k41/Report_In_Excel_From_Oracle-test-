@@ -13,14 +13,13 @@
 #include <iterator>
 #include <string.h>
 #include <locale.h>
-//#include "libxl.h"
+#include "libxl.h"
 #include "occi.h"
-//#include "TuneParam.h"
-//#include "Logger.h"
-//#include "TSQLParser.h"
-//#include "TuneParam.h"
-//#include "TOracle.h"
-//#include <consoleapi2.h>
+#include "TuneParam.h"
+#include "Logger.h"
+#include "TSQLParser.h"
+#include "TuneParam.h"
+#include "TOracle.h"
 
 void excel_example(void);
 void oracle_example(void);
@@ -49,9 +48,10 @@ int main()
 	using std::string;
 	//SetRuConsole(1251);
 	setlocale(LC_ALL, "RU");
-	oracle_example();
+	//oracle_example();
 	//TOracleTest();
-	//parse_tune_file(file_name);
+	string file_name("config.ini");
+	parse_tune_file(file_name);
 	/*
 	cout << "Начало работы!" << endl;
 	try
@@ -75,7 +75,7 @@ int main()
 /**/
 	return 0;
 }
-/*
+
 void TSqlParse(const std::string& str)
 {
 	using std::ifstream;
@@ -98,13 +98,15 @@ void TSqlParse(const std::string& str)
 	cout << sql_txt.toStr() << endl;
 	sql_txt.AddField2Section(TCtrlGroup::TCtrlSql::Select, "sysdate as \"Дата отчета\"");
 	cout << sql_txt.toStr() << endl;
+	f.close();
 };
 
 void parse_tune(const std::string& str)
 {
 	using std::string;
-	NS_Tune::TuneField f = NS_Tune::TuneField::UserName;
-	std::cout << "Значение параметра: " << NS_Tune::TuneFieldToStr(f) << " = " << NS_Tune::Get_TuneFiel_Val_From_Str(f, str) << std::endl;
+	NS_Tune::TStringParam f(str, NS_Tune::TuneField::UserName);
+	
+	std::cout << "Значение параметра: " << f.ParamName() << " = " << f.Value() << std::endl;
 }
 
 void parse_tune_file(const std::string& filename)
@@ -117,7 +119,9 @@ void parse_tune_file(const std::string& filename)
 	tune.show_columns();
 	cout << "Список настроек:" << endl;
 	tune.show_tunes();
-	cout << "Значение настройки SQLText: " << tune.getValue(NS_Tune::TuneField::SqlText) << endl;
+	cout << "Список параметров: " << endl;
+	tune.show_params();
+	cout << "Значение настройки SQLText: " << tune.getFieldByCode(NS_Tune::TuneField::SqlText) << endl;
 };
 
 void TOracleTest()
@@ -130,13 +134,13 @@ void TOracleTest()
 	using NS_Oracle::UInt;
 	using std::string;
 	TConnectParam param{ "ZP_IBS", "IBS", "SML_SM", false, 10 };
-	string sql = "select ID, Code, Name from Admin.M_User";
+	string sql = "select ID, Code, Name, DayTo from Admin.M_User";
 	TDBConnect connect(param);
 	TStatement st(connect, sql, param.prefetch_rows);
 	TResultSet rs(st);
-	std::cout << "Число выбранных столбцов: " << rs.getColumnsCount() << '\n';
-	for (UInt i = 0; i <= rs.getColumnsCount(); i++)
-		std::cout << "Тип " << i << " столбца: " << rs.getColumnType(i) << std::endl;
+	std::cout << "Число выбранных столбцов: " << rs.getColumnsCnt() << '\n';
+	for (UInt i = 0; i < rs.getColumnsCnt(); i++)
+		std::cout << "Тип " << i << " столбца: " << static_cast<int>(rs.getColumnType(i)) << std::endl;
 	std::cin.get();
 	return;
 }

@@ -8,7 +8,7 @@ using oracle::occi::Connection;
 using oracle::occi::Statement;
 using std::string;
 
-Connection* NS_Oracle::TBaseEnv::createConnection(const string& uname, const string& upass, const string& tns)
+Connection* NS_Oracle::TBaseEnv::crtConnection(const string& uname, const string& upass, const string& tns)
 {
 	if (env)
 		return env->createConnection(uname, upass, tns);
@@ -47,7 +47,7 @@ bool NS_Oracle::TDBConnect::Connect2DB(const string& uname, const string& upass,
 	using std::endl;
 	try
 	{
-		connect = TBaseEnv::createConnection(uname, upass, utns);
+		connect = TBaseEnv::crtConnection(uname, upass, utns);
 		if (connect) return true;
 	}
 	catch (const SQLException& er)
@@ -88,7 +88,7 @@ bool NS_Oracle::TDBConnect::closeConnection()
 	return TBaseEnv::closeConnection(connect);
 }
 
-bool NS_Oracle::TDBConnect::Commit(Connection* c) noexcept(true)
+bool NS_Oracle::TDBConnect::Commit(ConnectionPtr c) noexcept(true)
 {
 	using oracle::occi::SQLException;
 	using std::cerr;
@@ -112,7 +112,7 @@ bool NS_Oracle::TDBConnect::Commit(Connection* c) noexcept(true)
 	return false;
 }
 
-bool NS_Oracle::TDBConnect::RollBack(Connection* c) noexcept(true)
+bool NS_Oracle::TDBConnect::RollBack(ConnectionPtr c) noexcept(true)
 {
 	using oracle::occi::SQLException;
 	using std::cerr;
@@ -136,7 +136,7 @@ bool NS_Oracle::TDBConnect::RollBack(Connection* c) noexcept(true)
 	return false;
 }
 
-void NS_Oracle::TStatement::setPrefetch()
+void NS_Oracle::TStatement::setPrefetchVal()
 {
 	if (isValid())
 		statement->setPrefetchRowCount(prefetch_cnt);
@@ -144,7 +144,7 @@ void NS_Oracle::TStatement::setPrefetch()
 		prefetch_cnt = 0;
 }
 
-bool NS_Oracle::TStatement::createStatement(Connection* c, const string& sql, 
+bool NS_Oracle::TStatement::crtStatement(ConnectionPtr c, const string& sql, 
 	bool auto_commit)
 {
 	using oracle::occi::SQLException;
@@ -160,7 +160,7 @@ bool NS_Oracle::TStatement::createStatement(Connection* c, const string& sql,
 		}
 		else
 			connect = nullptr;
-		setPrefetch();
+		setPrefetchVal();
 	}
 	catch (const SQLException& er)
 	{
@@ -175,17 +175,17 @@ bool NS_Oracle::TStatement::createStatement(Connection* c, const string& sql,
 	return false;
 }
 
-NS_Oracle::TStatement::TStatement(Connection* c, const string& sql, bool auto_commit, UInt prefetch): prefetch_cnt(prefetch)
+NS_Oracle::TStatement::TStatement(ConnectionPtr c, const string& sql, bool auto_commit, UInt prefetch): prefetch_cnt(prefetch)
 {
-	createStatement(c, sql, auto_commit);
+	crtStatement(c, sql, auto_commit);
 }
 
 NS_Oracle::TStatement::TStatement(const TDBConnect& dbc, const string& sql, UInt prefetch): prefetch_cnt(prefetch)
 {
-	createStatement(dbc.connect, sql, dbc.commit_on_close);
+	crtStatement(dbc.connect, sql, dbc.commit_on_close);
 }
 
-NS_Oracle::UInt NS_Oracle::TStatement::getCurrentIteration() const
+NS_Oracle::UInt NS_Oracle::TStatement::getCurIteration() const
 {
 	using oracle::occi::SQLException;
 	using std::cerr;
@@ -205,14 +205,14 @@ NS_Oracle::UInt NS_Oracle::TStatement::getCurrentIteration() const
 	return 0;
 }
 
-string NS_Oracle::TStatement::getDateAsStr(UInt& paramIndx, const string& date_frmt) const
+string NS_Oracle::TStatement::getDateAsStrVal(UInt& paramIndx, const string& date_frmt) const noexcept(true)
 {
 	using oracle::occi::SQLException;
 	using std::cerr;
 	using std::endl;
 	try
 	{
-		TDate date = getDate(paramIndx);
+		TDate date = getDateVal(paramIndx);
 		if (!date.isNull())
 			return date.toText(date_frmt);
 	}
@@ -227,20 +227,20 @@ string NS_Oracle::TStatement::getDateAsStr(UInt& paramIndx, const string& date_f
 	return string();
 }
 
-void NS_Oracle::TStatement::setDateAsString(UInt& paramIndx, const string& date, const string& date_frmt)
+void NS_Oracle::TStatement::setDateAsStringVal(UInt& paramIndx, const string& date, const string& date_frmt)
 {
 	TDate value;
 	value.fromText(date, date_frmt);
-	setDate(paramIndx, value);
+	setDateVal(paramIndx, value);
 }
 
-void NS_Oracle::TStatement::setPrefetchRowCount(UInt row_cnt)
+void NS_Oracle::TStatement::setPrefetchRowCnt(UInt row_cnt)
 {
 	prefetch_cnt = row_cnt;
-	setPrefetch();
+	setPrefetchVal();
 }
 
-NS_Oracle::TSQLState NS_Oracle::TStatement::execute(const string& sql) noexcept(true)
+NS_Oracle::TSQLState NS_Oracle::TStatement::Execute(const string& sql) noexcept(true)
 {
 	using oracle::occi::SQLException;
 	using std::cerr;
@@ -281,7 +281,7 @@ NS_Oracle::UInt NS_Oracle::TStatement::getProcessedCntRows() const
 		return 0;
 }
 
-NS_Oracle::ResultSet* NS_Oracle::TStatement::getResultSet() noexcept(true)
+NS_Oracle::ResultSet* NS_Oracle::TStatement::getResultSetVal() noexcept(true)
 {
 	using oracle::occi::SQLException;
 	using std::cerr;
@@ -304,21 +304,21 @@ NS_Oracle::ResultSet* NS_Oracle::TStatement::getResultSet() noexcept(true)
 	return nullptr;
 }
 
-NS_Oracle::ResultSet* NS_Oracle::TStatement::executeQuery(const string& sql) noexcept(true)
+NS_Oracle::ResultSetPtr NS_Oracle::TStatement::executeQuery(const string& sql) noexcept(true)
 {
-	execute(sql);
-	return getResultSet();
+	Execute(sql);
+	return getResultSetVal();
 }
 
 NS_Oracle::UInt NS_Oracle::TStatement::executeDML(const string& sql) noexcept(true)
 {
-	execute(sql);
+	Execute(sql);
 	return getProcessedCntRows();
 }
 
-bool NS_Oracle::TStatement::executeSQL(const string& sql) noexcept(true)
+bool NS_Oracle::TStatement::ExecuteSQL(const string& sql) noexcept(true)
 {
-	if (execute(sql) != TSQLState::UNPREPARED)
+	if (Execute(sql) != TSQLState::UNPREPARED)
 		return true;
 	return false;
 }
@@ -353,7 +353,7 @@ NS_Oracle::TResultSet::TResultSet(TStatement& query)
 		result = query.executeQuery();
 		break;
 	case TSQLState::RESULT_SET_AVAILABLE:
-		result = query.getResultSet();
+		result = query.getResultSetVal();
 		break;
 	default:
 		result = nullptr;
@@ -370,14 +370,14 @@ NS_Oracle::TResultSet::~TResultSet()
 	}
 }
 
-string NS_Oracle::TResultSet::getDateAsStr(UInt& paramIndx, const string& date_frmt) const
+string NS_Oracle::TResultSet::getDateAsStrVal(UInt& paramIndx, const string& date_frmt) const noexcept(true)
 {
 	using oracle::occi::SQLException;
 	using std::cerr;
 	using std::endl;
 	try
 	{
-		TDate date = getDate(paramIndx);
+		TDate date = getDateVal(paramIndx);
 		if (!date.isNull())
 			return date.toText(date_frmt);
 	}
@@ -394,7 +394,7 @@ string NS_Oracle::TResultSet::getDateAsStr(UInt& paramIndx, const string& date_f
 
 NS_Oracle::TType NS_Oracle::TResultSet::getColumnType(UInt& colIndx) const noexcept(false)
 {
-	if (colIndx > getColumnsCount())
+	if (colIndx > getColumnsCnt())
 		throw std::out_of_range("Индекс колонки превышает реальное число колонок!");
-	return meta[colIndx].getAttributeType(0);
+	return TType(meta[colIndx].getInt(MetaData::ATTR_DATA_TYPE));
 }
