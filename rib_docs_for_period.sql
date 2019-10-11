@@ -13,6 +13,7 @@ from
   ADMIN.OPERBOOK op
 where
   OP.AUTOOPER = 0
+	and OP.DATEOPER between :1 and :2
 order by
   OP.DATEOPER	
 ;

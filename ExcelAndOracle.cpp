@@ -36,7 +36,7 @@ void parse_tune_file(const std::string& filename);
 void TOracleTest();
 
 //определение внешней функции
-extern void getReport(const std::string& file_name);
+extern bool CreateSimpleReport(const std::string& file_name);
 
 //inline void SetRuConsole(int cp) { SetConsoleCP(cp); SetConsoleOutputCP(cp); };
 
@@ -51,7 +51,7 @@ int main()
 	//oracle_example();
 	//TOracleTest();
 	string file_name("config.ini");
-	parse_tune_file(file_name);
+	CreateSimpleReport(file_name);
 	/*
 	cout << "Начало работы!" << endl;
 	try

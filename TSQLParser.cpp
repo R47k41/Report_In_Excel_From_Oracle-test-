@@ -457,7 +457,7 @@ NS_Sql::TText::TText(std::istream& stream)
 	Init_Sectors(ss.str());
 };
 
-string NS_Sql::TText::toStr(void) const
+string NS_Sql::TText::toStr(bool use_eoc) const
 {
 	if (sect.empty()) return string();
 	std::stringstream ss;
@@ -467,7 +467,8 @@ string NS_Sql::TText::toStr(void) const
 		ss << i->to_Str();
 		if (i + 1 < sect.end())	ss << delimeter;
 	}
-	ss << TCtrlGroup::CtrlSql2Str(TCtrlGroup::TCtrlSql::EOC);
+	if (use_eoc)
+		ss << TCtrlGroup::CtrlSql2Str(TCtrlGroup::TCtrlSql::EOC);
 	return ss.str();
 };
 

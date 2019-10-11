@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <algorithm>
+#include <stdlib.h>
 #include "TuneParam.h"
 #include "Logger.h"
 
@@ -12,24 +13,32 @@ using std::set;
 using std::size_t;
 using std::streampos;
 
-int NS_Tune::Str2Int(const string& str) noexcept(false)
+template <typename T>
+void NS_Tune::Str2Type(const string& str, T& val) noexcept(false)
 {
 	using std::stringstream;
 	if (str.empty()) throw "ѕуста€ строка! ѕреобразование невозможно!";
 	stringstream ss;
 	ss << str;
-	int val;
 	ss >> val;
-	return val;
 }
 
-string NS_Tune::Int2Str(int val) noexcept(true)
+template <>
+void NS_Tune::Str2Type<double>(const string& str, double& val) noexcept(false)
+{
+	if (str.empty()) throw "ѕуста€ строка! ѕреобразование невозможно!";
+	val = std::atof(str.c_str());
+}
+
+template <typename T>
+string NS_Tune::Type2Str(T val) noexcept(true)
 {
 	using std::stringstream;
 	stringstream ss;
 	ss << val;
 	return ss.str();
 }
+
 
 template <typename T>
 bool NS_Tune::TConstant<T>::isValid(const T& a, const T& b, bool exit_on_err) const noexcept(false)
@@ -77,6 +86,13 @@ NS_Tune::TConstant<T>& NS_Tune::TConstant<T>::operator=(const T& x)
 	return *this;
 }
 
+bool NS_Tune::TConstField::StrInclude(const string& str) const
+{
+	if (str.empty()) return false;
+	if (str.find(toStr(), 0) != string::npos) return true;
+	return false;
+}
+
 string NS_Tune::TConstField::toStr() const
 {
 	switch (Value())
@@ -98,6 +114,7 @@ string NS_Tune::TConstField::toStr() const
 	case TuneField::SqlParamType: return "Type";
 	case TuneField::SqlParamNote: return "Comment";
 	case TuneField::SqlParamValue: return "Value";
+	case TuneField::Block_End: return "[END]";
 	default: return string();
 	}
 };
@@ -118,8 +135,8 @@ string NS_Tune::TConstType::toStr() const
 	switch (Value())
 	{
 	case DataType::String: return "string";
-	case DataType::Number: return "number";
-	case DataType::Float: return "float";
+	case DataType::Integer: return "integer";
+	case DataType::Double: return "double";
 	case DataType::Date: return "date";
 	}
 	return string();
@@ -240,7 +257,7 @@ void NS_Tune::TSubParam::setValue(void)
 	string tmpID = Get_TuneField_Val(tmp_field, Tags::quane, Tags::semicolon);
 	try
 	{
-		id = Str2Int(tmpID);
+		Str2Type(tmpID, id);
 	}
 	catch (...)
 	{
@@ -253,6 +270,7 @@ void NS_Tune::TSubParam::setValue(void)
 	comment = Get_TuneField_Val(tmp_field, Tags::quane, Tags::semicolon);
 	tmp_field = TuneField::SqlParamValue;
 	value = Get_TuneField_Val(tmp_field, Tags::quane, Tags::semicolon);
+	if (value.empty()) setValByUser();
 }
 
 void NS_Tune::TSubParam::setValue(const TConstField&, const Tags&, const Tags&)
@@ -271,9 +289,9 @@ void NS_Tune::TSubParam::show() const
 	field = TuneField::SqlParamType;
 	cout << field.toStr() << tag.toStr() << type.toStr() << endl;
 	field = TuneField::SqlParamNote;
-	cout << field.toStr() << tag.toStr() << comment;
+	cout << field.toStr() << tag.toStr() << comment << endl;
 	field = TuneField::SqlParamValue;
-	cout << field.toStr() << tag.toStr() << Value();
+	cout << field.toStr() << tag.toStr() << Value() << endl;
 }
 
 NS_Tune::TSubParam::TSubParam(const string& str): TBaseParam(str), id(EmptyID),
@@ -281,6 +299,15 @@ NS_Tune::TSubParam::TSubParam(const string& str): TBaseParam(str), id(EmptyID),
 {
 	if (!TBaseParam::isEmpty())
 		setValue();
+}
+
+string NS_Tune::TSubParam::getCode() const
+{
+	using std::stringstream;
+	if (id == EmptyID) return string();
+	stringstream ss;
+	ss << TConstTag(Tags::colon).toStr() << id;
+	return ss.str();
 }
 
 bool NS_Tune::TSubParam::setValByUser()
@@ -305,10 +332,12 @@ bool NS_Tune::TSubParam::setValByUser()
 void NS_Tune::TUserData::Read_StreamData_Val(ifstream& file, const TuneField& stream_title, StrArr& str_arr)
 {
 	using std::getline;
+	TConstField block_end(TuneField::Block_End);
 	while (file)
 	{
 		string str;
 		getline(file, str);
+		if (block_end == str) break;
 		if (!std::isalpha(str[0])) continue;
 		TStringParam col(str, stream_title);
 		if (!col.isEmpty())
@@ -339,38 +368,41 @@ void NS_Tune::TUserData::Read_Tune_Val(ifstream& file)
 {
 	using std::getline;
 	using std::streampos;
-	streampos pos = file.tellg();
-	file.seekg(pos);
 	const TConstField Columns(TuneField::Columns);
 	const TConstField Params(TuneField::SqlParams);
-	for (TConstField i(TuneField::UserName); i.Value() < TuneField::SqlParam; i.Next())
+	std::set<TConstField> field_arr;
+	//формирование массива искомых настроек
+	for (TConstField i(TuneField::UserName); i < TuneField::Last; i.Next()) field_arr.insert(i);
+	//чтение файла:
+	while (file)
 	{
-		while (file)
+		//считывание строки настройки
+		string str;
+		getline(file, str);
+		if (!std::isalpha(str[0]))
 		{
-			//считывание строки настройки
-			string str;
-			getline(file, str);
-			if (!std::isalpha(str[0]))
+			//считываем данные по колонкам
+			if (Columns == str)
+				Read_Col_Val(file);
+			if (Params == str)
+				Read_Param_Val(file);
+			continue;
+		}
+		//сформировать массив из set<TConstField> от UserName до Last
+		//провер€ть вхождение значени€ из массива в строку
+		//если входит - удал€ем значение из массива и записываем в список настроек
+		//провер€ем есть ли в данной строке нужный параметр:
+		for (const TConstField& i: field_arr)
+			//если параметр содержитс€ в строке:
+			if (i.StrInclude(str))
 			{
-				//считываем данные по колонкам
-				if (Columns == str)
-					Read_Col_Val(file);
-				if (Params == str)
-					Read_Param_Val(file);
-				continue;
-			}
-			//берем позицию первой строки с настройками:
-			pos = file.tellg();
-			//провер€ем есть ли в данной строке запись о i-ой настройке
-			TStringParam tmp_field(str, i.Value());
-			if (!tmp_field.isEmpty())
-			{
-				fields.insert(tmp_field);
+				//записываем параметр в массив:
+				TStringParam tmp_field(str, i.Value());
+				if (!tmp_field.isEmpty()) fields.insert(tmp_field);
+				//удал€ем параметр из искомых:
+				field_arr.erase(i);
 				break;
 			}
-		}
-		//если настройки не найдено - ищем следующее поле настройки
-		file.seekg(pos);
 	}
 };
 
@@ -407,20 +439,25 @@ const ValType& NS_Tune::TUserData::getValueByID(const KeyType& par_ID, const set
 		if (s > par_ID) break;
 		if (s == par_ID) return s;
 	}
-	throw "ƒанные не найдены!";
+	throw string("ƒанные не найдены!");
 }
 
 string NS_Tune::TUserData::getFieldByCode(const TuneField& code, bool exit_on_er) const noexcept(false)
 {
 	try
 	{
-		const TStringParam& tmp = getValueByID(code, fields);
+		TStringParam tmp = getValueByID(code, fields);
 		if (!tmp.isEmpty()) return tmp.Value();
 	}
 	catch (const string& err)
 	{
 		if (!exit_on_er) throw err;
 		std::cerr << err << std::endl;
+	}
+	catch (...)
+	{
+		TConstField v(code);
+		std::cerr << "Ќе обработанна€ ошибка при получении параметра: " << v.toStr() << std::endl;
 	}
 	return string();
 }

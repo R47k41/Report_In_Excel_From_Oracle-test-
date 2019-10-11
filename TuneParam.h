@@ -22,14 +22,14 @@ namespace NS_Tune
 	//порядок указан такой же, как и файле настроек
 	enum class TuneField {
 		Empty = 0,
-		DataBase, Report, SqlParams, Columns,
+		DataBase, Report, SqlParams, Columns, Block_End,
 		UserName, Password, TNS, TemplateName, OutFileName, SqlFile, SqlText, SqlParam, Column,
 		SqlParamQuane, SqlParamType, SqlParamNote, SqlParamValue,
 		Last
 	};
 
 	//Типы данных для параметров в запросах:
-	enum class DataType { ErrorType = 0, String, Number, Float, Date, Last };
+	enum class DataType { ErrorType = 0, String, Integer, Double, Date, Last };
 
 	//Типы разделителей значений:
 	enum class Tags {Null = '\0', colon = ':', quotes = '\"', dash = '\\', rangle = '>', langle = '<',
@@ -38,9 +38,11 @@ namespace NS_Tune
 		open_param_tag=1000, close_param_tag,
 		Last};
 
-	int Str2Int(const string& str) noexcept(false);
+	template <typename T>
+	void Str2Type(const string& str, T& val) noexcept(false);
 
-	string Int2Str(int val) noexcept(true);
+	template <typename T>
+	string Type2Str(T val) noexcept(true);
 
 	//базовый интерфейс для константных значений:
 	template <typename T>
@@ -95,6 +97,8 @@ namespace NS_Tune
 		explicit TConstField(int x) : TConstant<TuneField>(x) {}
 		virtual bool isValid(bool exit_on_error = false) const noexcept(false)
 			{	return TConstant<TuneField>::isValid(TuneField::Empty, TuneField::Last, exit_on_error); }
+		//проверка содержания параметра в строке:
+		virtual bool StrInclude(const string& str) const;
 		//перевод значения в строку
 		virtual string toStr() const;
 		//проверка на пустоту:
@@ -157,7 +161,7 @@ namespace NS_Tune
 		TBaseParam(const TBaseParam& x) : src_data(x.src_data), value(x.value) {}
 		virtual bool isEmpty() const { return src_data.empty(); }
 		virtual string toStr() const { return src_data; }
-		string Value() const { return value; }
+		virtual string Value() const { return value; }
 		size_t srcSize() const { return src_data.size(); }
 		string srcSubStr(size_t posb, size_t pose) const { return src_data.substr(posb, pose - posb); }
 		size_t srcFind(const string& substr, size_t pos) const { return src_data.find(substr, pos); }
@@ -209,6 +213,8 @@ namespace NS_Tune
 		DataType DataType() const { return type.Value(); }
 		//получение коментария
 		string Comment() const { return comment; }
+		//получение кода параметра:
+		string getCode() const;
 		//установка значения пользователем:
 		bool setValByUser();
 		//значение строкой:

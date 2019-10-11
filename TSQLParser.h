@@ -127,7 +127,7 @@ namespace NS_Sql
 		//функция получения данных о секции:
 		TSection operator[](const TCtrlGroup::TCtrlSql& title) const;
 		//получить текст запроса:
-		string toStr(void) const;
+		string toStr(bool use_eoc = false) const;
 		//функция добавления блока запроса(+):
 		void AddSection(const TCtrlGroup::TCtrlSql& title, const string& str);
 		void AddSection(const TSection& sect);
