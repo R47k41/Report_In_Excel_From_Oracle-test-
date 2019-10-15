@@ -2,7 +2,6 @@
 #define TEXCEL_H_
 #include <string>
 #include <vector>
-#include "Logger.h"
 #include "libxl.h"
 
 namespace NS_Excel
@@ -30,10 +29,20 @@ namespace NS_Excel
 
 	//преобразование расширения в строку
 	string getTuneFormat(const TFormatTune& val);
-	//проверка является ли файл шаблоном:
-	bool isTemplate(const string& str);
 
 	//enum class TDataFormat { Default = 0, AsString, AsInteger, AsDate, AsBool };
+
+	//структура Дата
+	struct TExcelDate
+	{
+		int year;
+		unsigned int month;
+		unsigned int day;
+		unsigned int hour;
+		unsigned int minute;
+		unsigned int sec;
+		unsigned int msec;
+	};
 
 	//структураданных для формирования отчета:
 	class TExcelParam
@@ -59,130 +68,6 @@ namespace NS_Excel
 		//количество колонок:
 		int ColumnsCnt() const { return header.size(); }
 	};
-	
-	//классы использующиеся для формирования excel-документа:
-	class TExcelBook;
-	class TExcelBookSheet;
-	class TExcelBookFont;
-	class TExcelBookFormat;
-	
-	//Класс шрифта - http://www.libxl.com/font.html
-	class TExcelBookFont
-	{
-	private:
-		FontPtr pfont;//указатель на шрифт
-		//запрет операций
-		TExcelBookFont& operator=(const TExcelBookFont& par_fnt);
-		void initFont(BookPtr book) noexcept(false);
-		bool setFontType(const TFontType& ft);
-	public:
-		//конструктор
-//		explicit TExcelBookFont(const TExcelBook& book);
-		TExcelBookFont(const TExcelBookFont& par_fnt) : pfont(par_fnt.pfont) {};
-		explicit TExcelBookFont(BookPtr book) : pfont(nullptr) { initFont(book); }
-		explicit TExcelBookFont(FontPtr par_fnt) : pfont(par_fnt) {}
-		//деструктор
-		~TExcelBookFont() { pfont = nullptr; }
-		//валидность объекта:
-		inline bool isValid() const { return pfont; }
-		//размер шрифта
-		int getSize() const { return pfont->size(); }
-		void setSize(int val) { pfont->setSize(val); }
-		//утсановка типа шрифта
-		void setBold() { setFontType(TFontType::Bold); }
-		void setItalic() { setFontType(TFontType::Italic); }
-		void setStrikeOut() { setFontType(TFontType::StrikeOut); }
-		void setScript(const TScriptFontType& sft);
-		void setUnderLine(const TUnderLineFontType& uft);
-		bool isFontType(const TFontType& ft) const;
-		TScriptFontType isScript() const;
-		TUnderLineFontType isUnderLine() const;
-		//установка цвета шрифта:
-		bool setColor(const TColor& c);
-		TColor getColor() const;
-		//наименование шрифта:
-		bool setName(const string& s);
-		string getName() const { return string(pfont->name()); }
-		//получение ссылки на шрифт:
-		FontPtr getRef() { return pfont; }
-	};
-	
-//класс формата - http://www.libxl.com/format.html
-	class TExcelBookFormat
-	{
-	public:
-		using TNumFormat = libxl::NumFormat;
-		using TAlignHType = libxl::AlignH;
-		using TAlignVType = libxl::AlignV;
-		using TBorderStyle = libxl::BorderStyle;
-		using TDiagonal = libxl::BorderDiagonal;
-		using TFill = libxl::FillPattern;
-		//класс описывающий стороны для ячейки
-		enum class TBorderSide { Full, Left, Right, Top, Bottom, Diagonal, Background, Foreground };
-	private:
-		FormatPtr pformat;//ссылка на формат книги
-		//инициализация
-		void initFormat(BookPtr book) noexcept(false);
-	public:
-		//конструктор
-		explicit TExcelBookFormat(BookPtr book) : pformat(nullptr) { initFormat(book); }
-		explicit TExcelBookFormat(FormatPtr pf) : pformat(pf) {}
-		TExcelBookFormat(const TExcelBookFormat& pf) : pformat(pf.pformat) {};
-		//оператор присвоения:
-		TExcelBookFormat& operator=(const TExcelBookFormat& pf) { if (pf.pformat != pformat) pformat = pf.pformat; return *this; }
-		//		explicit TExcelBookFormat(const TExcelBook& book);
-		~TExcelBookFormat() { pformat = nullptr; }
-		//валидность:
-		inline bool isValid() const { return pformat; }
-		//шрифт
-		TExcelBookFont getFont() const noexcept(false);
-		bool setFont(TExcelBookFont& par_fnt) noexcept(false);
-		//числовой формат:
-		int getNumFormat() const;
-		void setNumFormat(TNumFormat val);
-		//выравнивание в ячейках:
-		//горизонтальное:
-		TAlignHType getAlignH() const { return (isValid() ? pformat->alignH() : TAlignHType(EmptyType)); }
-		void setAlignH(TAlignHType val) { if (isValid()) pformat->setAlignH(val); }
-		//вертикальное:
-		TAlignVType getAlignV() const{ return (isValid() ? pformat->alignV() : TAlignVType(EmptyType)); }
-		void setAlignV(TAlignVType val) { if (isValid()) pformat->setAlignV(val); }
-		//функция разделения текста: т.е. текст разбивается для заполнения ячейки
-		bool isWrap() const noexcept(false) { return pformat->wrap(); }
-		void setWrap(bool flg = true) { if (isValid()) pformat->setWrap(flg); }
-		//вращение текста(угол наклона):
-		int getRotation() const noexcept(false) { return pformat->rotation(); }
-		void setRotation(int par_rotation) { if (isValid()) pformat->setRotation(par_rotation); }
-		//отступ:
-		int getIndent() const noexcept(false) { return pformat->indent(); }
-		void setIndent(int par_indent) { if (isValid()) pformat->setIndent(par_indent); }
-		//уменьшение ячейки до размера текста
-		bool isShrink2Fit() const noexcept(false) { return pformat->shrinkToFit(); }
-		void setSrink2Fit(bool flg = true) { if (isValid()) pformat->setShrinkToFit(flg); }
-		//защита данных ячейки:
-		bool isLocked() const noexcept(false) { return pformat->locked(); }
-		void setLocked(bool flag = true) { if (isValid()) pformat->setLocked(flag); }
-		//Свойство скрыть ячейку/строку
-		bool isHidden() const noexcept(false) { return pformat->hidden(); }
-		void setHidden(bool flg = true) { if (isValid()) pformat->setHidden(flg); }
-		//работа с границами ячейки:
-		//установка границ ячейки:
-		void setBorderStyle(TBorderStyle style, const TBorderSide& side);
-		//получение стиля границ ячейки
-		TBorderStyle getBorderStyle(const TBorderSide& side) const noexcept(false);
-		//установка цвета границы ячейки:
-		void setBorderColor(TColor c, const TBorderSide& side);
-		//получение стиля цвета границы
-		TColor getBorderColor(const TBorderSide& side) const noexcept(false);
-		//диагональная черта:
-		void setDiagonalBorder(TDiagonal val) noexcept(false) { if (isValid()) pformat->setBorderDiagonal(val); }
-		TDiagonal getDiagonalBorder() const noexcept(false) { return pformat->borderDiagonal(); }
-		//заполнитель шаблона:
-		void setPatternFill(TFill val) noexcept(false) { if (isValid()) pformat->setFillPattern(val); }
-		TFill getPatternFill() const noexcept(false) { return pformat->fillPattern(); }
-		//получение ссылки на формат:
-		FormatPtr getRef() { return pformat; }
-	};
 
 	//базовый вспомогательный объект
 	class TBaseObj
@@ -192,32 +77,32 @@ namespace NS_Excel
 		const int max_val;
 		int val;//значение
 	public:
-			explicit TBaseObj(int par_val, int par_min = 0, int par_max = 0);
-			//проверка на пустое значение:
-			bool isEmpty() const { return val == EmptyType; }
-			//проверка корректности значения:
-			bool isValid() const;
-			//полчение значения:
-			int Value() const { return val; }
-			//получение значения следующего элемента:
-			int Next();
-			//получение значения предыдущего объекта:
-			int Prev();
-			//преобразование в int
-			operator int() { return val; }
-			//оператор присвоения:
-			TBaseObj& operator=(const TBaseObj& v);
-			TBaseObj& operator=(int x);
-			//сравнения
-			bool operator==(int x) const { return val == x; }
-			bool operator==(const TBaseObj& x) const { return val == x.val; }
-			bool operator<(const TBaseObj& x) const { return val < x.val; }
-			bool operator<(int x) const { return val < x; }
-			bool operator<=(int x) const { return val <= x; }
-			bool operator>=(int x) const { return val >= x; }
-			void clear() { val = min_val; }
-			bool isZero() const noexcept(true) { return val == 0; }
-			string getName(bool row) const;
+		explicit TBaseObj(int par_val, int par_min = 0, int par_max = 0);
+		//проверка на пустое значение:
+		bool isEmpty() const { return val == EmptyType; }
+		//проверка корректности значения:
+		bool isValid() const;
+		//полчение значения:
+		int Value() const { return val; }
+		//получение значения следующего элемента:
+		int Next();
+		//получение значения предыдущего объекта:
+		int Prev();
+		//преобразование в int
+		operator int() { return val; }
+		//оператор присвоения:
+		TBaseObj& operator=(const TBaseObj& v);
+		TBaseObj& operator=(int x);
+		//сравнения
+		bool operator==(int x) const { return val == x; }
+		bool operator==(const TBaseObj& x) const { return val == x.val; }
+		bool operator<(const TBaseObj& x) const { return val < x.val; }
+		bool operator<(int x) const { return val < x; }
+		bool operator<=(int x) const { return val <= x; }
+		bool operator>=(int x) const { return val >= x; }
+		void clear() { val = min_val; }
+		bool isZero() const noexcept(true) { return val == 0; }
+		string getName(bool row) const;
 	};
 
 	//вспомогательный класс Ячейка:
@@ -247,7 +132,7 @@ namespace NS_Excel
 		//получение ссылки на предыдущую ячейку в столбце:
 		int getPrevColCell() { return col.Prev(); }
 		//операторы сравнения:
-		bool operator==(const TExcelCell& x) const  { return row == x.row and col == x.col; }
+		bool operator==(const TExcelCell& x) const { return row == x.row and col == x.col; }
 		bool operator<(const TExcelCell& x) const { return row < x.row and col < x.col; }
 		bool operator<=(const TExcelCell& x) const { return *this == x or *this < x; }
 		void clear() { row.clear(); col.clear(); }
@@ -261,13 +146,13 @@ namespace NS_Excel
 	private:
 		TExcelCell first;
 		TExcelCell last;
-		enum class TObjType {Row, Col};
+		enum class TObjType { Row, Col };
 		bool inRange(int val, const TObjType& t) const;
 	public:
 		//конструкторы:
-		TExcelRange(int first_row, int first_col, int last_row, int last_col) : 
+		TExcelRange(int first_row, int first_col, int last_row, int last_col) :
 			first(first_row, first_col), last(last_col, last_col) {}
-		TExcelRange(const TExcelCell& first_cell, const TExcelCell& last_cell) : 
+		TExcelRange(const TExcelCell& first_cell, const TExcelCell& last_cell) :
 			first(first_cell), last(last_cell) {}
 		//проверка на валидность
 		bool isValid() const { return first.isValid() and last.isValid() and first <= last; }
@@ -282,6 +167,114 @@ namespace NS_Excel
 		TExcelCell operator()(int row_indx, int col_indx) const;
 	};
 
+	//классы использующиеся для формирования excel-документа:
+
+	class TExcelBook;
+	class TExcelBookSheet;
+	class TExcelBookFormat;
+	class TExcelBookFont;
+
+	//класс Excel-книга - http://www.libxl.com/workbook.html
+	class TExcelBook
+	{
+	public:
+		//первая строка заголовка - т.к. библиотека для работы с excel вставляет свою строку:
+		using TType = libxl::SheetType;
+		//libxl::SheetState;
+	private:
+		int HeaderRow;
+		BookPtr book;
+		//запрет операции присвоения
+		TExcelBook& operator=(const TExcelBook& b);
+		//запрет инициализацией этим же объектом:
+		TExcelBook(const TExcelBook& b);
+		//умолчательная инициализация:
+		void CrtBook(int header_row = 0) noexcept(true);
+		enum class LoadType { Full, Sheet, Rows };
+		struct TLoadParam { string file; int Indx; int first; int last; string tmp_file; };
+		//функция загрузки:
+		bool loadFromFile(const TLoadParam& param, const LoadType& lt, bool raise_err) noexcept(false);
+		//сообщение об ошибке:
+		string getError() const noexcept(true);
+		//сформировать имя листа по умолчанию:
+		string getDefaultSheetName() const noexcept(true);
+	public:
+		//конструкторы:
+		TExcelBook(int header_row = 0) { CrtBook(header_row); }
+		//деструктор:
+		~TExcelBook() { if (isValid()) book->release(); book = nullptr; }
+		//валидность объекта:
+		bool isValid(bool raise_err = false) const noexcept(false);
+		//заполняем заголовок из массива строк:
+		void setHeaderByStrArr(const TStrArr& arr) noexcept(true);
+		//инициализация книги по параметрам
+		bool initByParam(const TExcelParam& param) noexcept(true);
+		//загрузка из файла:
+		bool load(const string& file, bool raise_err = false, const string& tmp_file = string()) noexcept(false);
+		//загрузка листа из файла:
+		bool loadSheetOnly(const string& file, int sheet_indx,
+			bool raise_err = false, const string& tmp_file = string()) noexcept(false);
+		//загрузка строк данных из листа файла:
+		bool loadSheetRowsOnly(const string& file, int sheet_indx, int first_row, int last_row,
+			bool raise_err = false, const string& tmp_file = string());
+		//сохранение данных в файл:
+		bool SaveToFile(const string& file, bool use_tmp = false, bool raise_err = false) noexcept(false);
+		//загрузка информации о страницах: число и имена страниц - становятся доступны
+		bool LoadSheetsInfo(const string& file) noexcept(false) { if (isValid()) return book->loadInfo(file.c_str()); return false; };
+		//добавление страницы:
+		TExcelBookSheet AddSheet(const string& name = "", bool asActive = false) noexcept(false);
+		//втсавка страницы:
+		TExcelBookSheet InsertSheet(int index, const string& name, SheetPtr initSheet = nullptr) noexcept(false);
+		//получение страцницы по индексу:
+		TExcelBookSheet getSheetByIndex(int index) const noexcept(false);
+		//получение имени страцниы по индексу:
+		string getSheetNameByIndex(int index) const noexcept(false);
+		//получение типа страницы:
+		TType getSheetTypeByIndex(int indx) const noexcept(false) { return book->sheetType(indx); };
+		//переместить страницу:
+		bool MoveSheetByIndex(int old_indx, int new_indx) noexcept(false);
+		//удаление страницы:
+		bool DelSheetByIndex(int index) noexcept(false);
+		//получение числа страниц в рабочей книге:
+		int SheetCount() const noexcept(false) { return book->sheetCount(); };
+		//добавление формата в книгу:
+		TExcelBookFormat AddFormat(FormatPtr initFormat = nullptr) noexcept(false);
+		//получение формата по индексу:
+		TExcelBookFormat getFormatByIndex(int index) noexcept(false);
+		//количество форматов в книге:
+		int FormatCount() const noexcept(true) { return (isValid() ? book->formatSize() : EmptyType); }
+		//добавление шрифта в книгу:
+		TExcelBookFont AddFont(FontPtr initFont = nullptr) noexcept(false);
+		//получение ссылки на шрифт по индексу:
+		TExcelBookFont getFontByIndex(int index) noexcept(false);
+		//число шрифтов в книге:
+		int getFontCount() const noexcept(true) { return (isValid() ? book->fontSize() : EmptyType); }
+		//индекс активной страницы:
+		int getActiveSheet() const noexcept(false) { return (isValid() ? book->activeSheet() : EmptyType); }
+		//установить страницу активной:
+		bool setActiveSheet(int index) noexcept(true);
+		//проверка является ли книга - шаблоном:
+		bool isTemplate() const noexcept(true) { return (isValid() ? book->isTemplate() : false); }
+		//установка книги в качестве шаблона:
+		bool setAsTemplate(bool flg = true) noexcept(true);
+		//установка локали:
+		bool setLocale(const string& locale) noexcept(true);
+		//определяются ли ячейки как ссылки вида: RxxCxx
+		bool isRxCxRef() const noexcept(true) { return (isValid() ? book->refR1C1() : false); }
+		//определять ячейки как ссылки вида RxxCxx:
+		bool setRxCxRef(bool flg = true) noexcept(true);
+		//данные о шрифте по умолчанию:
+		void DefultFont(string& font_name, int& size) noexcept(false);
+		//установить шрифт по умолчанию:
+		bool setDefaultFont(const string& font_name, int size) noexcept(true);
+		//упаковка даты в тип double:
+		double Date2Double(const TExcelDate& date) noexcept(false);
+		//представление double в виде даты:
+		bool Double2Date(double value, TExcelDate& date) noexcept(false);
+		//строка заголовка:
+		int getHeaderRow() const noexcept(true) { return HeaderRow; }
+	};
+
 	//класс страница/лист excel-документа: http://www.libxl.com/spreadsheet.html
 	class TExcelBookSheet
 	{
@@ -289,9 +282,6 @@ namespace NS_Excel
 		using TErrorType = libxl::ErrorType;
 	private:
 		SheetPtr sheet;
-		//запрет присвоения и инициализации
-		TExcelBookSheet(const TExcelBookSheet& sh);
-		TExcelBookSheet& operator=(const TExcelBookSheet& val);
 		//инициализация страницы:
 		void initSheet(BookPtr book, const string& name, bool active_flg) noexcept(false);
 		//вставка строки или столбца:
@@ -299,9 +289,13 @@ namespace NS_Excel
 	public:
 		//конструктор:
 		TExcelBookSheet(BookPtr book, const string& name, bool active_flg = true);
+		TExcelBookSheet(const TExcelBookSheet& sh) : sheet(sh.sheet) {};
 		explicit TExcelBookSheet(SheetPtr sh) : sheet(sh) {}
 		//деструктор:
 		~TExcelBookSheet() { sheet = nullptr; }
+		//присвоенение
+		TExcelBookSheet& operator=(const SheetPtr sh) { if (sheet != sh) sheet = sh; return *this; }
+		TExcelBookSheet& operator=(const TExcelBookSheet& sh) { return operator=(sh.sheet); }
 		//валидностьобъекта:
 		bool isValid() const { return sheet; }
 		//получение ссылки на страницу/лист:
@@ -429,115 +423,129 @@ namespace NS_Excel
 		//установка отображения сетки:
 		void ShowGreedlines(bool flg = true) { if (isValid()) sheet->setDisplayGridlines(flg); }
 	};
+	
+	//класс формата - http://www.libxl.com/format.html
+	class TExcelBookFormat
+	{
+	public:
+		using TNumFormat = libxl::NumFormat;
+		using TAlignHType = libxl::AlignH;
+		using TAlignVType = libxl::AlignV;
+		using TBorderStyle = libxl::BorderStyle;
+		using TDiagonal = libxl::BorderDiagonal;
+		using TFill = libxl::FillPattern;
+		//класс описывающий стороны для ячейки
+		enum class TBorderSide { Full, Left, Right, Top, Bottom, Diagonal, Background, Foreground };
+	private:
+		FormatPtr pformat;//ссылка на формат книги
+		//инициализация
+		void initFormat(BookPtr book) noexcept(false);
+	public:
+		//конструктор
+		//explicit TExcelBookFormat(BookPtr book) : pformat(nullptr) { initFormat(book); }
+		explicit TExcelBookFormat(FormatPtr pf) : pformat(pf) {}
+		TExcelBookFormat(const TExcelBookFormat& pf) : pformat(pf.pformat) {};
+		//оператор присвоения:
+		TExcelBookFormat& operator=(FormatPtr format) { if (pformat != format) pformat = format; return *this; }
+		TExcelBookFormat& operator=(const TExcelBookFormat& pf) { return operator=(pf.pformat); }
+		//		explicit TExcelBookFormat(const TExcelBook& book);
+		~TExcelBookFormat() { pformat = nullptr; }
+		//валидность:
+		inline bool isValid() const { return pformat; }
+		//шрифт
+		TExcelBookFont getFont() const noexcept(false);
+		bool setFont(TExcelBookFont& par_fnt) noexcept(false);
+		//числовой формат:
+		int getNumFormat() const;
+		void setNumFormat(TNumFormat val);
+		//выравнивание в ячейках:
+		//горизонтальное:
+		TAlignHType getAlignH() const { return (isValid() ? pformat->alignH() : TAlignHType(EmptyType)); }
+		void setAlignH(TAlignHType val) { if (isValid()) pformat->setAlignH(val); }
+		//вертикальное:
+		TAlignVType getAlignV() const { return (isValid() ? pformat->alignV() : TAlignVType(EmptyType)); }
+		void setAlignV(TAlignVType val) { if (isValid()) pformat->setAlignV(val); }
+		//функция разделения текста: т.е. текст разбивается для заполнения ячейки
+		bool isWrap() const noexcept(false) { return pformat->wrap(); }
+		void setWrap(bool flg = true) { if (isValid()) pformat->setWrap(flg); }
+		//вращение текста(угол наклона):
+		int getRotation() const noexcept(false) { return pformat->rotation(); }
+		void setRotation(int par_rotation) { if (isValid()) pformat->setRotation(par_rotation); }
+		//отступ:
+		int getIndent() const noexcept(false) { return pformat->indent(); }
+		void setIndent(int par_indent) { if (isValid()) pformat->setIndent(par_indent); }
+		//уменьшение ячейки до размера текста
+		bool isShrink2Fit() const noexcept(false) { return pformat->shrinkToFit(); }
+		void setSrink2Fit(bool flg = true) { if (isValid()) pformat->setShrinkToFit(flg); }
+		//защита данных ячейки:
+		bool isLocked() const noexcept(false) { return pformat->locked(); }
+		void setLocked(bool flag = true) { if (isValid()) pformat->setLocked(flag); }
+		//Свойство скрыть ячейку/строку
+		bool isHidden() const noexcept(false) { return pformat->hidden(); }
+		void setHidden(bool flg = true) { if (isValid()) pformat->setHidden(flg); }
+		//работа с границами ячейки:
+		//установка границ ячейки:
+		void setBorderStyle(TBorderStyle style, const TBorderSide& side);
+		//получение стиля границ ячейки
+		TBorderStyle getBorderStyle(const TBorderSide& side) const noexcept(true);
+		//установка цвета границы ячейки:
+		void setBorderColor(TColor c, const TBorderSide& side);
+		//получение стиля цвета границы
+		TColor getBorderColor(const TBorderSide& side) const noexcept(false);
+		//диагональная черта:
+		void setDiagonalBorder(TDiagonal val) noexcept(false) { if (isValid()) pformat->setBorderDiagonal(val); }
+		TDiagonal getDiagonalBorder() const noexcept(false) { return pformat->borderDiagonal(); }
+		//заполнитель шаблона:
+		void setPatternFill(TFill val) noexcept(false) { if (isValid()) pformat->setFillPattern(val); }
+		TFill getPatternFill() const noexcept(false) { return pformat->fillPattern(); }
+		//получение ссылки на формат:
+		//FormatPtr getRef() { return pformat; }
+		friend bool NS_Excel::TExcelBookSheet::setCellFormat(const TExcelCell& cell, TExcelBookFormat& format) noexcept(false);
+		friend void TExcelBook::setHeaderByStrArr(const TStrArr& arr) noexcept(true);
+	};
 
-	//класс Excel-книга:
-	class TExcelBook
+	//Класс шрифта - http://www.libxl.com/font.html
+	class TExcelBookFont
 	{
 	private:
-		BookPtr book;
-		//запрет операции присвоения
-		TExcelBook& operator=(const TExcelBook& b);
-		//запрет инициализацией этим же объектом:
-		TExcelBook(const TExcelBook& b);
-		//умолчательная инициализация:
-		void CrtBook() { book = xlCreateBook(); }
-		enum class LoadType {Full, Sheet, Rows};
-		struct TLoadParam { string file; int Indx; int first; int last; string tmp_file; };
-		//функция загрузки:
-		bool loadFromFile(const TLoadParam& param, const LoadType& lt, bool raise_err) noexcept(false);
+		FontPtr pfont;//указатель на шрифт
+		void initFont(BookPtr book) noexcept(false);
+		bool setFontType(const TFontType& ft);
 	public:
-		//конструкторы:
-		TExcelBook() { CrtBook(); }
-		//деструктор:
-		~TExcelBook() { if (isValid()) book->release(); book = nullptr; }
+		//конструктор
+//		explicit TExcelBookFont(const TExcelBook& book);
+		TExcelBookFont(const TExcelBookFont& par_fnt) : pfont(par_fnt.pfont) {};
+//		explicit TExcelBookFont(BookPtr book) : pfont(nullptr) { initFont(book); }
+		explicit TExcelBookFont(FontPtr par_fnt) : pfont(par_fnt) {}
+		//деструктор
+		~TExcelBookFont() { pfont = nullptr; }
+		//присвоенение:
+		TExcelBookFont& operator=(const FontPtr font) { if (font != pfont) pfont = font; return *this; }
+		TExcelBookFont& operator=(const TExcelBookFont& par_fnt) { return operator=(par_fnt.pfont); };
 		//валидность объекта:
-		bool isValid() const noexcept(true) { return book; }
-		//загрузка из файла:
-		bool load(const string& file, bool raise_err = false, const string& tmp_file = string()) noexcept(false);
-		//загрузка листа из файла:
-		bool loadSheetOnly(const string& file, int sheet_indx, 
-			bool raise_err = false, const string& tmp_file = string()) noexcept(false);
-		//загрузка строк данных из листа файла:
-		bool loadSheetRowsOnly(const string& file, int sheet_indx, int first_row, int last_row, 
-			bool raise_err = false, const string& tmp_file = string());
-		//сохранение данных в файл:
-		bool SaveToFile(const string& file, bool use_tmp = false, bool raise_err = false) noexcept(false);
-		//загрузка информации о страницах: число и имена страниц - становятся доступны
-		bool LoadSheetsInfo(const string& file) noexcept(false) { if (isValid()) return book->loadInfo(file.c_str()); return false; };
-
+		inline bool isValid() const { return pfont; }
+		//размер шрифта
+		int getSize() const { return pfont->size(); }
+		void setSize(int val) { pfont->setSize(val); }
+		//утсановка типа шрифта
+		void setBold() { setFontType(TFontType::Bold); }
+		void setItalic() { setFontType(TFontType::Italic); }
+		void setStrikeOut() { setFontType(TFontType::StrikeOut); }
+		void setScript(const TScriptFontType& sft);
+		void setUnderLine(const TUnderLineFontType& uft);
+		bool isFontType(const TFontType& ft) const;
+		TScriptFontType isScript() const;
+		TUnderLineFontType isUnderLine() const;
+		//установка цвета шрифта:
+		bool setColor(const TColor& c);
+		TColor getColor() const;
+		//наименование шрифта:
+		bool setName(const string& s);
+		string getName() const { return string(pfont->name()); }
+		//получение ссылки на шрифт:
+		//FontPtr getRef() { return pfont; }
+		friend bool NS_Excel::TExcelBookFormat::setFont(TExcelBookFont& par_fnt) noexcept(false);
 	};
-
-	//класс-надстройка для создания интерфейса для работы с excel-файлом
-	class TExcel
-	{
-	private:
-		enum DefVal {Empty = -1, MainIndx = 0, TitleIndx = 1,
-			FontSize = 10, };
-		BookPtr file;//excel-файл
-		SheetPtr active_sh;//активный рабочий лист
-		//Format* main_frmt;//основной формат
-		string name;//имя выходного файла
-		//std::vector<TDataType> OrdColumnsType;
-		//запрещаем инициализацию и присвоение
-		TExcel(const TExcel& exl);
-		TExcel& operator=(const TExcel& exl);
-		//функция полуения имени выходного файла по умолчанию(чтобы можно было менять на что-то более разумное):
-		virtual void setDefOutFileName(void);
-		//функция создания шрифта по умолчанию:
-		virtual void setDefFont(void) noexcept(false);
-		//функция создания формата по умолчанию:
-		virtual void setDefFormat(void) noexcept(false);
-		//функция установки шрифта для заголовка:
-		virtual void setTitleFont(Font* src = 0);
-		//функция установки формата для заголовка:
-		virtual void setTitleFormat(Format* src = 0);
-		//функция очистки данных по excel-файлу
-		virtual void clear(void);
-		//функция получения первой/последней строки с данными:
-		int getUsedRow(Sheet* sh, bool last = false) const;
-		//функция получения первой/последней ячейки с данными
-		int getUsedCell(Sheet* sh, bool last = false) const;
-		//функция заполнения формата полей по шаблону(В шаблоне формат должен быть заполнен корректно):
-		//указывается лист и строка заголовка, после которой считываем формат ячеек:
-		void FillColumnsFormat(int TitleRow = 1, int ShIndex = DefVal::Empty);
-	public:
-		//инициализация - как открытие файла, если файла нет - создаем
-		//для инициализации используется шаблон отчета,
-		//чтобы распознать форматы строк и вставляемые в них значения
-		//если файл не указан - вставкаданных идет по умолчанию, как Общий формат
-		TExcel(const string& tmp_name = "", const string& out_name = "", bool crt_active_sh = false);
-		//деинициализация
-		virtual ~TExcel(void) { clear(); };
-		//является ли книга шаблоном:
-		bool isTemplate(void) const { return file->isTemplate(); };
-		//копирование для шрифта
-		virtual void copyFont(int index, Font* src);
-		//копирование для формата:
-		virtual void copyFormat(int index, Format* src);
-		//функция получения числа страниц:
-		int SheetCount(void) const { return (file ? file->sheetCount() : DefVal::Empty); }
-		//функция добавления страницы и делаем ее активной:
-		bool AddSheet(const string& name, bool set_as_active = false);
-		//функция получения активной страницы:
-		int ActiveSheet(void) const { return file ? file->activeSheet() : DefVal::Empty; }
-		//функция установки активной страницы:
-		void setActiveSheet(int index);
-		//функция получения первой заполненой строки:
-		int getFirstUsedfRow(int SheetIndex) const { return getUsedRow(active_sh, false); };
-		//функция получения последней заполненой строки:
-		int getLastUsedRow(int SheetIndex) const { return getUsedRow(active_sh, true); };
-		//функция получения первой ячейки с данными в строке
-		int getFirstUsedCell(int SheetIndex) const { return getUsedCell(active_sh, false); };
-		//функция получения последней ячейки с данными в строке
-		int getLastUsedCell(int SheetIndex) const { return getUsedCell(active_sh, true); };
-		inline bool WriteBool(bool val, int row, int col) { return active_sh->writeBool(row, col, val); };
-		inline bool WriteBlank(int row, int col) { return active_sh->writeBlank(row, col, file->format(DefVal::MainIndx)); };
-		inline bool WriteNum(double val, int row, int col) { return active_sh->writeNum(row, col, val); };
-		inline bool WriteSrt(const string& str, int row, int col) { return active_sh->writeStr(row, col, str.c_str()); };
-		//функция чтения данных:
-		inline bool ReadBool(int row, int col) const { return active_sh->readBool(row, col); };
-		inline double ReadNum(int row, int col) const { return active_sh->readNum(row, col); };
-		inline string ReadStr(int row, int col) const { return string(active_sh->readStr(row, col)); };
-	};
+	
 };
 #endif

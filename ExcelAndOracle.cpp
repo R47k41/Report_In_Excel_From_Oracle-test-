@@ -133,13 +133,15 @@ void TOracleTest()
 	using NS_Oracle::TDate;
 	using NS_Oracle::UInt;
 	using std::string;
+	using std::cout;
+	using std::endl;
 	TConnectParam param{ "ZP_IBS", "IBS", "SML_SM", false, 10 };
 	string sql = "select ID, Code, Name, DayTo from Admin.M_User";
 	TDBConnect connect(param);
 	TStatement st(connect, sql, param.prefetch_rows);
 	TResultSet rs(st);
 	std::cout << "Число выбранных столбцов: " << rs.getColumnsCnt() << '\n';
-	for (UInt i = 0; i < rs.getColumnsCnt(); i++)
+	for (UInt i = 1; i < rs.getColumnsCnt(); i++)
 		std::cout << "Тип " << i << " столбца: " << static_cast<int>(rs.getColumnType(i)) << std::endl;
 	std::cin.get();
 	return;

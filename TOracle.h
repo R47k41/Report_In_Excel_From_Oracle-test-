@@ -23,6 +23,7 @@ namespace NS_Oracle
 	using oracle::occi::Statement;
 	using oracle::occi::ResultSet;
 	using oracle::occi::MetaData;
+	using oracle::occi::SQLException;
 	using EnvironmentPtr = Environment*;
 	using ConnectionPtr = Connection*;
 	using StatementPtr = Statement*;
@@ -201,6 +202,7 @@ namespace NS_Oracle
 	};
 
 	//класс Результирующий набор:
+	//https://docs.oracle.com/en/database/oracle/oracle-database/19/lncpp/resultset-class.html#GUID-9E0C0A68-57B7-4C77-8865-A306BF6953CA
 	class TResultSet: public TBaseSet
 	{
 	private:
@@ -224,11 +226,12 @@ namespace NS_Oracle
 		//проверка валидности:
 		bool isValid() const { return result; };
 		//набор функция получения значения параметра:
-		int getIntVal(UInt paramIndx) const { return result->getInt(paramIndx); };
-		double getDoubleVal(UInt paramIndx) const { return result->getDouble(paramIndx); };
-		float getFloatVal(UInt paramIndx) const { return result->getFloat(paramIndx); };
-		string getStringVal(UInt paramIndx) const { return result->getString(paramIndx); };
-		TDate getDateVal(UInt paramIndx) const { return result->getDate(paramIndx); };
+		//колонки при считывании начинаются с 1!!!
+		int getIntVal(UInt paramIndx) const noexcept(false) { return result->getInt(paramIndx); };
+		double getDoubleVal(UInt paramIndx) const noexcept(false) { return result->getDouble(paramIndx); };
+		float getFloatVal(UInt paramIndx) const noexcept(false) { return result->getFloat(paramIndx); };
+		string getStringVal(UInt paramIndx) const noexcept(false) { return result->getString(paramIndx); };
+		TDate getDateVal(UInt paramIndx) const noexcept(false) { return result->getDate(paramIndx); };
 		string getDateAsStrVal(UInt paramIndx, const string& date_frmt = "DD.MM.YYYY") const noexcept(true);
 		//функции проверки значений полей/параметров:
 		bool isNullVal(UInt paramIndx) const { return result->isNull(paramIndx); };
@@ -240,7 +243,7 @@ namespace NS_Oracle
 		//проверка на урезание данных строки:
 		bool isTruncatedVal(UInt paramIndx) const { return result->isTruncated(paramIndx); };
 		//получение статуса
-		TDataSetState Next(UInt RowsCnt = 1) { return (isValid() ? result->status() : TDataSetState::END_OF_FETCH); };
+		TDataSetState Next(UInt RowsCnt = 1) { return (isValid() ? result->next() : TDataSetState::END_OF_FETCH); };
 		//получение длины параметра перед truncate
 		int getPreTruncLenght(UInt paramIndx) const { return result->preTruncationLength(paramIndx); };
 		//вызывать ошибку при отрезанной длине параметра:

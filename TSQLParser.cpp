@@ -186,7 +186,7 @@ bool NS_Sql::TCtrlGroup::IsCorrectSym(const string& str, std::size_t pos, const 
 	if (pos == 0 and str.size() > (pos + cnt + 1)
 		and !isalnum(str[pos + cnt + 1])) return true;
 	//проверяем, что это не часть слова:
-	if (pos - 1 >= 0 and isalnum(str[pos - 1]) and
+	if (pos != 0 and isalnum(str[pos - 1]) and
 		(pos + cnt + 1) < str.size() and  isalnum(str[pos + cnt + 1])) return false;
 	//проверяем не вложен ли разделитель в подзапрос:
 	for (pair<char, char> v : excluded_symb)

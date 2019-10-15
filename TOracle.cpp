@@ -444,7 +444,6 @@ NS_Oracle::TResultSet::~TResultSet()
 
 string NS_Oracle::TResultSet::getDateAsStrVal(UInt paramIndx, const string& date_frmt) const noexcept(true)
 {
-	using oracle::occi::SQLException;
 	using std::cerr;
 	using std::endl;
 	try
@@ -466,7 +465,7 @@ string NS_Oracle::TResultSet::getDateAsStrVal(UInt paramIndx, const string& date
 
 NS_Oracle::TType NS_Oracle::TResultSet::getColumnType(UInt colIndx) const noexcept(false)
 {
-	if (colIndx > getColumnsCnt())
-		throw std::out_of_range("Индекс колонки превышает реальное число колонок!");
-	return TType(meta[colIndx].getInt(MetaData::ATTR_DATA_TYPE));
+	if (colIndx - 1 > getColumnsCnt() or colIndx < 1)
+		throw std::out_of_range("Индекс колонки превышает реальное число колонок или нулевой!!!");
+	return TType(meta[colIndx-1].getInt(MetaData::ATTR_DATA_TYPE));
 }
