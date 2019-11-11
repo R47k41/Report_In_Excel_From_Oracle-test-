@@ -93,7 +93,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(CPP_LIB)oracle\occi-oracle\sdk\include\;$(CPP_LIB)boost\libs\regex\src\;$(CPP_LIB)LibXL\libxl-3.8.5.0\include_cpp\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(CPP_LIB)oracle\occi-oracle\sdk\include\;$(CPP_LIB)boost\boost\date_time;$(CPP_LIB)boost\boost\filesystem\;$(CPP_LIB)LibXL\libxl-3.8.5.0\include_cpp\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -102,8 +102,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(CPP_LIB)LibXL\libxl-3.8.5.0\lib;$(CPP_LIB)boost\boost;$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc\oraocci18d.lib;$(CPP_LIB)LibXL\libxl-3.8.5.0\lib\libxl.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(CPP_LIB)LibXL\libxl-3.8.5.0\lib;$(CPP_LIB)boost\libs\filesystem;$(CPP_LIB)boost\libs\date_time;$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc\oraocci18d.lib;$(CPP_LIB)LibXL\libxl-3.8.5.0\lib\libxl.lib;$(CPP_LIB)boost\stage\lib\libboost_date_time-vc142-mt-gd-x32-1_70.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
@@ -169,14 +169,18 @@
     <ClCompile Include="DoReport.cpp" />
     <ClCompile Include="ExcelAndOracle.cpp" />
     <ClCompile Include="Logger.cpp" />
+    <ClCompile Include="TConstants.cpp" />
+    <ClCompile Include="TConverter.cpp" />
     <ClCompile Include="TExcel.cpp" />
     <ClCompile Include="TOracle.cpp" />
     <ClCompile Include="TSQLParser.cpp" />
     <ClCompile Include="TuneParam.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Constants.h" />
     <ClInclude Include="Logger.h" />
+    <ClInclude Include="Logger.hpp" />
+    <ClInclude Include="TConstants.h" />
+    <ClInclude Include="TConverter.h" />
     <ClInclude Include="TExcel.h" />
     <ClInclude Include="TOracle.h" />
     <ClInclude Include="TSQLParser.h" />

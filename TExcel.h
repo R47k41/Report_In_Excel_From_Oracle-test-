@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "libxl.h"
+#include "TConstants.h"
 
 namespace NS_Excel
 {
@@ -18,17 +19,12 @@ namespace NS_Excel
 	using TStrArr = std::vector<std::string>;
 	using TDataTypeArr = std::vector<TDataType>;
 
-	//константа - ошибка данных дл€ enum:
-	const int EmptyType = -1;
-	//константы дл€ формата файлов
-	enum class TFormatTune {Empty = -1, xlt, xls, xlsx, DefExt, DefName, DefSh};
-	//константы дл€ типа шрифта:
-	enum class TFontType {Italic, Bold, StrikeOut, UnderLine, Script};
 	using TScriptFontType = libxl::Script;
 	using TUnderLineFontType = libxl::Underline;
 
-	//преобразование расширени€ в строку
-	string getTuneFormat(const TFormatTune& val);
+	using NS_Const::EmptyType;
+	using NS_Const::TExclBaseTune;
+	using NS_Const::TConstExclTune;
 
 	//enum class TDataFormat { Default = 0, AsString, AsInteger, AsDate, AsBool };
 
@@ -489,7 +485,7 @@ namespace NS_Excel
 		//получение стил€ границ €чейки
 		TBorderStyle getBorderStyle(const TBorderSide& side) const noexcept(true);
 		//установка цвета границы €чейки:
-		void setBorderColor(TColor c, const TBorderSide& side);
+		void setBorderColor(const TColor& c, const TBorderSide& side);
 		//получение стил€ цвета границы
 		TColor getBorderColor(const TBorderSide& side) const noexcept(false);
 		//диагональна€ черта:
@@ -507,6 +503,9 @@ namespace NS_Excel
 	// ласс шрифта - http://www.libxl.com/font.html
 	class TExcelBookFont
 	{
+	public:
+		//константы дл€ типа шрифта:
+		enum class TFontType { Italic, Bold, StrikeOut, UnderLine, Script };
 	private:
 		FontPtr pfont;//указатель на шрифт
 		void initFont(BookPtr book) noexcept(false);

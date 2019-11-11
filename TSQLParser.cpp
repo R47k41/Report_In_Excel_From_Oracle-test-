@@ -1,11 +1,11 @@
-#include "TSQLParser.h"
-#include "Logger.h"
 #include <sstream>
 #include <iterator>
 #include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <set>
+#include "TSQLParser.h"
+#include "Logger.h"
 
 using std::string;
 using std::vector;
@@ -13,6 +13,7 @@ using std::pair;
 using std::cout;
 using std::endl;
 using std::cerr;
+using NS_Logger::TLog;
 
 namespace NS_Sql
 {
@@ -24,6 +25,7 @@ namespace NS_Sql
 	void Trim_Left(string& str);
 	void Trim_Right(string& str);
 	void Trim(string& str);
+	
 	//класс для сравнения со строками в качестве предиката:
 	class TTrimObj
 	{
@@ -31,7 +33,7 @@ namespace NS_Sql
 		string symb;
 	public:
 		TTrimObj(const string& arr) : symb(arr) {};
-		TTrimObj(const TCtrlGroup::TCtrlSql& title);
+		TTrimObj(const TConstSql& title);
 		//манипуляция с символами:
 		bool operator()(const char& ch) const;
 		//операция сравнения секторов по имени:
@@ -47,9 +49,9 @@ string NS_Sql::LowerCase(const string& str)
 	return result;
 }
 
-NS_Sql::TTrimObj::TTrimObj(const TCtrlGroup::TCtrlSql& title)
+NS_Sql::TTrimObj::TTrimObj(const TConstSql& title)
 {
-	symb = TCtrlGroup::CtrlSql2Str(title);
+	symb = title.toStr();
 }
 
 bool NS_Sql::TTrimObj::operator()(const char& ch) const
@@ -67,27 +69,24 @@ bool NS_Sql::TTrimObj::operator()(const TSection& sect) const
 
 void NS_Sql::DeleteServiceSymb(string& str)
 {
-	return;
-	string syms = { TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::NL),
-		TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::Tab) };
+	string syms = { TConstCtrlSym(CtrlSym::Space).toChar(), TConstCtrlSym(CtrlSym::NL).toChar(),
+		TConstCtrlSym(CtrlSym::Tab).toChar() };;
 	//std::transform(str.begin(), str.end(), str.begin(), TTrimObj(syms));
 	std::copy_if(str.begin(), str.end(), std::insert_iterator<string>(str, str.begin()), TTrimObj(syms));
 };
 
 void NS_Sql::Trim_Left(string& str)
 {
-	string syms = { TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::Space),
-		TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::NL),
-		TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::Tab) };
+	string syms = { TConstCtrlSym(CtrlSym::Space).toChar(), TConstCtrlSym(CtrlSym::NL).toChar(),
+		TConstCtrlSym(CtrlSym::Tab).toChar() };
 	string::const_iterator b = std::find_if_not(str.begin(), str.end(), TTrimObj(syms));
 	if (b >= str.begin()) str.erase(str.begin(), b);
 };
 
 void NS_Sql::Trim_Right(string& str)
 {
-	string syms = { TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::Space),
-		TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::NL),
-		TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::Tab) };
+	string syms = { TConstCtrlSym(CtrlSym::Space).toChar(), TConstCtrlSym(CtrlSym::NL).toChar(), 
+		TConstCtrlSym(CtrlSym::Tab).toChar() };
 	string::const_reverse_iterator b = std::find_if_not(str.rbegin(), str.rend(), TTrimObj(syms));
 	if (b != str.rbegin()) str.erase(b.base(), str.end());
 };
@@ -97,164 +96,6 @@ void NS_Sql::Trim(string& str)
 	Trim_Left(str);
 	Trim_Right(str);
 }
-
-NS_Sql::TCtrlGroup::TCtrlSql NS_Sql::operator+(const NS_Sql::TCtrlGroup::TCtrlSql& val, int x) noexcept(true)
-{
-	int v = int(val);
-	if (v + x <= int(NS_Sql::TCtrlGroup::TCtrlSql::Group))
-		return NS_Sql::TCtrlGroup::TCtrlSql(v + x);
-	else
-		return NS_Sql::TCtrlGroup::TCtrlSql::EOC;
-		//throw Logger::TLog("Выход за границы указанных sql-команд!");
-
-}
-
-bool NS_Sql::operator==(const TCtrlGroup::TCtrlSql& val, const string& str) noexcept(true)
-{
-	string tmp = TCtrlGroup::CtrlSql2Str(val);
-	//string s = LowerCase(str);
-	//Trim(s);
-	//return tmp == s;
-	return tmp == str;
-}
-
-string NS_Sql::TCtrlGroup::CtrlSym2Str(const TCtrlSym& ch)
-{
-	string tmp;
-	tmp.push_back(CtrlSym2Char(ch));
-	return tmp;
-};
-
-//преобразование контрольного sql слова в строку:
-string NS_Sql::TCtrlGroup::CtrlSql2Str(const NS_Sql::TCtrlGroup::TCtrlSql& val)
-{
-	switch (val)
-	{
-	case TCtrlSql::With: return "with";
-	case TCtrlSql::Select: return "select";
-	case TCtrlSql::From: return "from";
-	case TCtrlSql::Where: return "where";
-	case TCtrlSql::Order: return "order by";
-	case TCtrlSql::Group: return "group by";
-	case TCtrlSql::As: return " as ";
-	case TCtrlSql::And: return "and";
-	case TCtrlSql::Or: return "or";
-	case TCtrlSql::EOC: //return ";";//символ окончания команды
-		return CtrlSym2Str(TCtrlSym::EndCommand);
-	case TCtrlSql::D4L: //return ",";//разделитель строк в select/from/order/group
-		return CtrlSym2Str(TCtrlSym::EndCol);
-	default: return string();
-	}
-}
-
-string NS_Sql::TCtrlGroup::getClosedElem(const TCtrlSql& val) noexcept(true)
-{
-	switch (val)
-	{
-	case TCtrlSql::From:
-	case TCtrlSql::Where:
-	case TCtrlSql::Order:
-	case TCtrlSql::Group:
-		return CtrlSym2Str(TCtrlSym::EndCommand);
-	default:
-		return string();
-	}
-}
-
-//вывод символа в поток:
-std::ostream& NS_Sql::operator<<(std::ostream& stream, const NS_Sql::TCtrlGroup::TCtrlSym& val)
-{
-	if (!stream) return stream;
-	return stream << TCtrlGroup::CtrlSym2Char(val);
-}
-
-
-//формируем список запрещенных символов: '(', ')', '"'
-NS_Sql::TCtrlGroup::TCtrlGroup()
-{
-	pair<char, char> p = { CtrlSym2Char(TCtrlSym::lbkt), CtrlSym2Char(TCtrlSym::rbkt) };
-	excluded_symb.push_back(p);
-	p.first = CtrlSym2Char(TCtrlSym::crwn);
-	p.second = CtrlSym2Char(TCtrlSym::crwn);
-	excluded_symb.push_back(p);
-}
-
-bool NS_Sql::TCtrlGroup::IsCorrectSym(const string& str, std::size_t pos, const std::size_t cnt)
-{
-	using std::size_t;
-	using std::isalnum;
-	if (pos == 0 and str.size() > (pos + cnt + 1)
-		and !isalnum(str[pos + cnt + 1])) return true;
-	//проверяем, что это не часть слова:
-	if (pos != 0 and isalnum(str[pos - 1]) and
-		(pos + cnt + 1) < str.size() and  isalnum(str[pos + cnt + 1])) return false;
-	//проверяем не вложен ли разделитель в подзапрос:
-	for (pair<char, char> v : excluded_symb)
-	{
-		size_t p = str.find(v.second, pos);
-		if (p == string::npos) continue;
-		else
-		{
-			p = str.find(v.first);
-			if (v.first == TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::crwn))
-				if (p > pos) continue;
-				else return false;
-			if (p == string::npos || p < pos) continue;
-			else return false;
-		}
-	}
-	return true;
-}
-
-bool NS_Sql::TCtrlGroup::MustFound(const TCtrlSql& s)
-{
-	switch (s)
-	{
-	//case TCtrlSql::With:
-	case TCtrlSql::Select:
-	case TCtrlSql::From:
-	case TCtrlSql::EOC:
-		return true;
-	default: return false;
-	}
-}
-
-NS_Sql::TCtrlGroup::TCtrlSql NS_Sql::TCtrlGroup::GetDelimeterByTitle(const TCtrlGroup::TCtrlSql& title) noexcept(false)
-{
-	switch (title)
-	{
-	case TCtrlSql::Select:
-	case TCtrlSql::From:
-	case TCtrlSql::Order:
-	case TCtrlSql::Group:
-		return TCtrlSql::D4L;
-	case TCtrlSql::Where:
-		string val = CtrlSql2Str(title);
-		throw Logger::TLog("Для блока: ", val.c_str(), " имеется больше одного разделителя!", nullptr);
-	}
-	return TCtrlSql::Empty;
-};
-
-bool NS_Sql::TCtrlGroup::CorrectDelimeter(const TCtrlSql& title, const string& d)
-{
-	string result;
-	try
-	{
-		result = CtrlSql2Str(GetDelimeterByTitle(title));
-		if (result == d) return true;
-		return false;
-	}
-	catch (const Logger::TLog& er)
-	{
-		if (title == TCtrlSql::Where)
-			return (CtrlSql2Str(TCtrlSql::And) == d || CtrlSql2Str(TCtrlSql::Or) == d || d.empty());
-		else
-		{
-			cerr << er.what() << endl;
-			return false;
-		}
-	}
-};
 
 void NS_Sql::TSection::set_data(const string& str)
 {
@@ -268,44 +109,44 @@ std::size_t NS_Sql::TSection::find_word_pos(const string& str, const string& key
 	if (str.empty() || key.empty()) return string::npos;
 	size_t pos = n;
 	//проверяем является ли найденная позиция верной:
-	TCtrlGroup ctrl;
+	TSymGroup ctrl(true);
 	while (pos <= str.size())
 	{
 		pos = str.find(key, pos);
 		if (pos == string::npos)
-			if (must_find)
-				throw Logger::TLog("Обязательный элемент: ",
-					key.c_str(), " не найден в выражении: ", str.c_str(), nullptr);
-			else break;
+		{
+			TLog("Обязательный элемент: " + key + " не найден в выражении: " + str).raise(must_find, "TSection::find_word_pos");
+			break;
+		}
 		if (ctrl.IsCorrectSym(str, pos, key.size())) break;
 		else pos += key.size() + n;
 	};
 	return pos;
 };
 
-string NS_Sql::TSection::get_data_by_key_range(const string& str, size_t& pos,const TCtrlGroup::TCtrlSql& br,
-		const TCtrlGroup::TCtrlSql& er) noexcept(false)
+string NS_Sql::TSection::get_data_by_key_range(const string& str, size_t& pos,const TConstSql& br,
+		const TConstSql& er) noexcept(false)
 {
 	using std::size_t;
 	string in_str = LowerCase(str);
 	//если строка данных - пуста или не заполнено имя секции - выход
-	if (in_str.empty() || br == TCtrlGroup::TCtrlSql::Empty 
-			|| er == TCtrlGroup::TCtrlSql::Empty) return string();
-	pair<string, string> range(TCtrlGroup::CtrlSql2Str(br), TCtrlGroup::CtrlSql2Str(er));
+	if (in_str.empty() || br.isEmpty()	|| er.isEmpty()) return string();
+	pair<string, string> range(br.toStr(), er.toStr());
 	//ищем началюную позицию
-	size_t posb = find_word_pos(in_str, range.first, pos, TCtrlGroup::MustFound(br));
+	size_t posb = find_word_pos(in_str, range.first, pos, br.MustFound());
 	if (posb == string::npos)
 		return string();
 	posb += range.first.size();
-	size_t pose = find_word_pos(in_str, range.second, posb, TCtrlGroup::MustFound(er));
+	size_t pose = find_word_pos(in_str, range.second, posb, er.MustFound());
 	if (pose == string::npos)
 	{
-		range.second = TCtrlGroup::getClosedElem(er);
+		range.second = er.getClosedElem();
 		if (!range.second.empty())
 		{
-			pose = find_word_pos(in_str, range.second, posb, TCtrlGroup::MustFound(TCtrlGroup::TCtrlSql::EOC));
+			TConstSql end_of_comand(TSql::EOC);
+			pose = find_word_pos(in_str, range.second, posb, end_of_comand.MustFound());
 			if (pose == string::npos)
-				throw Logger::TLog("Отсутствует символ окончания выражения ", range.second.c_str(), nullptr);
+				TLog("Отсутствует символ окончания выражения " + range.second).raise(true, "TSection::get_data_by_key_range");
 		}
 		else
 			pose = str.size();
@@ -317,50 +158,53 @@ string NS_Sql::TSection::get_data_by_key_range(const string& str, size_t& pos,co
 
 }
 
-void NS_Sql::TSection::set_fields(const TCtrlGroup::TCtrlSql& title, const string& str) noexcept(false)
+void NS_Sql::TSection::set_fields(const string& str) noexcept(true)
 {
-	set_by_sql_name(title);
-	if (str.empty()) return;
-	size_t pos = 0;
-	string tmp = get_data_by_key_range(str, pos, title, title + 1);
-	if (!tmp.empty())
-		set_data(tmp);
+	try
+	{
+		if (str.empty()) return;
+		size_t pos = 0;
+		TConstSql open_val(name);
+		TConstSql close_val = open_val + 1;
+		string tmp = get_data_by_key_range(str, pos, open_val, close_val);
+		if (!tmp.empty())
+			set_data(tmp);
+	}
+	catch (const TLog& er)
+	{
+		cerr << "Ошибка инициализации объекта TSection: " << er.what() << endl;
+		clear();
+	}
+	catch (...)
+	{
+		cerr << "Необработанная ошибка при инициализации объекта TSection" << endl;
+		clear();
+	}
 };
 
 void NS_Sql::TSection::clear(void)
 {
-	name = TCtrlGroup::TCtrlSql::Empty;
+	name = TSql::Empty;
 	data.clear();
 };
 
-NS_Sql::TSection::TSection(const TCtrlGroup::TCtrlSql& title, const string& str)
+NS_Sql::TSection::TSection(const TSql& title, const string& str): name(title)
 {
-	try
-	{
-		set_fields(title, str);
-	}
-	catch (const Logger::TLog& e)
-	{
-		cerr << e.what() << endl;
-		clear();
-	}
+	if (!str.empty())	set_fields(str);
+};
+
+NS_Sql::TSection::TSection(const TConstSql& title, const string& str) : name(title)
+{
+	if (!str.empty())	set_fields(str);
 };
 
 void NS_Sql::TSection::add_field_to_data(const string& str, const string& ch, bool use_brkt) noexcept(false)
 {
 	if (str.empty()) return;
-	if (TCtrlGroup::CanUseBrkt(name) != use_brkt)
-	{
-		string s = TCtrlGroup::CtrlSql2Str(name);
-		throw Logger::TLog("В указанном блоке: ", s.c_str(),
-			" запрещено использовать скобки!", nullptr);
-	}
-	if (!TCtrlGroup::CorrectDelimeter(name, ch))
-	{
-		string s = TCtrlGroup::CtrlSql2Str(name);
-		throw Logger::TLog("Указан не верный разделитель: ", ch.c_str(), " для блока: ",
-			s.c_str(), nullptr);
-	}
+	if (name.CanUseBrkt() != use_brkt)
+		TLog("В указанном блоке: " + name.toStr() + " запрещено использовать скобки!").raise(true, "TSection::add_field_to_data");
+	if (!name.CorrectDelimeter(ch))
+		TLog("Указан не верный разделитель: " + ch + " для блока: " +	name.toStr()).raise(true, "TSection::add_field_to_data");
 	string tmp = LowerCase(str);
 	if (data.empty())
 	{
@@ -368,27 +212,35 @@ void NS_Sql::TSection::add_field_to_data(const string& str, const string& ch, bo
 		return;
 	}
 	if (use_brkt)
-		data = TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::lbkt) + data + TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::rbkt);
-	data += ch + TCtrlGroup::CtrlSym2Str(TCtrlGroup::TCtrlSym::Space) + tmp;
+	{
+		std::stringstream ss;
+		ss << TConstCtrlSym(CtrlSym::lbkt).toStr() << data << TConstCtrlSym(CtrlSym::rbkt).toStr();
+		data = ss.str();
+	}
+	data = ch + TConstCtrlSym(CtrlSym::Space) + tmp;
 };
 
-void NS_Sql::TSection::AddField(const string& str, const TCtrlGroup::TCtrlSql& ch, bool use_brkt)
+void NS_Sql::TSection::AddField(const string& str, const TConstSql& ch, bool use_brkt)
 {
-	string delimeter = TCtrlGroup::CtrlSql2Str(ch);
 	try
 	{
-		add_field_to_data(str, delimeter, use_brkt);
+		add_field_to_data(str, ch.toStr(), use_brkt);
 	}
-	catch (const Logger::TLog& er)
+	catch (const TLog& er)
 	{
 		std::cerr << er.what() << endl;
+		return;
+	}
+	catch (...)
+	{
+		std::cerr << "Не обработанная ошибка!" << endl;
 		return;
 	}
 };
 
 string NS_Sql::TSection::to_Str(void) const
 {
-	return Empty() ? string() : Name() + TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::Space) + Data();
+	return Empty() ? string() : Name() + TConstCtrlSym(CtrlSym::Space) + Data();
 };
 
 NS_Sql::TSection& NS_Sql::TSection::operator=(const TSection& sect)
@@ -401,27 +253,27 @@ NS_Sql::TSection& NS_Sql::TSection::operator=(const TSection& sect)
 	return *this;
 };
 
-NS_Sql::TText::TSectIndex NS_Sql::TText::operator[](const TCtrlGroup::TCtrlSql& title)
+NS_Sql::TText::TSectIndex NS_Sql::TText::operator[](const TConstSql& title)
 {
-	if (title == TCtrlGroup::TCtrlSql::Empty) return sect.end();
+	if (title.isEmpty()) return sect.end();
 	return std::find_if(sect.begin(), sect.end(), TTrimObj(title));
 };
 
-NS_Sql::TSection NS_Sql::TText::operator[](const TCtrlGroup::TCtrlSql& title) const
+NS_Sql::TSection NS_Sql::TText::operator[](const TConstSql& title) const
 {
 	for (TSection s : sect)
 		if (s.Title() == title) return s;
-	return TSection(TCtrlGroup::TCtrlSql::Empty);
+	return TSection(TSql::Empty);
 }
 
 vector<string> NS_Sql::getColumnValue(const TSection& section)
 {
 	vector<string> result;
-	if (section.name != TCtrlGroup::TCtrlSql::Select) return result;
+	if (section.name != TSql::Select) return result;
 	size_t pos = 0;
 	while (pos < section.data.size())
 	{
-		string tmp = TSection::get_data_by_key_range(section.data, pos, TCtrlGroup::TCtrlSql::As, TCtrlGroup::TCtrlSql::D4L);
+		string tmp = TSection::get_data_by_key_range(section.data, pos, TConstSql(TSql::As), TConstSql(TSql::D4L));
 		if (!tmp.empty())
 			result.push_back(tmp);
 	}
@@ -431,11 +283,12 @@ vector<string> NS_Sql::getColumnValue(const TSection& section)
 void NS_Sql::TText::Init_Sectors(const string& str)
 {
 	if (str.empty()) return;
-	for (TCtrlGroup::TCtrlSql title = TCtrlGroup::TCtrlSql::With; title <= TCtrlGroup::TCtrlSql::Group; title = title + 1)
+	TConstSql title(TSql::With);
+	while (title <= TSql::Group)
 	{
 		TSection tmp(title, str);
-		if (!tmp.Empty())
-			sect.push_back(tmp);
+		if (!tmp.Empty())	sect.push_back(tmp);
+		title.Next();
 	}
 };
 
@@ -461,50 +314,48 @@ string NS_Sql::TText::toStr(bool use_eoc) const
 {
 	if (sect.empty()) return string();
 	std::stringstream ss;
-	char delimeter = TCtrlGroup::CtrlSym2Char(TCtrlGroup::TCtrlSym::Space);
+	char delimeter = TConstCtrlSym(CtrlSym::Space).toChar();
 	for (TConstSectIndex i = sect.begin(); i < sect.end(); i++)
 	{
 		ss << i->to_Str();
 		if (i + 1 < sect.end())	ss << delimeter;
 	}
 	if (use_eoc)
-		ss << TCtrlGroup::CtrlSql2Str(TCtrlGroup::TCtrlSql::EOC);
+		ss << TConstSql(TSql::EOC);
 	return ss.str();
 };
 
-bool NS_Sql::TText::DelSection(const TCtrlGroup::TCtrlSql& title) noexcept(true)
+bool NS_Sql::TText::DelSection(const TSql& title) noexcept(true)
 {
+	TConstSql tmp(title);
+	TLog log("Ошибка удаления секции " + tmp.toStr());
 	try
 	{
-		if (TCtrlGroup::MustFound(title))
+		if (tmp.MustFound())
 		{
-			string s = TCtrlGroup::CtrlSql2Str(title);
-			throw Logger::TLog("Блок: ", s.c_str(), " не подлежит удалению!", nullptr);
+			//log += "Блок: " + tmp.toStr() + " не подлежит удалению!";
+			log.raise(false, "TText::DelSection");
+			return false;
 		}
 		//ищем указанную секцию:
-		TConstSectIndex i = operator[](title);
+		TConstSectIndex i = operator[](tmp);
 		if (i == sect.end())
 		{
-			string s = TCtrlGroup::CtrlSql2Str(title);
-			throw Logger::TLog("Блока: ", s.c_str(), " не найдено!", nullptr);
+			//log << "Блока: " << tmp.toStr() << " не найдено!";
+			log.raise(false, "TText::DelSection");
+			return false;
 		}
 		else
 			sect.erase(i);
 	}
-	catch (const Logger::TLog& e)
-	{
-		std::cerr << e.what() << endl;
-		return false;
-	}
 	catch (const std::exception& e)
 	{
-		std::cerr << e.what() << endl;
+		std::cerr << log.what() << e.what() << endl;
 		return false;
 	}
 	catch (...)
 	{
-		std::cerr << "Произошла необработанная ошибка при удалении блока: " <<
-			TCtrlGroup::CtrlSql2Str(title) << endl;
+		std::cerr << "Необработанная ошибка при удалении секции: " << tmp.toStr() << endl;
 		return false;
 	}
 	return true;
@@ -525,29 +376,32 @@ void NS_Sql::TText::AddSection(const TSection& val)
 		indx->Data(val.Data());
 };
 
-void NS_Sql::TText::AddSection(const TCtrlGroup::TCtrlSql& title, const string& str)
+void NS_Sql::TText::AddSection(const TSql& title, const string& str)
 {
 	TSection tmp(title, str);
 	AddSection(tmp);
 };
 
 
-bool NS_Sql::TText::AddField2Section(const TCtrlGroup::TCtrlSql& title, const string& str,
-	TCtrlGroup::TCtrlSql delimeter, bool brkt) noexcept(false)
+bool NS_Sql::TText::AddField2Section(const TSql& title, const string& str,
+	const TSql& delimeter, bool brkt) noexcept(false)
 {
+	TConstSql tmp_title(title);
 	try
 	{
+		TConstSql tmp_delimeter(delimeter);
 		//проверяем разделитель:
-		if (delimeter == TCtrlGroup::TCtrlSql::Empty)
-			delimeter = TCtrlGroup::GetDelimeterByTitle(title);
-		TSectIndex indx = operator[](title);
+		if (tmp_delimeter.isEmpty())
+			tmp_delimeter = tmp_title.GetDelimeterAsObj();
+		TSectIndex indx = operator[](tmp_title);
 		//если такой секции нет - выход
 		if (indx == sect.end()) return false;
-		indx->AddField(str, delimeter, brkt);
+		indx->AddField(str, tmp_delimeter, brkt);
 		return true;
 	}
-	catch (const Logger::TLog& er)
+	catch (const TLog& er)
 	{
+		cerr << "Ошибка добавления поля: " << str << " в секцию: " << tmp_title.toStr() << endl;
 		cerr << er.what() << endl;
 		return false;
 	}

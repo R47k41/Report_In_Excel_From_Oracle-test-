@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <stdlib.h>
 #include "TuneParam.h"
+#include "TConverter.h"
+#include "TConverter.cpp"
 #include "Logger.h"
 
 using std::string;
@@ -12,159 +14,6 @@ using std::vector;
 using std::set;
 using std::size_t;
 using std::streampos;
-
-template <typename T>
-void NS_Tune::Str2Type(const string& str, T& val) noexcept(false)
-{
-	using std::stringstream;
-	if (str.empty()) throw "Пустая строка! Преобразование невозможно!";
-	stringstream ss;
-	ss << str;
-	ss >> val;
-}
-
-template <>
-void NS_Tune::Str2Type<double>(const string& str, double& val) noexcept(false)
-{
-	if (str.empty()) throw "Пустая строка! Преобразование невозможно!";
-	val = std::atof(str.c_str());
-}
-
-template <typename T>
-string NS_Tune::Type2Str(T val) noexcept(true)
-{
-	using std::stringstream;
-	stringstream ss;
-	ss << val;
-	return ss.str();
-}
-
-
-template <typename T>
-bool NS_Tune::TConstant<T>::isValid(const T& a, const T& b, bool exit_on_err) const noexcept(false)
-{
-	if (inRange(a, b))
-		return true;
-	if (exit_on_err)
-		return false;
-	throw "Ошибка попадания в диапазон значений!";
-}
-
-template <typename T>
-void NS_Tune::TConstant<T>::setValue(const T& x)
-{
-	val = static_cast<int>(x);
-}
-
-template <typename T>
-void NS_Tune::TConstant<T>::Init(int x)
-{
-	val = x;
-	if (!isValid(true))
-		val = 0;
-}
-
-template <typename T>
-NS_Tune::TConstant<T>::TConstant(const T& x)
-{
-	setValue(x);
-}
-
-
-template <typename T>
-NS_Tune::TConstant<T>& NS_Tune::TConstant<T>::Next(bool exit_on_err) noexcept(false)
-{
-	*this += 1;
-	isValid(exit_on_err);
-	return *this;
-}
-
-template<typename T>
-NS_Tune::TConstant<T>& NS_Tune::TConstant<T>::operator=(const T& x)
-{
-	if (Value() != x) setValue(x);
-	return *this;
-}
-
-bool NS_Tune::TConstField::StrInclude(const string& str) const
-{
-	if (str.empty()) return false;
-	if (str.find(toStr(), 0) != string::npos) return true;
-	return false;
-}
-
-string NS_Tune::TConstField::toStr() const
-{
-	switch (Value())
-	{
-	case TuneField::DataBase: return "[DATA BASE]";
-	case TuneField::UserName: return "UserName";
-	case TuneField::Password: return "Password";
-	case TuneField::TNS: return "TNS";
-	case TuneField::Report: return "[REPORT]";
-	case TuneField::TemplateName: return "TemplateName";
-	case TuneField::OutFileName: return "OutFileName";
-	case TuneField::SqlFile: return "SQLFile";
-	case TuneField::SqlText: return "SQLText";
-	case TuneField::Columns: return "[COLUMNS]";
-	case TuneField::Column: return "Column";
-	case TuneField::SqlParams: return "[PARAMETERS]";
-	case TuneField::SqlParam: return "Param";
-	case TuneField::SqlParamQuane: return "Quane";
-	case TuneField::SqlParamType: return "Type";
-	case TuneField::SqlParamNote: return "Comment";
-	case TuneField::SqlParamValue: return "Value";
-	case TuneField::Block_End: return "[END]";
-	default: return string();
-	}
-};
-
-NS_Tune::TConstType::TConstType(const string& str): TConstant<DataType>(DataType::ErrorType)
-{
-	while (Value() < DataType::Last)
-	{
-		if (toStr() == str) break;
-		Next();
-	}
-	if (Value() == DataType::Last)
-		setValue(DataType::ErrorType);
-}
-
-string NS_Tune::TConstType::toStr() const
-{
-	switch (Value())
-	{
-	case DataType::String: return "string";
-	case DataType::Integer: return "integer";
-	case DataType::Double: return "double";
-	case DataType::Date: return "date";
-	}
-	return string();
-}
-
-string NS_Tune::TConstTag::toStr() const
-{
-	string result;
-	switch (Value())
-	{
-	case Tags::colon: 
-	case Tags::dash:
-	case Tags::quotes:
-	case Tags::rangle:
-	case Tags::langle:
-	case Tags::quane:
-	case Tags::semicolon:
-		result.push_back(char(toInt()));
-		break;
-	case Tags::open_param_tag:
-		result = { char(Tags::colon), char(Tags::rangle) };
-		break;
-	case Tags::close_param_tag:
-		result = { char(Tags::langle), char(Tags::dash), char(Tags::rangle) };
-		break;
-	}
-	return result;
-}
 
 size_t NS_Tune::TBaseParam::get_pos_in_src(const string& substr, const size_t beg, find_fnc ff) const
 {
@@ -181,13 +30,13 @@ size_t NS_Tune::TBaseParam::get_pos_in_src(const TConstField& substr, const size
 	return get_pos_in_src(substr.toStr(), beg, ff);
 };
 
-size_t NS_Tune::TBaseParam::get_pos_in_src(const Tags& substr, const size_t beg, find_fnc ff) const
+size_t NS_Tune::TBaseParam::get_pos_in_src(const CtrlSym& substr, const size_t beg, find_fnc ff) const
 {
-	TConstTag tmp(substr);
+	TConstCtrlSym tmp(substr);
 	return get_pos_in_src(tmp.toStr(), beg, ff);
 }
 
-string NS_Tune::TBaseParam::Get_TuneField_Val(const TConstField& param, const Tags& b_delimeter, const Tags& e_delimeter) const
+string NS_Tune::TBaseParam::Get_TuneField_Val(const TConstField& param, const CtrlSym& b_delimeter, const CtrlSym& e_delimeter) const
 {
 	using std::size_t;
 	//если строка или кодовое поле - пустые: выход
@@ -205,7 +54,7 @@ string NS_Tune::TBaseParam::Get_TuneField_Val(const TConstField& param, const Ta
 	return srcSubStr(pos, pose-1);
 };
 
-string NS_Tune::TStringParam::Get_TuneField_Val(const TConstField& param, const Tags& b_delimeter, const Tags& e_delimeter) const
+string NS_Tune::TStringParam::Get_TuneField_Val(const TConstField& param, const CtrlSym& b_delimeter, const CtrlSym& e_delimeter) const
 {
 	using std::size_t;
 	//если строка или кодовое поле - пустые: выход
@@ -223,13 +72,13 @@ string NS_Tune::TStringParam::Get_TuneField_Val(const TConstField& param, const 
 	return srcSubStr(pos, pose - 1);
 };
 
-void NS_Tune::TStringParam::setValue(const TConstField&, const Tags& open_val, const Tags& close_val)
+void NS_Tune::TStringParam::setValue(const TConstField&, const CtrlSym& open_val, const CtrlSym& close_val)
 {
 	value = Get_TuneField_Val(param, open_val, close_val);
 }
 
 NS_Tune::TStringParam::TStringParam(const string& full_data, const TuneField& tune_field,
-	const Tags& open_val, const Tags& close_val) : TBaseParam(full_data), param(tune_field)
+	const CtrlSym& open_val, const CtrlSym& close_val) : TBaseParam(full_data), param(tune_field)
 {
 	if (!TBaseParam::isEmpty() and !param.isEmpty())
 		setValue(param, open_val, close_val);
@@ -239,11 +88,11 @@ string NS_Tune::TStringParam::toStr(bool use_quotes) const
 {
 	//возвращаем строку вида: ParamName="ParamValue"
 	string result;
-	TConstTag tag(Tags::quane);
+	TConstCtrlSym tag(CtrlSym::quane);
 	result = param.toStr() + tag.toStr();
 	if (use_quotes)
 	{
-		tag = Tags::quotes;
+		tag = CtrlSym::quotes;
 		result += tag.toStr() + value + tag.toStr();
 	}
 	else
@@ -253,27 +102,21 @@ string NS_Tune::TStringParam::toStr(bool use_quotes) const
 
 void NS_Tune::TSubParam::setValue(void)
 {
+	using NS_Converter::toType;
 	TConstField tmp_field(TuneField::SqlParamQuane);
-	string tmpID = Get_TuneField_Val(tmp_field, Tags::quane, Tags::semicolon);
-	try
-	{
-		Str2Type(tmpID, id);
-	}
-	catch (...)
-	{
-		id = EmptyID;
-	}
+	string tmpID = Get_TuneField_Val(tmp_field, CtrlSym::quane, CtrlSym::semicolon);
+	if (!toType(tmpID, &id, false)) id = EmptyID;
 	tmp_field = TuneField::SqlParamType;
-	string tmpType = Get_TuneField_Val(tmp_field, Tags::quane, Tags::semicolon);
+	string tmpType = Get_TuneField_Val(tmp_field, CtrlSym::quane, CtrlSym::semicolon);
 	type = TConstType(tmpType);
 	tmp_field = TuneField::SqlParamNote;
-	comment = Get_TuneField_Val(tmp_field, Tags::quane, Tags::semicolon);
+	comment = Get_TuneField_Val(tmp_field, CtrlSym::quane, CtrlSym::semicolon);
 	tmp_field = TuneField::SqlParamValue;
-	value = Get_TuneField_Val(tmp_field, Tags::quane, Tags::semicolon);
+	value = Get_TuneField_Val(tmp_field, CtrlSym::quane, CtrlSym::semicolon);
 	if (value.empty()) setValByUser();
 }
 
-void NS_Tune::TSubParam::setValue(const TConstField&, const Tags&, const Tags&)
+void NS_Tune::TSubParam::setValue(const TConstField&, const CtrlSym&, const CtrlSym&)
 {
 	setValue();
 }
@@ -284,7 +127,7 @@ void NS_Tune::TSubParam::show() const
 	using std::endl;
 	if (isEmpty()) return;
 	TConstField field(TuneField::SqlParamQuane);
-	const TConstTag tag(Tags::quane);
+	const TConstCtrlSym tag(CtrlSym::quane);
 	cout << field.toStr() << tag.toStr() << id << endl;
 	field = TuneField::SqlParamType;
 	cout << field.toStr() << tag.toStr() << type.toStr() << endl;
@@ -306,7 +149,7 @@ string NS_Tune::TSubParam::getCode() const
 	using std::stringstream;
 	if (id == EmptyID) return string();
 	stringstream ss;
-	ss << TConstTag(Tags::colon).toStr() << id;
+	ss << TConstCtrlSym(CtrlSym::colon).toStr() << id;
 	return ss.str();
 }
 
@@ -372,7 +215,8 @@ void NS_Tune::TUserData::Read_Tune_Val(ifstream& file)
 	const TConstField Params(TuneField::SqlParams);
 	std::set<TConstField> field_arr;
 	//формирование массива искомых настроек
-	for (TConstField i(TuneField::UserName); i < TuneField::Last; i.Next()) field_arr.insert(i);
+	for (TConstField i(TuneField::UserName); i < TuneField::Last; i.Next())
+		field_arr.insert(i);
 	//чтение файла:
 	while (file)
 	{
@@ -414,7 +258,7 @@ void NS_Tune::TUserData::ReadFromFile(const string& filename)
 	using std::getline;
 	ifstream file(filename.c_str(), ios_base::in);
 	if (!file.is_open())
-		throw Logger::TLog("Ошибка открытия файла: ", filename.c_str(), nullptr);
+		NS_Logger::TLog("Ошибка открытия файла: " + filename).raise(true, "NS_Tune::TUserData::ReadFromFile");
 	//считываем значения для настроек:
 	Read_Tune_Val(file);
 	//считываение данных для колонок:
@@ -433,13 +277,14 @@ NS_Tune::TUserData::TUserData(const string& filename)
 template <typename KeyType, typename ValType>
 const ValType& NS_Tune::TUserData::getValueByID(const KeyType& par_ID, const set<ValType>& arr) const noexcept(false)
 {
-	if (arr.empty()) throw "Массив значений пуст!";
+	using NS_Logger::TLog;
+	if (arr.empty()) TLog("Массив значений пуст!").raise(true, "NS_Tune::TUserData::getValueByID");
 	for (const ValType& s: arr)
 	{
 		if (s > par_ID) break;
 		if (s == par_ID) return s;
 	}
-	throw string("Данные не найдены!");
+	TLog("Данные не найдены!").raise(true, "NS_Tune::TUserData::getValueByID");
 }
 
 string NS_Tune::TUserData::getFieldByCode(const TuneField& code, bool exit_on_er) const noexcept(false)
@@ -449,15 +294,14 @@ string NS_Tune::TUserData::getFieldByCode(const TuneField& code, bool exit_on_er
 		TStringParam tmp = getValueByID(code, fields);
 		if (!tmp.isEmpty()) return tmp.Value();
 	}
-	catch (const string& err)
+	catch (const NS_Logger::TLog& err)
 	{
-		if (!exit_on_er) throw err;
-		std::cerr << err << std::endl;
+		err.raise(exit_on_er, "NS_Tune::TUserData::getFieldByCode");
 	}
 	catch (...)
 	{
 		TConstField v(code);
-		std::cerr << "Не обработанная ошибка при получении параметра: " << v.toStr() << std::endl;
+		NS_Logger::TLog("Не обработанная ошибка при получении параметра: " + v.toStr()).raise(false, "NS_Tune::TUserData::getFieldByCode");
 	}
 	return string();
 }
@@ -469,10 +313,9 @@ NS_Tune::TSubParam NS_Tune::TUserData::getParamByID(int par_id, bool exit_on_er)
 		const TSubParam& tmp = getValueByID(par_id, params);
 		if (!tmp.isEmpty()) return TSubParam(tmp);
 	}
-	catch (const string& err)
+	catch (const NS_Logger::TLog& err)
 	{
-		if (!exit_on_er) throw err;
-		std::cerr << err << std::endl;
+		err.raise(exit_on_er, "NS_Tune::TUserData::getParamByID");
 	}
 	return TSubParam(string());
 }

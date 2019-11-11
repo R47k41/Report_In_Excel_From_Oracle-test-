@@ -14,6 +14,8 @@
 #include "TSQLParser.h"
 #include "TExcel.h"
 #include "TOracle.h"
+#include "TConverter.h"
+#include "TConverter.cpp"
 
 using std::string;
 using std::cout;
@@ -38,6 +40,9 @@ void CreateExcelFile(const NS_Tune::TUserData& param, NS_Oracle::TResultSet& rs)
 //функция создания простого отчета - данные берутся из файла и записываются в файл
 bool CreateSimpleReport(const string& config_file) noexcept(true);
 
+//функция формирования отчета:
+bool CreateRepotByConfig(const string& directory) noexcept(true);
+
 
 NS_Oracle::TConnectParam getConnectParams(const NS_Tune::TUserData& ud) noexcept(false)
 {
@@ -56,6 +61,7 @@ NS_Oracle::TConnectParam getConnectParams(const NS_Tune::TUserData& ud) noexcept
 void setSqlParamByTune(NS_Oracle::TStatement& sql, const NS_Tune::TSubParam& param, bool exit_on_err) noexcept(false)
 {
 	using NS_Tune::DataType;
+	using NS_Converter::toType;
 	//если параметр не указан:
 	if (param.Value().empty()) return;
 	//проверяем имеется ли нужный нам параметр:
@@ -67,14 +73,14 @@ void setSqlParamByTune(NS_Oracle::TStatement& sql, const NS_Tune::TSubParam& par
 		case DataType::Integer:
 		{
 			int val = 0;
-			NS_Tune::Str2Type(param.Value(), val);
+			toType(param.Value(), &val);
 			sql.setIntVal(par_id, val);
 			return;
 		}
 		case DataType::Double:
 		{
 			double val = 0.0;
-			NS_Tune::Str2Type(param.Value(), val);
+			toType(param.Value(), &val);
 			sql.setDoubleVal(par_id, val);
 			return;
 		}
@@ -114,10 +120,11 @@ void setSqlParamByTune(NS_Oracle::TStatement& sql, const NS_Tune::TSubParam& par
 
 void setSqlParamsByTunes(NS_Oracle::TStatement& sql, const NS_Tune::TUserData& ud) noexcept(false)
 {
+	using NS_Logger::TLog;
 	//если пустой sql - выход
-	if (!sql.isValid()) throw string("Не валидная sql-команда!");
+	if (!sql.isValid()) TLog("Не валидная sql-команда: " + sql.getSQL()).raise(true, "setSqlParamsByTunes");
 	string sql_text = sql.getSQL();
-	if (sql_text.empty()) throw string("Пустой текст sql-команды");
+	if (sql_text.empty()) TLog("Пустой текст sql-команды").raise(true, "setSqlParamsByTunes");
 	//проверяем количество параметров:
 	for (const NS_Tune::TSubParam& p : ud.getParams())
 		setSqlParamByTune(sql, p);
@@ -272,7 +279,6 @@ void CreateExcelFile(const NS_Tune::TUserData& param, NS_Oracle::TResultSet& rs)
 	cout << "Отчет сформирован и записан в файл: " << exparam.getOutName() << endl;
 }
 
-
 bool CreateSimpleReport(const string& config_file) noexcept(true)
 {
 	using NS_Tune::TUserData;
@@ -336,4 +342,27 @@ bool CreateSimpleReport(const string& config_file) noexcept(true)
 		return no_report(cerr);
 	}
 	return true;
+}
+
+bool CreateRepotByConfig(const string& directory) noexcept(true)
+{
+	using std::cerr;
+	using std::endl;
+	using std::vector;
+	using std::string;
+	using NS_Tune::TUserData;
+	using NS_Excel::TExcelBook;
+	if (directory.empty())
+	{
+		cerr << "Указана пустая директория источника отчета!" << endl;
+		return false;
+	}
+	vector<string> name_arr;
+	vector<TUserData> confg_arr;
+	TExcelBook excl;
+	//excl.initByParam
+		//загрузка имен файлов конфигов для отчета из указанной папки
+		//для каждого файла конфига вызываем формирование отчета для страницы
+		//сохраняем excel-документ в файл
+	return false;
 }

@@ -2,11 +2,14 @@
 #include <sstream>
 #include <math.h>
 #include "TExcel.h"
+#include "Logger.h"
 
 using std::string;
 using std::cout;
 using std::cerr;
 using std::endl;
+using NS_Logger::TLog;
+
 
 string NS_Excel::TExcelParam::getColumnName(int indx) const noexcept(true)
 {
@@ -105,7 +108,7 @@ void NS_Excel::TExcelBookFormat::initFormat(BookPtr book) noexcept(false)
 	if (book)
 	{
 		pformat = book->addFormat();
-		if (!pformat) throw string(book->errorMessage());
+		if (!pformat) TLog(book->errorMessage()).raise(true, "TExcelBookFormat::initFormat");
 	}
 }
 
@@ -116,7 +119,7 @@ NS_Excel::TExcelBookFont NS_Excel::TExcelBookFormat::getFont() const noexcept(fa
 		FontPtr pfont = pformat->font();
 		return TExcelBookFont(pfont);
 	}
-	throw string("Формат не валиден! Получить шрифт невозможно!");
+	TLog("Формат не валиден! Получить шрифт невозможно!").raise(true, "TExcelBookFormat::getFont");
 }
 
 bool NS_Excel::TExcelBookFormat::setFont(TExcelBookFont& fnt) noexcept(false)
@@ -183,9 +186,9 @@ NS_Excel::TExcelBookFormat::TBorderStyle NS_Excel::TExcelBookFormat::getBorderSt
 	return TBorderStyle::BORDERSTYLE_NONE;
 }
 
-void NS_Excel::TExcelBookFormat::setBorderColor(TColor c, const TBorderSide& side) noexcept(false)
+void NS_Excel::TExcelBookFormat::setBorderColor(const TColor& c, const TBorderSide& side) noexcept(false)
 {
-	if (isValid()) return;
+	if (!isValid()) return;
 	switch (side)
 	{
 	case TBorderSide::Full:
@@ -217,7 +220,7 @@ void NS_Excel::TExcelBookFormat::setBorderColor(TColor c, const TBorderSide& sid
 
 NS_Excel::TColor NS_Excel::TExcelBookFormat::getBorderColor(const TBorderSide& side) const noexcept(false)
 {
-	if (!isValid()) throw string("Формат не валиден!");
+	if (!isValid()) TLog("Формат не валиден!").raise(true, "TExcelBookFormat::getBorderColor");
 	switch (side)
 	{
 	case TBorderSide::Left:
@@ -235,9 +238,9 @@ NS_Excel::TColor NS_Excel::TExcelBookFormat::getBorderColor(const TBorderSide& s
 	case TBorderSide::Foreground:
 		return pformat->patternForegroundColor();
 	default:
-		throw string("указанная сторона объекта - не обрабатывается!");
+		TLog("указанная сторона объекта - не обрабатывается!").raise(true, "TExcelBookFormat::getBorderColor");
 	}
-	throw string("Ошибка получения цвета!");
+	TLog("Ошибка получения цвета!").raise(true, "TExcelBookFormat::getBorderColor");
 }
 
 NS_Excel::TBaseObj::TBaseObj(int par_val, int par_min, int par_max): min_val(par_min), max_val(par_max), val(par_val)
@@ -320,7 +323,7 @@ NS_Excel::TExcelCell NS_Excel::TExcelRange::operator()(int row_indx, int col_ind
 {
 	TExcelCell cell(row_indx, col_indx);
 	if (inRange(cell)) return cell;
-	throw string("Ячейка " + cell.getName() + " вне диапазона: " + getName());
+	TLog("Ячейка " + cell.getName() + " вне диапазона: " + getName()).raise(true, "TExcelRange::operator()");
 }
 
 void NS_Excel::TExcelBookSheet::initSheet(BookPtr book, const string& name, bool active_flg) noexcept(false)
@@ -359,7 +362,7 @@ std::string NS_Excel::TExcelBookSheet::ReadAsString(const TExcelCell& cell) noex
 //		delete format;
 		if (val) return string(val);
 	}
-	throw string("ReadAsString");
+	TLog("Объект не валиден - лист не создан!").raise(true, "TExcelBookSheet::ReadAsString");
 }
 
 double NS_Excel::TExcelBookSheet::ReadAsNumber(const TExcelCell& cell) const
@@ -381,7 +384,7 @@ double NS_Excel::TExcelBookSheet::ReadAsNumber(const TExcelCell& cell) const
 /**/		
 		return result;
 	}
-	throw string("ReadAsNumber");
+	TLog("Страница не создана!").raise(true, "TExcelBookSheet::ReadAsNumber");
 }
 
 bool NS_Excel::TExcelBookSheet::WriteAsNumber(const TExcelCell& cell, double val, FormatPtr format)
@@ -399,7 +402,7 @@ bool NS_Excel::TExcelBookSheet::ReadAsBool(const TExcelCell& cell) const
 	{
 		return sheet->readBool(cell.getRow(), cell.getCol());
 	}
-	throw string("ReadAsBool");
+	TLog("Страница не создана!").raise(true, "TExcelBookSheet::ReadAsBool");
 }
 
 bool NS_Excel::TExcelBookSheet::WriteAsBool(const TExcelCell& cell, bool val, FormatPtr format) const
@@ -440,7 +443,7 @@ std::string NS_Excel::TExcelBookSheet::ReadFormula(const TExcelCell& cell)
 		const char* val = sheet->readFormula(cell.getRow(), cell.getCol());
 		return string(val);
 	}
-	throw string("ReadFormula");
+	TLog("Страница не создана!").raise(true, "TExcelBookSheet::ReadFormula");
 }
 
 bool NS_Excel::TExcelBookSheet::WirteFormula(const TExcelCell& cell, const string& formula, FormatPtr format)
@@ -486,7 +489,7 @@ string NS_Excel::TExcelBookSheet::getComment(const TExcelCell& cell) const noexc
 		const char* tmp = sheet->readComment(cell.getRow(), cell.getCol());
 		if (tmp) return string(tmp);
 	}
-	throw string("getComment");
+	TLog("Страница не создана!").raise(true, "TExcelBookSheet::getComment");
 }
 
 bool NS_Excel::TExcelBookSheet::setComment(const TExcelCell& cell, const string& val, const string& author, int width, int height) noexcept(false)
@@ -652,7 +655,13 @@ bool NS_Excel::TExcelBookSheet::RangeOperation(const TExcelRange& range, bool in
 			else
 				tmp = sheet->removeCol(range.getFirst().getCol(), range.getLast().getCol(), updNameRange);
 		}
-		if (!tmp) throw string("RangeOperation");//????
+		if (!tmp)
+		{
+			TLog log("Ошибка выполнения операции ");
+			log << (insrt ? "вставки" : "удаления") << " для ";
+			log += (asRow ? "строки" : "столбца");
+			log.raise(true, "TExcelBookSheet::RangeOperation");
+		}
 		return tmp;
 	}
 	return false;
@@ -665,7 +674,7 @@ string NS_Excel::TExcelBookSheet::getName() const
 		const char* ch = sheet->name();
 		return string(ch);
 	}
-	throw string("TExcelBookSheet::getName");
+	TLog("Лист не инициализирован!").raise(true, "TExcelBookSheet::getName");
 }
 
 NS_Excel::TExcelBookFormat NS_Excel::TExcelBookSheet::getCellFormat(const TExcelCell& cell) const
@@ -675,7 +684,7 @@ NS_Excel::TExcelBookFormat NS_Excel::TExcelBookSheet::getCellFormat(const TExcel
 		FormatPtr format = sheet->cellFormat(cell.getRow(), cell.getCol());
 		return TExcelBookFormat(format);
 	}
-	throw string("TExcelBookSheet::getCellFormat");
+	TLog("Лист не инициализирован!").raise(true, "TExcelBookSheet::getCellFormat");
 }
 
 bool NS_Excel::TExcelBookSheet::setCellFormat(const TExcelCell& cell, TExcelBookFormat& format) noexcept(false)
@@ -696,7 +705,7 @@ bool NS_Excel::TExcelBookSheet::setCellColor(const TExcelCell& cell, const TColo
 		{
 			//получение формата ячейки:
 			TExcelBookFormat format = getCellFormat(cell);
-			format.setBorderColor(color, TExcelBookFormat::TBorderSide::Background);
+			format.setBorderColor(color, TExcelBookFormat::TBorderSide::Foreground);
 			//не известно надо ли:
 			setCellFormat(cell, format);
 			return true;
@@ -794,9 +803,10 @@ void NS_Excel::TExcelBook::CrtBook(int header_row) noexcept(true)
 string NS_Excel::TExcelBook::getDefaultSheetName() const noexcept(true)
 {
 	std::stringstream name;
-	name << getTuneFormat(TFormatTune::DefSh);
+	//NS_Const::TConstExclTune t(NS_Const::TExclBaseTune::DefSh);
+	//name << t.toStr();
 	if (isValid())
-		name << SheetCount();
+		name << " " << SheetCount() + 1;
 	return name.str();
 }
 
@@ -804,18 +814,12 @@ bool NS_Excel::TExcelBook::loadFromFile(const TLoadParam& param, const LoadType&
 {
 	if (param.file.empty())
 	{
-		if (raise_err)
-			throw string("Указан пустой файл!");
-		else
-			cerr << "Указан пустой файл!" << endl;
+		TLog("Указан пустой файл!").raise(raise_err, "TExcelBook::loadFromFile");
 		return false;
 	}
 	if (!isValid())
 	{
-		if (raise_err)
-			throw string("Объект excel-книга - не валиден!");
-		else
-			cerr << "Объект excel-книга - не валиден!" << endl;
+		TLog("Объект excel-книга - не валиден!").raise(raise_err, "TExcelBook::loadFromFile");
 		return false;
 	}
 	bool result = false;
@@ -831,18 +835,14 @@ bool NS_Excel::TExcelBook::loadFromFile(const TLoadParam& param, const LoadType&
 		result = book->loadPartially(param.file.c_str(), param.Indx, param.first, param.last, param.tmp_file.c_str());
 		break;
 	}
-	if (!result)
-		if (raise_err)
-			throw string(book->errorMessage());
-		else
-			cerr << book->errorMessage() << endl;
+	if (!result) TLog(book->errorMessage()).raise(raise_err, "TExcelBook::loadFromFile");
 	return result;
 }
 
 bool NS_Excel::TExcelBook::isValid(bool raise_err) const noexcept(false)
 {
 	if (book) return true;
-	if (raise_err) throw string("Рабочая книга не инициализирована!");
+	TLog("Рабочая книга не инициализирована!").raise(raise_err, "TExcelBook::isValid");
 	return false;
 }
 
@@ -862,7 +862,9 @@ void NS_Excel::TExcelBook::setHeaderByStrArr(const TStrArr& arr) noexcept(true)
 		format.setAlignV(TExcelBookFormat::TAlignVType::ALIGNV_CENTER);
 		format.setBorderStyle(TExcelBookFormat::TBorderStyle::BORDERSTYLE_MEDIUM,
 			TExcelBookFormat::TBorderSide::Full);
-		format.setBorderColor(TColor::COLOR_GRAY25, TExcelBookFormat::TBorderSide::Background);
+		format.setPatternFill(TExcelBookFormat::TFill::FILLPATTERN_SOLID);
+		format.setBorderColor(TColor::COLOR_GRAY25, TExcelBookFormat::TBorderSide::Foreground);
+		//format.setBorderColor(TColor::COLOR_YELLOW, TExcelBookFormat::TBorderSide::Background);
 		//формируем шрифт
 		if (font.isValid())
 		{
@@ -942,10 +944,10 @@ NS_Excel::TExcelBookSheet NS_Excel::TExcelBook::AddSheet(const string& name, boo
 		if (tmp_name.empty())
 			tmp_name = getDefaultSheetName();
 		TExcelBookSheet sh(book, tmp_name, asActive);
-		if (!sh.isValid()) throw getError();
+		if (!sh.isValid()) TLog(getError()).raise(true, "TExcelBook::AddSheet");
 		return sh;
 	}
-	throw;
+	TLog("Книга не валидна!").raise(true, "TExcelBook::AddSheet");
 }
 
 NS_Excel::TExcelBookSheet NS_Excel::TExcelBook::InsertSheet(int index, const string& name, SheetPtr initSheet) noexcept(false)
@@ -953,10 +955,10 @@ NS_Excel::TExcelBookSheet NS_Excel::TExcelBook::InsertSheet(int index, const str
 	if (isValid(true))
 	{
 		SheetPtr sh = book->insertSheet(index, name.c_str(), initSheet);
-		if (sh = nullptr) throw getError();
+		if (sh == nullptr) TLog(getError()).raise(true, "TExcelBook::InsertSheet");
 		return TExcelBookSheet(sh);
 	}
-	throw;
+	TLog("Книга не валидна!").raise(true, "TExcelBook::InsertSheet");
 }
 
 NS_Excel::TExcelBookSheet NS_Excel::TExcelBook::getSheetByIndex(int index) const noexcept(false)
@@ -964,10 +966,10 @@ NS_Excel::TExcelBookSheet NS_Excel::TExcelBook::getSheetByIndex(int index) const
 	if (isValid(true))
 	{
 		SheetPtr sheet = book->getSheet(index);
-		if (!sheet) throw getError();
+		if (!sheet) TLog(getError()).raise(true, "TExcelBook::getSheetByIndex");
 		return TExcelBookSheet(sheet);
 	}
-	throw;
+	TLog("Книга не инициализирована!").raise(true, "TExcelBook::getSheetByIndex");
 }
 
 string NS_Excel::TExcelBook::getSheetNameByIndex(int index) const noexcept(false)
@@ -975,10 +977,10 @@ string NS_Excel::TExcelBook::getSheetNameByIndex(int index) const noexcept(false
 	if (isValid(true))
 	{
 		string s = book->getSheetName(index);
-		if (s.empty()) throw getError();
+		if (s.empty()) TLog(getError()).raise(true, "TExcelBook::getSheetNameByIndex");
 		return s;
 	}
-	throw;
+	TLog("Книга не инициализирована!").raise(true, "TExcelBook::getSheetNameByIndex");
 }
 
 bool NS_Excel::TExcelBook::MoveSheetByIndex(int old_indx, int new_indx) noexcept(false)
@@ -986,7 +988,7 @@ bool NS_Excel::TExcelBook::MoveSheetByIndex(int old_indx, int new_indx) noexcept
 	if (isValid())
 	{
 		bool tmp = book->moveSheet(old_indx, new_indx);
-		if (tmp == false) throw getError();
+		if (tmp == false) TLog(getError()).raise(true, "TExcelBook::MoveSheetByIndex");
 		return tmp;
 	}
 	return false;
@@ -997,7 +999,7 @@ bool NS_Excel::TExcelBook::DelSheetByIndex(int index) noexcept(false)
 	if (isValid())
 	{
 		bool tmp = book->delSheet(index);
-		if (tmp == false) throw getError();
+		if (tmp == false) TLog(getError()).raise(true, "TExcelBook::DelSheetByIndex");
 		return tmp;
 	}
 	return false;
@@ -1008,10 +1010,10 @@ NS_Excel::TExcelBookFormat NS_Excel::TExcelBook::AddFormat(FormatPtr initFormat)
 	if (isValid(true))
 	{
 		FormatPtr format = book->addFormat(initFormat);
-		if (!format) throw getError();
+		if (!format) TLog(getError()).raise(true, "TExcelBook::AddFormat");
 		return TExcelBookFormat(format);
 	}
-	throw;
+	TLog("Книга не инициализирована!").raise(true, "TExcelBook::AddFormat");
 }
 
 NS_Excel::TExcelBookFont NS_Excel::TExcelBook::AddFont(FontPtr initFont) noexcept(false)
@@ -1019,10 +1021,10 @@ NS_Excel::TExcelBookFont NS_Excel::TExcelBook::AddFont(FontPtr initFont) noexcep
 	if (isValid(true))
 	{
 		FontPtr font = book->addFont(initFont);
-		if (!font) throw getError();
+		if (!font) TLog(getError()).raise(true, "TExcelBook::AddFont");
 		return TExcelBookFont(font);
 	}
-	throw;
+	TLog("Книга не инициализирована!").raise(true, "TExcelBook::AddFont");
 }
 
 NS_Excel::TExcelBookFormat NS_Excel::TExcelBook::getFormatByIndex(int index) noexcept(false)
@@ -1030,10 +1032,10 @@ NS_Excel::TExcelBookFormat NS_Excel::TExcelBook::getFormatByIndex(int index) noe
 	if (isValid(true))
 	{
 		FormatPtr format = book->format(index);
-		if (!format) throw getError();
+		if (!format) TLog(getError()).raise(true, "TExcelBook::getFormatByIndex");
 		return TExcelBookFormat(format);
 	}
-	throw;
+	TLog("Книга не инициализирована!").raise(true, "TExcelBook::getFormatByIndex");
 }
 
 NS_Excel::TExcelBookFont NS_Excel::TExcelBook::getFontByIndex(int index) noexcept(false)
@@ -1041,10 +1043,10 @@ NS_Excel::TExcelBookFont NS_Excel::TExcelBook::getFontByIndex(int index) noexcep
 	if (isValid(true))
 	{
 		FontPtr font = book->font(index);
-		if (!font) throw getError();
+		if (!font) TLog(getError()).raise(true, "TExcelBook::getFontByIndex");
 		return TExcelBookFont(font);
 	}
-	throw;
+	TLog("Книга не инициализирована!").raise(true, "TExcelBook::getFontByIndex");
 }
 
 bool NS_Excel::TExcelBook::setActiveSheet(int index) noexcept(true)
@@ -1091,8 +1093,10 @@ void NS_Excel::TExcelBook::DefultFont(string& font_name, int& size) noexcept(fal
 	if (isValid(true))
 	{
 		const char* ch = book->defaultFont(&size);
-		if (ch == 0) throw getError();
-		font_name = string(ch);
+		if (!ch) 
+			TLog(getError()).raise(true, "TExcelBook::DefultFont");
+		else
+			font_name = string(ch);
 	}
 }
 
@@ -1130,19 +1134,4 @@ bool NS_Excel::TExcelBook::Double2Date(double value, TExcelDate& date) noexcept(
 		return true;
 	}
 	return false;
-}
-
-string NS_Excel::getTuneFormat(const TFormatTune& val)
-{
-	switch (val)
-	{
-	case TFormatTune::xlt: ".xlt";
-	case TFormatTune::xls:
-	case TFormatTune::DefExt:
-		return ".xls";
-	case TFormatTune::xlsx: return ".xlsx";
-	case TFormatTune::DefName: return "NoFileName";
-	case TFormatTune::DefSh: return "Отчет";
-	}
-	return string();
 }
