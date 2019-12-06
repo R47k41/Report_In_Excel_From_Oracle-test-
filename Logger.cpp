@@ -1,4 +1,3 @@
-#include <iostream>
 #include <cstring>
 #include "Logger.h"
 
@@ -8,12 +7,12 @@ using std::endl;
 using std::cerr;
 using NS_Logger::TLog;
 
-TLog::TLog(const string& str): buf()
+TLog::TLog(const string& str, const string& fnc_name): name(fnc_name), buf()
 {
 	msg << str;
 }
 
-TLog::TLog(const TLog& log):buf()
+TLog::TLog(const TLog& log): name(log.name), buf()
 {
 	if (log.isEmpty() or this == &log) return;
 	msg.str(log.msg.str());
@@ -28,12 +27,20 @@ void TLog::clear(bool clear_state)
 	buf.clear();
 }
 
+string TLog::getStr(bool full) const noexcept(true)
+{
+	const char d[3] = ": ";
+	if (full)
+		return name + d + msg.str();
+	return msg.str();
+}
+
 const char* TLog::what() const noexcept(true)
 {
 	if (buf.size() > 0) buf.clear();
 	if (msg.str().size() > 0)
 	{
-		buf = msg.str();
+		buf = getStr(true);
 	}
 	return buf.c_str();
 }
@@ -48,14 +55,9 @@ TLog& TLog::operator=(const char* pstr)
 	return *this;
 }
 
-void TLog::raise(bool shw_raise, const char* place_from) const
+void TLog::toErrBuff(std::ostream& stream) const
 {
 	if (isEmpty()) return;
 	string tmp;
-	if (place_from) tmp.append(place_from).append(": ");
-	tmp += getStr();
-	if (shw_raise)
-		throw tmp;
-	else
-		cerr << tmp << endl;
+	if (stream) stream << getStr() << endl;
 }

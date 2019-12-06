@@ -56,22 +56,35 @@ bool NS_Const::TConstField::StrInclude(const string& str) const
 	return false;
 }
 
-string NS_Const::TConstField::toStr() const
+string NS_Const::TConstField::asStr(const TuneField& val)
 {
-	switch (Value())
+	switch (val)
 	{
+		//Shared, Paths, Report_Code
+	case TuneField::Shared: return "[SHARED]";
+	case TuneField::Paths: return "[PATHS]";
 	case TuneField::DataBase: return "[DATA BASE]";
+	case TuneField::AddDateToOutFileName: return "AddDateToOutFileName";
+	case TuneField::AddDateToSheetName: return "AddDateToSheetName";
+	case TuneField::AddDateToOutPath: return "AddDateToOutPath";
+	case TuneField::ConfigPath: return "ConfigPath";
+	case TuneField::ConfigFileExt: return "ConfigFileExt";
+	case TuneField::SqlPath: return "SqlPath";
+	case TuneField::SqlFileExt: return "SqlFileExt";
+	case TuneField::TemplatePath: return "TemplatePath";
+	case TuneField::TemplateFileExt: return "TemplateFileExt";
+	case TuneField::OutDirectory: return "OutDirectory";
+	case TuneField::MainPath: return "MainPath";
+	case TuneField::OutFileName: return "OutFileName";
 	case TuneField::UserName: return "UserName";
 	case TuneField::Password: return "Password";
 	case TuneField::TNS: return "TNS";
 	case TuneField::Report: return "[REPORT]";
-	case TuneField::OutDirectory: return "OutDirectory";
-	case TuneField::OutFileName: return "OutFileName";
 	case TuneField::SheetName: return "SheetName";
-	case TuneField::AddDateToName: return "AddDateToName";
 	case TuneField::TemplateName: return "TemplateName";
 	case TuneField::SqlFile: return "SQLFile";
 	case TuneField::SqlText: return "SQLText";
+	case TuneField::UseSqlParser: return "UseSqlParser";
 	case TuneField::Columns: return "[COLUMNS]";
 	case TuneField::Column: return "Column";
 	case TuneField::SqlParams: return "[PARAMETERS]";
@@ -84,6 +97,13 @@ string NS_Const::TConstField::toStr() const
 	default: return string();
 	}
 };
+
+NS_Const::TuneField NS_Const::TConstField::getIDByCode(const string& code, const TuneField& bval, const TuneField& eval)
+{
+	for (TConstField i(bval); i < eval; i.Next())
+		if (i == code) return i.Value();
+	return TuneField::Empty;
+}
 
 NS_Const::TConstType::TConstType(const string& str): NS_Const::DF_const(DataType::ErrorType)
 {
@@ -104,26 +124,60 @@ string NS_Const::TConstType::toStr() const
 	case DataType::Integer: return "integer";
 	case DataType::Double: return "double";
 	case DataType::Date: return "date";
+	case DataType::Boolean: return "boolean";
 	}
 	return string();
 }
 
-string NS_Const::TConstExclTune::toStr() const
+string NS_Const::TConstExclTune::asStr(const TExclBaseTune& val) noexcept(true)
 {
-	switch (Value())
+	switch (val)
 	{
-	case TExclBaseTune::xlt: ".xlt";
-	case TExclBaseTune::xls:
+	case TExclBaseTune::xlt: return ".xlt";
+	case TExclBaseTune::xls: return ".xls";
+	//расширение по умолчанию
 	case TExclBaseTune::DefExt:
-		return ".xls";
-	case TExclBaseTune::xlsx: return ".xlsx";
+	case TExclBaseTune::xlsx: 
+		return ".xlsx";
+	//имя файла и листа по умолчанию
 	case TExclBaseTune::DefName: return "Отчет";
 	case TExclBaseTune::DefSh: return "Отчет";
+	//разделитель страниц одного отчета
+	case TExclBaseTune::PageDelimiter: return " стр. ";
 	}
 	return string();
+}
+
+bool NS_Const::TConstExclTune::isValidExtensions(const string& val) noexcept(true)
+{
+	if (val.empty()) return false;
+	if (val == asStr(TExclBaseTune::xls) or val == asStr(TExclBaseTune::xlsx)
+		or val == asStr(TExclBaseTune::xlt))
+		return true;
+	return false;
 }
 
 string NS_Const::TConstReportCode::toStr() const
+{
+	switch (Value())
+	{
+	case ReportCode::RIB_DOCS_FOR_PERIOD: return "RIB_DOCS_FOR_PERIOD";
+	case ReportCode::DOCS_MF_SF_FOR_PERIOD: return "DOCS_MF_SF_FOR_PERIOD";
+	case ReportCode::REPAYMENT_FOR_DATE: return "REPAYMENT_FOR_DATE";
+	case ReportCode::POTREB_CRED_BY_FILE: return "POTREB_CRED_BY_FILE";
+	case ReportCode::CRED_CASE_MF: return "CRED_CASE_MF";
+	case ReportCode::BALANCE_LIST: return "BALANCE_LIST";
+	case ReportCode::FULL_CRED_REPORT: return "FULL_CRED_REPORT";
+	case ReportCode::NBKI: return "NBKI";
+	case ReportCode::NBKI_APPLY: return "NBKI_APPLY";
+	case ReportCode::CLOSE_DAY: return "CLOSE_DAY";
+	case ReportCode::LOAD_FROM_FILE: return "LOAD_FROM_FILE";
+	case ReportCode::FILE_COMPARE: return "FILE_COMPARE";
+	}
+	return  string();
+}
+
+string NS_Const::TConstReportCode::getName() const
 {
 	switch (Value())
 	{
@@ -136,23 +190,37 @@ string NS_Const::TConstReportCode::toStr() const
 	case ReportCode::FULL_CRED_REPORT: return "Ермакова: Полный кредитный портфель";
 	case ReportCode::NBKI: return "НБКИ выборка";
 	case ReportCode::NBKI_APPLY: return "НБКИ фиксация изменений";
+	case ReportCode::CLOSE_DAY: return "Закрытие баланса";
 	case ReportCode::LOAD_FROM_FILE: return "Загрузка проводок из файла в OraBank";
 	case ReportCode::FILE_COMPARE: return "Сравнение excel-файлов";
 	}
 	return  string();
 }
 
-string NS_Const::TConstCtrlSym::toStr() const
+NS_Const::ReportCode NS_Const::TConstReportCode::getIDByCode(const string& code, const ReportCode& bval, const ReportCode& eval)
 {
-	switch (Value())
+	if (!code.empty())
+	{
+		for (TConstReportCode i(bval); i < eval; i.Next())
+			if (i == code) return i.Value();
+	}
+	return ReportCode::Empty;
+}
+
+string NS_Const::TConstCtrlSym::asStr(const CtrlSym& val)
+{
+	switch (val)
 	{
 	case CtrlSym::EOL: return "\0";
 	case CtrlSym::Space: return " ";
 	case CtrlSym::EndCommand:
 	case CtrlSym::semicolon: return ";";
 	case CtrlSym::EndCol: return ",";
+	case CtrlSym::point: return ".";
 	case CtrlSym::lbkt: return "(";
 	case CtrlSym::rbkt: return ")";
+	case CtrlSym::qlbkt: return "[";
+	case CtrlSym::qrbkt: return "]";
 	case CtrlSym::crwn:
 	case CtrlSym::quotes: return "\"";
 	case CtrlSym::Tab: return "\t";
@@ -162,6 +230,9 @@ string NS_Const::TConstCtrlSym::toStr() const
 	case CtrlSym::quane: return "=";
 	case CtrlSym::rangle: return ">";
 	case CtrlSym::langle: return "<";
+	case CtrlSym::dies_comment: return "#";
+	case CtrlSym::minus_comment: return "--";
+	case CtrlSym::dash_comment: return "//";
 	}
 	return string();
 }
@@ -292,19 +363,19 @@ bool NS_Const::TSymGroup::IsCorrectSym(const string& str, std::size_t pos, const
 	if (pos != 0 and isalnum(str[pos - 1]) and
 		(pos + cnt + 1) < str.size() and isalnum(str[pos + cnt + 1])) return false;
 	//проверяем не вложен ли разделитель в подзапрос:
-	char ch = TConstCtrlSym(CtrlSym::crwn).toStr()[0];
+	char ch = TConstCtrlSym::asChr(CtrlSym::crwn);
 	for (const Syms& v : arr)
 	{
-		size_t p = str.find(v.second, pos);
-		if (p == string::npos) continue;
+		size_t pe = str.find(v.second, pos);
+		//если закрывающих элеменетов нет
+		if (pe == string::npos) continue;
 		else
 		{
-			p = str.find(v.first);
-			if (v.first == ch)
-				if (p > pos) continue;
-				else return false;
-			if (p == string::npos || p < pos) continue;
-			else return false;
+			//находим открывающий символ
+			size_t pb = str.find(v.first, pos);
+			//если открывающий элемент за закрывающим:
+			//то слово часть строки в кавычках
+			if (pe < pb || pb == string::npos) return false;
 		}
 	}
 	return true;

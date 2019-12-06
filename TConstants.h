@@ -16,30 +16,52 @@ namespace NS_Const
 	//порядок указан такой же, как и файле настроек
 	enum class TuneField {
 		Empty = 0,
-		DataBase, Report, SqlParams, Columns, Block_End,
+		//заголовки нгрупп настроек
+		Shared, Paths, DataBase, Report, SqlParams, Columns, Block_End,
+		//отсчет для начала параметров:
+		Start_Shared_Index,
+		//общие настройки отчетов:
+		AddDateToOutFileName, AddDateToSheetName, AddDateToOutPath,
+		//настроки путей расположения файлов
+		MainPath, ConfigPath, ConfigFileExt, SqlPath, SqlFileExt, TemplatePath, TemplateFileExt,
+		OutDirectory, OutFileName, 
+		End_Shared_Index,
+		Start_Unq_Tune,
 		//база данных
 		UserName, Password, TNS,
 		//отчет
-		OutDirectory, OutFileName, SheetName, AddDateToName, TemplateName,
+		SheetName, TemplateName,
 		//запрос
 		SqlFile, SqlText, SqlParam, Column,
-		SqlParamQuane, SqlParamType, SqlParamNote, SqlParamValue,
+		SqlParamQuane, SqlParamType, SqlParamNote, SqlParamValue, UseSqlParser,
+		End_Unq_Tune,
 		Last
 	};
 
 	//Типы данных для параметров в запросах:
-	enum class DataType { ErrorType = 0, String, Integer, Double, Date, Last };
+	enum class DataType { ErrorType = 0, String, Integer, Double, Date, Boolean, Last };
 
 	//константы для формата файлов excel
-	enum class TExclBaseTune { Empty = EmptyType, xlt, xls, xlsx, DefExt, DefName, DefSh, Last };
+	enum class TExclBaseTune { Empty = EmptyType, xlt, xls, xlsx, DefExt, DefName, DefSh, PageDelimiter, Last };
+
+	//константы для ограничений excel-документов
+	//http://www.excelworld.ru/publ/help/char_and_rest/sheet_char_and_rest/37-1-0-99
+	enum TExclConstraint {
+		xls_max_col = 256,
+		xlsx_max_col = 16385,
+		xls_max_row = 65536,
+		xlsx_max_row = 1048577
+	};
 
 	//операторы sql:
 	enum class TSql { Empty = EmptyType, With, Select, From, Where, Order, Group, As, And, Or, EOC, D4L, Last };
 
 	//контрольные символы:
 	enum class CtrlSym { 
-		Empty = EmptyType, EOL, Null, Space, NL, EndCommand, semicolon, colon,  EndCol, 
-		lbkt, rbkt, crwn, quotes, Tab, dash, quane, rangle, langle,
+		Empty = EmptyType, EOL, Null, Space, NL, EndCommand, semicolon, colon,  EndCol, point, 
+		lbkt, rbkt, qlbkt, qrbkt, crwn, quotes, Tab, dash, quane, rangle, langle,
+		//используется для определения комнтариев
+		dies_comment, minus_comment, dash_comment,
 		Last };
 
 	//константы для выбора отчета:
@@ -52,6 +74,7 @@ namespace NS_Const
 		POTREB_CRED_BY_FILE,//потребительские крелиты МФ по файлу (Борисова)
 		CRED_CASE_MF,//кредитный портфель МФ (Ермакова)
 		NBKI,//данные для отправки в НБКИ (Борисова) все в один файл
+		CLOSE_DAY,//закрытие баланса/месяца
 		NBKI_APPLY,//обновление данных по НБКИ (Борисова) когда меняем статус с 3 на 0
 		BALANCE_LIST,//ведомость остатков МФ (Ермакова)
 		FULL_CRED_REPORT,//полный кредитный портфель (Ермакова) большой отчет по файлу
@@ -126,9 +149,13 @@ namespace NS_Const
 		//проверка содержания параметра в строке:
 		virtual bool StrInclude(const string& str) const;
 		//перевод значения в строку
-		virtual string toStr() const;
+		static string asStr(const TuneField& code);
+		virtual string toStr() const { return asStr(Value()); };
+		//получение идентификатора настройки по ее коду:
+		static TuneField getIDByCode(const string& code, const TuneField& bval, const TuneField& eval);
 		//операция присвоения:
 		TConstField& operator=(const TuneField& x) { TF_Const::operator=(x); return *this; }
+		friend bool operator==(const string& str, const TConstField& val) { val.operator==(str); }
 	};
 
 	//Поля типов данных:
@@ -164,8 +191,14 @@ namespace NS_Const
 		//инициализация
 		explicit TConstExclTune(const TExclBaseTune& x) : EBT_Const(x) { }
 		explicit TConstExclTune(int x) : EBT_Const(x) { }
-		virtual string toStr() const;
+		//преобразование в строку
+		static string asStr(const TExclBaseTune& val) noexcept(true);
+		//преобразование в строку
+		virtual string toStr() const { return asStr(Value()); };
+		//операция присвоения
 		TConstExclTune& operator=(const TExclBaseTune& x) { EBT_Const::operator=(x); return*this; }
+		//проверка валидности расширения для excel-файла:
+		static bool isValidExtensions(const string& val) noexcept(true);
 	};
 
 	//класс для работы с константными полями:
@@ -175,7 +208,13 @@ namespace NS_Const
 		explicit TConstReportCode(const ReportCode& x) : RC_Const(x) { }
 		explicit TConstReportCode(int x) : RC_Const(x) { }
 		TConstReportCode& operator=(const ReportCode& x) { RC_Const::operator=(x); return *this; }
+		//получение кода отчета:
 		string toStr() const;
+		//получение наименования отчета:
+		string getName() const;
+		//получение идентификатора отчета по коду:
+		static ReportCode getIDByCode(const string& code, const ReportCode& bval, const ReportCode& eval);
+		friend bool operator==(const string& str, const TConstReportCode& val) { return val.operator==(str); }
 	};
 
 	//класс группы символов
@@ -202,7 +241,13 @@ namespace NS_Const
 		explicit TConstCtrlSym(const CtrlSym& x) : CS_Const(x) { }
 		explicit TConstCtrlSym(int x) : CS_Const(x) { }
 		TConstCtrlSym& operator=(const CtrlSym& x) { CS_Const::operator=(x); return *this; }
-		string toStr() const;
+		//общее преобразование в строку
+		static string asStr(const CtrlSym& val);
+		//общее преобразование в символ
+		static char asChr(const CtrlSym& val) { return asStr(val)[0]; };
+		//преобразование в строку
+		string toStr() const { return asStr(Value()); };
+		//преобразование в символ
 		char toChar() const { return toStr()[0]; }
 		string operator+(const string& str) const noexcept(true);
 		//дружественные функции работы со строками:

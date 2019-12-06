@@ -1,6 +1,7 @@
 #ifndef LOGGER_H_
 #define LOGGER_H_
 #include <string>
+#include <iostream>
 #include <sstream>
 
 //Класс Логирования
@@ -12,22 +13,29 @@ namespace NS_Logger
 	//класс логирования
 	class TLog
 	{
+	public:
+		static const char NL = '\n';
 	private:
+		string name;
 		stringstream msg;
 		mutable string buf;//выключаем ограничения на изменения для const-функций
-		void new_line(const char* ch = "\n") { msg << ch; }
+		void new_line(const char ch = NL) { msg << ch; }
 		//сброс буфера и состояний, если надо:
 		void clear(bool clear_state = false);
 	public:
-		explicit TLog(const string& str = "");
+		explicit TLog(const string& str = "", const string& fnc_name = "");
 		TLog(const TLog& log);
 		//проверка на пустоту:
 		bool isEmpty() const { return msg.str().empty(); }
 		//проверка работоспособности:
 		bool isGood() const { return msg.good(); }
+		//установка имени
+		void setFncName(const string& fnc_name) noexcept(true) { name = fnc_name; }
+		string Name() const { return name; }
 		//вывод сообщения об ошибке:
 		const char* what() const noexcept(true);
-		string getStr() const { return msg.str(); }
+		//получение вывода данных
+		string getStr(bool full = true) const noexcept(true);
 		//оператор присвоения:
 		TLog& operator=(const char* pstr);
 		TLog& operator=(const string& str) { return operator=(str.c_str()); }
@@ -40,7 +48,7 @@ namespace NS_Logger
 		template <class T>
 		TLog& operator+(T val) { operator+=(val); return *this; };
 		//опертор вызова исключения/логирования:
-		void raise(bool shw_raise = false, const char* place_from = '\0') const;
+		void toErrBuff(std::ostream& stream = std::cerr) const;
 		//friend stringstream& operator<<(stringstream& ss, const TLog& log);
 	};
 }

@@ -249,7 +249,7 @@ namespace NS_Oracle
 		//вызывать ошибку при отрезанной длине параметра:
 		void setExceptOnTruncate(UInt paramIndx, bool flg = false) { result->setErrorOnTruncate(paramIndx, flg); };
 		//функция получения числа колонок в запросе
-		UInt getColumnsCnt(void) const { return meta.size(); };
+		size_t getColumnsCnt(void) const { return meta.size(); };
 		//получение типа данных для колонки:
 		TType getColumnType(UInt colIndx) const noexcept(false);
 		//закрытие resultSet

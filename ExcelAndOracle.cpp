@@ -15,19 +15,19 @@
 #include <locale.h>
 #include "libxl.h"
 #include "occi.h"
-#include "TConverter.h"
 #include "TConverter.cpp"
-#include "Logger.h"
 #include "Logger.hpp"
 #include "TConstants.h"
 #include "TOracle.h"
 #include "TSQLParser.h"
 #include "TuneParam.h"
-//#include "DoReport.cpp"
+#include "TDBReport.h"
 //#include "LibXL_Example.h"
 #include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/date_facet.hpp>
 
 void excel_example(void);
+void excel_test(void);
 void oracle_example(void);
 
 //функция проверки работы конвертера:
@@ -45,7 +45,7 @@ void parse_tune_file(const std::string& filename);
 void TOracleTest();
 
 //определение внешней функции
-extern bool CreateSimpleReport(const std::string& file_name) noexcept(true);
+void CreateReport(const std::string& file_name, const string& code) noexcept(true);
 
 //inline void SetRuConsole(int cp) { SetConsoleCP(cp); SetConsoleOutputCP(cp); };
 
@@ -59,18 +59,24 @@ int main()
 	using std::string;
 	//SetRuConsole(1251);
 	setlocale(LC_ALL, "RU");
+//	excel_test();
 	//oracle_example();
 	//TOracleTest();
 	string file_name("config.ini");
-	//Test_toStr();
-	//Test_Logger();
-	//test_Const_Module();
-	//TOracleTest();
-	//TSqlParse("rib_docs_for_period.sql");
 	//parse_tune_file(file_name);
-	
+	CreateReport(file_name, "BALANCE_LIST");
+	//CreateReport(file_name, "RIB_DOCS_FOR_PERIOD");
+	/*
+	Test_toStr();
+	Test_Logger();
+	test_Const_Module();
+	TOracleTest();
+	TSqlParse("rib_docs_for_period.sql");
+	parse_tune_file(file_name);
+	/**/
+	//CreateReport(file_name);
 	//excel_example();
-	CreateSimpleReport(file_name);
+	//CreateSimpleReport(file_name);
 	/*
 	cout << "Начало работы!" << endl;
 	try
@@ -100,7 +106,7 @@ void test_Const_Module(void)
 	using namespace NS_Const;
 	using std::cout;
 	using std::endl;
-	cout << "Тестирование модуля констант!" << endl;
+	cout << "Тестирование модуля TConstant:" << endl;
 	cout << "TConstCtrlSym: " << endl;
 	TConstCtrlSym cs(CtrlSym::EndCommand);
 	cout << cs.toStr() << endl;
@@ -119,18 +125,21 @@ void test_Const_Module(void)
 	cout << "TConstExclTune: " << endl;
 	NS_Const::TConstExclTune et(NS_Const::TExclBaseTune::DefSh);
 	cout << et.toStr() << endl;
+	cout << endl;
 }
 
 void Test_toStr()
 {
 	using std::cout;
 	using std::endl;
-	using NS_Converter::toStr;
 	std::string tmp;
-	tmp += toStr("Hello World");
-	tmp += toStr(unsigned short(2));
-	tmp += toStr(2.005);
+	cout << "Тестирование модуля TConverter" << endl;
+	tmp += NS_Converter::toStr("Hello World");
+	tmp += NS_Converter::toStr(unsigned short(2));
+	tmp += NS_Converter::toStr(2.005);
 	cout << tmp << endl;
+	cout << endl;
+	cout << endl;
 }
 
 void Test_Logger()
@@ -140,6 +149,7 @@ void Test_Logger()
 	using boost::gregorian::date;
 	using boost::gregorian::day_clock;
 	using NS_Logger::TLog;
+	cout << "Тестирование модуля Logger" << endl;
 	TLog log("Text for error: ");
 	log << "integer " << 4;
 	log << '\n';
@@ -148,6 +158,7 @@ void Test_Logger()
 	log << "boost::date: " << d.day() << '\n';
 	log << "double: " << 2.005 << '\n';
 	cout << log.what() << endl;
+	cout << endl;
 }
 
 void TSqlParse(const std::string& str)
@@ -166,7 +177,7 @@ void TSqlParse(const std::string& str)
 	using NS_Sql::TSql;
 	using NS_Sql::TText;
 	//using NS_Logger::TLog;
-
+	cout << "Тестирование модуля TSqlParse" << endl;
 	ifstream f(str.c_str(), ios_base::in);
 	//if (!f.is_open()) TLog("Ошибка открытия файла: " + str).raise(true, "TSqlParse");
 	TText sql_txt(f);
@@ -174,23 +185,36 @@ void TSqlParse(const std::string& str)
 	sql_txt.AddField2Section(TSql::Select, "sysdate as \"Дата отчета\"");
 	cout << sql_txt.toStr() << endl;
 	f.close();
+	cout << endl;
 };
 
 void parse_tune_file(const std::string& filename)
 {
-	using NS_Tune::TUserData;
+	using NS_Tune::TUserTune;
+	using NS_Tune::TSharedTune;
+	using NS_Const::ReportCode;
+	using NS_Const::TuneField;
 	using std::cout;
 	using std::endl;
-	TUserData tune(filename);
+	cout << "Тестирование модуля TTune:" << endl;
+	cout << "Считывание общих настроек файла:" << endl;
+	//TSharedTune main_tune(filename, "DOCS_MF_SF_FOR_PERIOD");
+	TSharedTune main_tune(filename, "RIB_DOCS_FOR_PERIOD");
+	cout << "Путь к файлам отчета: " << main_tune.getMainCodeVal() << endl;
+	main_tune.show_tunes();
+	string subFile = main_tune.getMainCodeVal() + main_tune.getFieldValueByCode(TuneField::ConfigPath) + filename;
+	TUserTune tune(main_tune, subFile);
 	cout << "Список колонок:" << endl;
 	tune.show_columns();
 	cout << "Список настроек:" << endl;
 	tune.show_tunes();
 	cout << "Список параметров: " << endl;
 	tune.show_params();
-	cout << "Значение настройки SQLText: " << tune.getFieldByCode(NS_Tune::TuneField::SqlText) << endl;
-};
+	cout << "Значение настройки SQLText: " << tune.getFieldValueByCode(NS_Tune::TuneField::SqlText) << endl;
+	cout << endl;
 /**/
+};
+
 void TOracleTest()
 {
 	using NS_Oracle::TDBConnect;
@@ -202,6 +226,7 @@ void TOracleTest()
 	using std::string;
 	using std::cout;
 	using std::endl;
+	cout << "Тестирование модуля TOracle:" << endl;
 	TConnectParam param{ "ZP_IBS", "IBS", "SML_SM", false, 10 };
 	string sql = "select ID, Code, Name, DayTo from Admin.M_User";
 	TDBConnect connect(param);
@@ -211,7 +236,112 @@ void TOracleTest()
 	for (UInt i = 1; i < rs.getColumnsCnt(); i++)
 		std::cout << "Тип " << i << " столбца: " << static_cast<int>(rs.getColumnType(i)) << std::endl;
 	std::cin.get();
-	return;
+}
+
+void CreateReport(const std::string& file_name, const string& code) noexcept(true)
+{
+	using NS_ExcelReport::TReport;
+	TReport report(file_name, code);
+	report.Execute();
+}
+
+void excel_test(void)
+{
+	using namespace libxl;
+	Book* srcBook = xlCreateBook();
+	NS_Excel::TExcelBook::UseLicenseKey(&srcBook);
+	bool b = srcBook->loadSheet("F:\\Projects\\SomeThing\\TypicalReport\\FILIAL_DOCS.xlt", 0);
+	if (!b)
+	{
+		std::cerr << srcBook->errorMessage() << std::endl;
+		return;
+	}
+	//ключи лицензии:
+	Sheet* srcSheet = srcBook->getSheet(srcBook->activeSheet());
+
+	Book* dstBook = xlCreateBook();
+	NS_Excel::TExcelBook::UseLicenseKey(&dstBook);
+	Sheet* dstSheet = dstBook->addSheet("Страница 1");
+
+	// setting column widths
+	for (int col = srcSheet->firstCol(); col < srcSheet->lastCol(); ++col)
+	{
+		dstSheet->setCol(col, col, srcSheet->colWidth(col), 0, srcSheet->colHidden(col));
+	}
+
+	std::map<Format*, Format*> formats;
+
+	for (int row = srcSheet->firstRow(); row < srcSheet->lastRow(); ++row)
+	{
+		// setting row heights
+		dstSheet->setRow(row, srcSheet->rowHeight(row), 0, srcSheet->rowHidden(row));
+
+		for (int col = srcSheet->firstCol(); col < srcSheet->lastCol(); ++col)
+		{
+			// copying merging blocks
+			int rowFirst, rowLast, colFirst, colLast;
+			if (srcSheet->getMerge(row, col, &rowFirst, &rowLast, &colFirst, &colLast))
+			{
+				dstSheet->setMerge(rowFirst, rowLast, colFirst, colLast);
+			}
+
+			// copying formats
+			Format* srcFormat, * dstFormat;
+
+			srcFormat = srcSheet->cellFormat(row, col);
+			if (!srcFormat) continue;
+
+			// checking formats
+			if (formats.count(srcFormat) == 0)
+			{
+				// format is not found, creating it in the output file
+				dstFormat = dstBook->addFormat(srcFormat);
+				formats[srcFormat] = dstFormat;
+			}
+			else
+			{
+				// format was already created
+				dstFormat = formats[srcFormat];
+			}
+
+			// copying cell's values
+			CellType ct = srcSheet->cellType(row, col);
+			switch (ct)
+			{
+			case CELLTYPE_NUMBER:
+			{
+				double value = srcSheet->readNum(row, col, &srcFormat);
+				dstSheet->writeNum(row, col, value, dstFormat);
+				break;
+			}
+			case CELLTYPE_BOOLEAN:
+			{
+				bool value = srcSheet->readBool(row, col, &srcFormat);
+				dstSheet->writeBool(row, col, value, dstFormat);
+				break;
+			}
+			case CELLTYPE_STRING:
+			{
+				const char* s = srcSheet->readStr(row, col, &srcFormat);
+				dstSheet->writeStr(row, col, s, dstFormat);
+				break;
+			}
+			case CELLTYPE_BLANK:
+			{
+				srcSheet->readBlank(row, col, &srcFormat);
+				dstSheet->writeBlank(row, col, dstFormat);
+				break;
+			}
+			}
+		}
+	}
+
+	dstBook->save("out.xls");
+
+	dstBook->release();
+
+	srcBook->release();
+
 }
 
 /*

@@ -122,9 +122,9 @@ void setSqlParamsByTunes(NS_Oracle::TStatement& sql, const NS_Tune::TUserData& u
 {
 	using NS_Logger::TLog;
 	//если пустой sql - выход
-	if (!sql.isValid()) TLog("Не валидная sql-команда: " + sql.getSQL()).raise(true, "setSqlParamsByTunes");
+	if (!sql.isValid()) throw TLog("Не валидная sql-команда: " + sql.getSQL(), "setSqlParamsByTunes");
 	string sql_text = sql.getSQL();
-	if (sql_text.empty()) TLog("Пустой текст sql-команды").raise(true, "setSqlParamsByTunes");
+	if (sql_text.empty()) throw TLog("Пустой текст sql-команды", "setSqlParamsByTunes");
 	//проверяем количество параметров:
 	for (const NS_Tune::TSubParam& p : ud.getParams())
 		setSqlParamByTune(sql, p);
@@ -141,10 +141,9 @@ bool ResultSet2Excel(NS_Oracle::TResultSet& rs, NS_Excel::TExcelBook& excl) noex
 	using NS_Oracle::UInt;
 	using NS_Oracle::TDate;
 	using NS_Oracle::SQLException;
-	int act_index = excl.getActiveSheet();
-	TExcelBookSheet sheet = excl.getSheetByIndex(act_index);
+	TExcelBookSheet sheet = excl.getActiveSheet();
 	UInt col_cnt = rs.getColumnsCnt();
-	int row = excl.getActiveSheet() + 1;
+	int row = sheet.getFirstRow() + 1;
 	while (rs.Next())
 	{
 		for (UInt i = 1; i <= col_cnt; i++)

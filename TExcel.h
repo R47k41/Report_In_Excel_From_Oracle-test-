@@ -2,8 +2,12 @@
 #define TEXCEL_H_
 #include <string>
 #include <vector>
+#include <map>
 #include "libxl.h"
 #include "TConstants.h"
+
+//Ограничения для excel страниц:
+//http://www.excelworld.ru/publ/help/char_and_rest/sheet_char_and_rest/37-1-0-99
 
 namespace NS_Excel
 {
@@ -18,6 +22,7 @@ namespace NS_Excel
 	
 	using TStrArr = std::vector<std::string>;
 	using TDataTypeArr = std::vector<TDataType>;
+	using PFormatArr = std::map<FormatPtr, FormatPtr>;
 
 	using TScriptFontType = libxl::Script;
 	using TUnderLineFontType = libxl::Underline;
@@ -47,6 +52,7 @@ namespace NS_Excel
 		string template_file;//имя файла шаблона
 		string out_name;//имя выходного файла
 		TStrArr header;//наименование колонок для заголовка в порядке следования
+		bool IsValidFileExt(const string& ext) const;
 	public:
 		TExcelParam(const string& par_tmpl_name, const string& par_out_file, const TStrArr& cols) :
 			template_file(par_tmpl_name), out_name(par_out_file), header(cols) {}
@@ -63,6 +69,8 @@ namespace NS_Excel
 		string getColumnName(int indx) const noexcept(true);
 		//количество колонок:
 		int ColumnsCnt() const { return header.size(); }
+		//получение расширения файла
+		static string getExtensionFile(const string& srt) noexcept(true);
 	};
 
 	//базовый вспомогательный объект
@@ -177,15 +185,24 @@ namespace NS_Excel
 		//первая строка заголовка - т.к. библиотека для работы с excel вставляет свою строку:
 		using TType = libxl::SheetType;
 		//libxl::SheetState;
+		//установка ключей лицензии
+		static bool UseLicenseKey(BookPtr* b) noexcept(true);
 	private:
-		int HeaderRow;
-		BookPtr book;
+		string fname;//наименование файла книги
+		int HeaderRow;//индекс строки заголовка
+		BookPtr book;//ссылка на книгу
+		//ограничительные настройки
+		size_t max_cols;//максимальное число колонок в книге
+		size_t max_rows;//максимальное число строк в книге
+		//установка ограничений для книги:
+		void setConstraints() noexcept(true);
 		//запрет операции присвоения
 		TExcelBook& operator=(const TExcelBook& b);
 		//запрет инициализацией этим же объектом:
 		TExcelBook(const TExcelBook& b);
 		//умолчательная инициализация:
 		void CrtBook(int header_row = 0) noexcept(true);
+		void InitBook(BookPtr* b);
 		enum class LoadType { Full, Sheet, Rows };
 		struct TLoadParam { string file; int Indx; int first; int last; string tmp_file; };
 		//функция загрузки:
@@ -194,27 +211,32 @@ namespace NS_Excel
 		string getError() const noexcept(true);
 		//сформировать имя листа по умолчанию:
 		string getDefaultSheetName() const noexcept(true);
+		//функция проверки наличия указанной страницы в книге:
+		bool checkUniqSheetName(const string& name) const noexcept(false);
 	public:
 		//конструкторы:
-		TExcelBook(int header_row = 0) { CrtBook(header_row); }
+		explicit TExcelBook(const string& book_name, int header_row = 0): fname(book_name), HeaderRow(header_row) { CrtBook(); }
 		//деструктор:
 		~TExcelBook() { if (isValid()) book->release(); book = nullptr; }
 		//валидность объекта:
 		bool isValid(bool raise_err = false) const noexcept(false);
 		//заполняем заголовок из массива строк:
-		void setHeaderByStrArr(const TStrArr& arr) noexcept(true);
+		void setHeaderByStrArr(const TStrArr& arr, bool use_active_sheet = true, const string& new_sh_name = "") noexcept(true);
 		//инициализация книги по параметрам
 		bool initByParam(const TExcelParam& param) noexcept(true);
 		//загрузка из файла:
 		bool load(const string& file, bool raise_err = false, const string& tmp_file = string()) noexcept(false);
-		//загрузка листа из файла:
+		//загрузка листа из файла все остальные данные в книге стираются!!!:
 		bool loadSheetOnly(const string& file, int sheet_indx,
 			bool raise_err = false, const string& tmp_file = string()) noexcept(false);
+		//загрзка страницы из книги:
+		bool setSheetByTemplate(const string& file, const string& new_sh_name, int templ_sheet_indx = 0,
+			bool as_active = false, const string & tmp_file = string()) noexcept(false);
 		//загрузка строк данных из листа файла:
 		bool loadSheetRowsOnly(const string& file, int sheet_indx, int first_row, int last_row,
 			bool raise_err = false, const string& tmp_file = string());
 		//сохранение данных в файл:
-		bool SaveToFile(const string& file, bool use_tmp = false, bool raise_err = false) noexcept(false);
+		bool SaveToFile(const string& file = "", bool use_tmp = false, bool raise_err = false) noexcept(false);
 		//загрузка информации о страницах: число и имена страниц - становятся доступны
 		bool LoadSheetsInfo(const string& file) noexcept(false) { if (isValid()) return book->loadInfo(file.c_str()); return false; };
 		//добавление страницы:
@@ -223,6 +245,8 @@ namespace NS_Excel
 		TExcelBookSheet InsertSheet(int index, const string& name, SheetPtr initSheet = nullptr) noexcept(false);
 		//получение страцницы по индексу:
 		TExcelBookSheet getSheetByIndex(int index) const noexcept(false);
+		//получение ссылки на последнюю страницу:
+		TExcelBookSheet getLastSheet(bool set_active) noexcept(false);
 		//получение имени страцниы по индексу:
 		string getSheetNameByIndex(int index) const noexcept(false);
 		//получение типа страницы:
@@ -235,6 +259,8 @@ namespace NS_Excel
 		int SheetCount() const noexcept(false) { return book->sheetCount(); };
 		//добавление формата в книгу:
 		TExcelBookFormat AddFormat(FormatPtr initFormat = nullptr) noexcept(false);
+		//добавление формата в книгу на основании списка имеющихся форматов:
+		FormatPtr InsertFormat(const TExcelBookFormat& frmt, PFormatArr& frmt_list) noexcept(false);
 		//получение формата по индексу:
 		TExcelBookFormat getFormatByIndex(int index) noexcept(false);
 		//количество форматов в книге:
@@ -246,7 +272,8 @@ namespace NS_Excel
 		//число шрифтов в книге:
 		int getFontCount() const noexcept(true) { return (isValid() ? book->fontSize() : EmptyType); }
 		//индекс активной страницы:
-		int getActiveSheet() const noexcept(false) { return (isValid() ? book->activeSheet() : EmptyType); }
+		int getActiveSheetIndx() const noexcept(false) { return (isValid() ? book->activeSheet() : EmptyType); }
+		TExcelBookSheet getActiveSheet() const noexcept(false);
 		//установить страницу активной:
 		bool setActiveSheet(int index) noexcept(true);
 		//проверка является ли книга - шаблоном:
@@ -269,6 +296,13 @@ namespace NS_Excel
 		bool Double2Date(double value, TExcelDate& date) noexcept(false);
 		//строка заголовка:
 		int getHeaderRow() const noexcept(true) { return HeaderRow; }
+		//функция получения расширения файла:
+		//если ошибка - вернет пустую строку
+		string getFileExtend() const noexcept(true);
+		//функция получения максимального числа строк:
+		size_t MaxRowsCount() const { return max_rows; }
+		//функция получения максимального числа столбцов:
+		size_t MaxColsCount() const { return max_cols; }
 	};
 
 	//класс страница/лист excel-документа: http://www.libxl.com/spreadsheet.html
@@ -282,6 +316,13 @@ namespace NS_Excel
 		void initSheet(BookPtr book, const string& name, bool active_flg) noexcept(false);
 		//вставка строки или столбца:
 		bool RangeOperation(const TExcelRange& range, bool insrt, bool asRow, bool updNameRange = true) noexcept(false);
+		//функционал для копирования листа:
+		//копирование параметров ячеек с другого листа
+		bool copySheetColsParam(const TExcelBookSheet& src_sh) noexcept(true);
+		//установка объединения ячеек из исходного листа:
+		bool copySheetCellsMerge(TExcelBookSheet& src_sh, const TExcelCell& cell) noexcept (true);
+		//копирование значения ячейки из листа-источника:
+		bool copySheetCellValue(TExcelBookSheet& src_sh, const TExcelCell& cell, FormatPtr format) noexcept(true);
 	public:
 		//конструктор:
 		TExcelBookSheet(BookPtr book, const string& name, bool active_flg = true);
@@ -313,13 +354,14 @@ namespace NS_Excel
 		//чтение числа:
 		double ReadAsNumber(const TExcelCell& cell) const;
 		//запись числа в ячейку:
-		bool WriteAsNumber(const TExcelCell& cell, double val, FormatPtr format = 0);
+		bool WriteAsNumber(const TExcelCell& cell, double val, FormatPtr format = nullptr);
 		//чтение bool:
 		bool ReadAsBool(const TExcelCell& cell) const;
 		//запись bool:
-		bool WriteAsBool(const TExcelCell& cell, bool val, FormatPtr format = 0) const;
+		bool WriteAsBool(const TExcelCell& cell, bool val, FormatPtr format = nullptr) const;
 		//считываем формат пустой ячейки, если она пустая
-		bool isBlank(const TExcelCell& cell) const;
+		bool isBlank(const TExcelCell& cell) const { FormatPtr tmp = nullptr; return ReadBlankFormat(cell, &tmp); }
+		bool ReadBlankFormat(const TExcelCell& cell, FormatPtr* format) const { return sheet->readBlank(cell.getRow(), cell.getCol(), format); };
 		//установка формата для пустой ячейкт, еслиячейка не пустая - возвращает false
 		bool setBlank(const TExcelCell& cell, FormatPtr format = 0) const;
 		//чтение формулы:
@@ -418,6 +460,9 @@ namespace NS_Excel
 		bool GreedlinesShowed() const { return sheet->displayGridlines(); }
 		//установка отображения сетки:
 		void ShowGreedlines(bool flg = true) { if (isValid()) sheet->setDisplayGridlines(flg); }
+		//дружественные функции:
+		friend bool TExcelBook::setSheetByTemplate(const string& file, const string& new_sh_name, int templ_sheet_indx,
+			bool raise_err, const string & tmp_file) noexcept(false);
 	};
 	
 	//класс формата - http://www.libxl.com/format.html
@@ -497,7 +542,8 @@ namespace NS_Excel
 		//получение ссылки на формат:
 		//FormatPtr getRef() { return pformat; }
 		friend bool NS_Excel::TExcelBookSheet::setCellFormat(const TExcelCell& cell, TExcelBookFormat& format) noexcept(false);
-		friend void TExcelBook::setHeaderByStrArr(const TStrArr& arr) noexcept(true);
+		friend FormatPtr TExcelBook::InsertFormat(const TExcelBookFormat& frmt, PFormatArr& frmt_list) noexcept(false);
+		friend void TExcelBook::setHeaderByStrArr(const TStrArr& arr, bool use_active_sheet, const string& new_sh_name) noexcept(true);
 	};
 
 	//Класс шрифта - http://www.libxl.com/font.html

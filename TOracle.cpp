@@ -3,6 +3,7 @@
 #include <exception>
 #include <stdexcept>
 #include "TOracle.h"
+#include "Logger.hpp"
 
 using oracle::occi::Connection;
 using oracle::occi::Statement;
@@ -465,7 +466,15 @@ string NS_Oracle::TResultSet::getDateAsStrVal(UInt paramIndx, const string& date
 
 NS_Oracle::TType NS_Oracle::TResultSet::getColumnType(UInt colIndx) const noexcept(false)
 {
+	using std::cerr;
+	using std::endl;
+	using NS_Logger::TLog;
 	if (colIndx - 1 > getColumnsCnt() or colIndx < 1)
-		throw std::out_of_range("Индекс колонки превышает реальное число колонок или нулевой!!!");
+	{
+		// std::out_of_range
+		TLog log("Индекс колонки превышает реальное число колонок или нулевой!!!", "::TResultSet::getColumnType");
+		log << TLog::NL << "Индекс колонки: " << colIndx << TLog::NL;
+		throw log;
+	}
 	return TType(meta[colIndx-1].getInt(MetaData::ATTR_DATA_TYPE));
 }

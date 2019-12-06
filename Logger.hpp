@@ -1,10 +1,9 @@
-#ifndef LOGGER_CPP_
-#define LOGGER_CPP_
 //Реализация шаблонных функций модуля Logger.h
-#include "TConverter.h"
-#include "TConverter.cpp"
-#include "Logger.h"
+#ifndef LOGGER_HPP_
+#define LOGGER_HPP_
 #include <typeinfo>
+#include "Logger.h"
+#include "TConverter.cpp"
 
 using std::string;
 using std::stringstream;
@@ -104,7 +103,6 @@ TLog& TLog::operator+= <const NS_Logger::TLog&>(const NS_Logger::TLog& val)
 		operator+= <const char*>(val.getStr().c_str());
 	return *this;
 }
-/**/
 
 template <>
 TLog& TLog::operator+= <const NS_Logger::TLog&>(const NS_Logger::TLog& val)
@@ -113,6 +111,8 @@ TLog& TLog::operator+= <const NS_Logger::TLog&>(const NS_Logger::TLog& val)
 		operator+=<const char*>(val.getStr().c_str());
 	return *this;
 }
+/**/
+
 /*
 template <>
 TLog& TLog::operator+= <const string&>(const string& val)
@@ -157,6 +157,4 @@ TLog& TLog::operator<<(const NS_Logger::TLog& val)
 	return operator+= <const string&>(val.getStr());
 }
 /**/
-
-
-#endif LOGGER_CPP_
+#endif LOGGER_HPP_

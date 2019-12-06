@@ -19,13 +19,14 @@ namespace NS_Sql
 {
 	//преобразование в нижний регистр:
 	string LowerCase(const string& str);
+	string UpperCase(const string& str);
 	//убираем из строки служебные символа:
 	void DeleteServiceSymb(string& str);
 	//функция убирающая пробелы из начали и конца строки:
 	void Trim_Left(string& str);
 	void Trim_Right(string& str);
 	void Trim(string& str);
-	
+	void raise_app_err(const TLog& log, bool as_raise = true);
 	//класс для сравнения со строками в качестве предиката:
 	class TTrimObj
 	{
@@ -41,11 +42,23 @@ namespace NS_Sql
 	};
 };
 
+void NS_Sql::raise_app_err(const TLog& log, bool as_raise)
+{
+	as_raise ? throw log : log.toErrBuff();
+}
+
 //преобразование в нижний регистр:
 string NS_Sql::LowerCase(const string& str)
 {
 	string result;
 	std::transform(str.begin(), str.end(), std::insert_iterator<std::string>(result, result.begin()), tolower);
+	return result;
+}
+
+string NS_Sql::UpperCase(const string& str)
+{
+	string result;
+	std::transform(str.begin(), str.end(), std::insert_iterator<std::string>(result, result.begin()), toupper);
 	return result;
 }
 
@@ -97,13 +110,92 @@ void NS_Sql::Trim(string& str)
 	Trim_Right(str);
 }
 
-void NS_Sql::TSection::set_data(const string& str)
+string NS_Sql::AsString(const TText& sql)
 {
-	data = str;
-	Trim(data);
-};
+	return sql.toStr();
+}
 
-std::size_t NS_Sql::TSection::find_word_pos(const string& str, const string& key, const size_t n, bool must_find)
+string NS_Sql::AsString(const TSimpleSql& sql)
+{
+	return sql.Data();
+}
+
+void NS_Sql::TSimpleSql::Trim(const Side& flg)
+{
+	if (text.empty()) return;
+	switch (flg)
+	{
+	case Side::Left:
+		NS_Sql::Trim_Left(text);
+		break;
+	case Side::Right:
+		NS_Sql::Trim_Right(text);
+		break;
+	case Side::Full:
+		NS_Sql::Trim(text);
+		break;
+	}
+}
+
+string NS_Sql::TSimpleSql::toCase(const KeyCase& flg) const
+{
+	if (text.empty()) return string();
+	switch (flg)
+	{
+	case KeyCase::Lower: return NS_Sql::LowerCase(text);
+	case KeyCase::Upper: return NS_Sql::UpperCase(text);
+	}
+	return text;
+}
+
+bool NS_Sql::TSimpleSql::isCommentLine(const string& str) noexcept(true)
+{
+	using std::vector;
+	using std::find;
+	if (!str.empty())
+	{
+		//формируем массив из символов относяхщихся к коментариям:
+		vector<string> arr = {TConstCtrlSym::asStr(CtrlSym::dies_comment),
+			TConstCtrlSym::asStr(CtrlSym::minus_comment), TConstCtrlSym::asStr(CtrlSym::dash_comment) };
+		if (find(arr.begin(), arr.end(), str.substr(0, 2)) == arr.end())
+			return false;
+		return true;
+	}
+	return false;
+}
+
+string NS_Sql::TSimpleSql::read_sql_file(std::istream& file, bool skip_coment) noexcept(false)
+{
+	using std::stringstream;
+	using std::getline;
+	stringstream ss;
+	while (file)
+	{
+		string tmp;
+		getline(file, tmp);
+		if (!isCommentLine(tmp))
+			ss << tmp;
+	}
+	return ss.str();
+}
+
+NS_Sql::TSimpleSql::TSimpleSql(std::istream& file)
+{
+	text = read_sql_file(file);
+}
+
+NS_Sql::TSimpleSql::TSimpleSql(const string& data, bool use_trim) : text(data)
+{
+	if (use_trim) Trim();
+}
+
+void NS_Sql::TSimpleSql::set_data(const string& sql, bool use_trim)
+{
+	text = sql;
+	if (use_trim) Trim();
+}
+
+std::size_t NS_Sql::TSimpleSql::find_word_pos(const string& str, const string& key, const size_t n, bool must_find)
 {
 	using std::size_t;
 	if (str.empty() || key.empty()) return string::npos;
@@ -115,7 +207,9 @@ std::size_t NS_Sql::TSection::find_word_pos(const string& str, const string& key
 		pos = str.find(key, pos);
 		if (pos == string::npos)
 		{
-			TLog("Обязательный элемент: " + key + " не найден в выражении: " + str).raise(must_find, "TSection::find_word_pos");
+			if (must_find)
+				raise_app_err(TLog("Обязательный элемент: " + key + " не найден в выражении: " + str, 
+					"TSection::find_word_pos"), must_find);
 			break;
 		}
 		if (ctrl.IsCorrectSym(str, pos, key.size())) break;
@@ -123,6 +217,26 @@ std::size_t NS_Sql::TSection::find_word_pos(const string& str, const string& key
 	};
 	return pos;
 };
+
+bool NS_Sql::TSimpleSql::hasParams() const
+{
+	if (text.empty()) return false;
+	try
+	{
+		char ch = NS_Const::TConstCtrlSym::asChr(NS_Const::CtrlSym::colon);
+		size_t pos = text.rfind(ch);
+		if (pos == string::npos) return false;
+		if (pos == 0 and text.size() > pos and std::isalnum(text[pos + 1]))
+			return true;
+		if (pos > 1 && pos <= text.size() - 1 && std::isalnum(text[pos - 1]) && std::isalnum(text[pos + 1]))
+			return true;
+	}
+	catch (...)
+	{
+		NS_Logger::TLog("Ошибка определения наличия параметров в строке: " + text, "TSimpleSql::hasParams").toErrBuff();
+	}
+	return false;
+}
 
 string NS_Sql::TSection::get_data_by_key_range(const string& str, size_t& pos,const TConstSql& br,
 		const TConstSql& er) noexcept(false)
@@ -133,20 +247,20 @@ string NS_Sql::TSection::get_data_by_key_range(const string& str, size_t& pos,co
 	if (in_str.empty() || br.isEmpty()	|| er.isEmpty()) return string();
 	pair<string, string> range(br.toStr(), er.toStr());
 	//ищем началюную позицию
-	size_t posb = find_word_pos(in_str, range.first, pos, br.MustFound());
+	size_t posb = TSimpleSql::find_word_pos(in_str, range.first, pos, br.MustFound());
 	if (posb == string::npos)
 		return string();
 	posb += range.first.size();
-	size_t pose = find_word_pos(in_str, range.second, posb, er.MustFound());
+	size_t pose = TSimpleSql::find_word_pos(in_str, range.second, posb, er.MustFound());
 	if (pose == string::npos)
 	{
 		range.second = er.getClosedElem();
 		if (!range.second.empty())
 		{
 			TConstSql end_of_comand(TSql::EOC);
-			pose = find_word_pos(in_str, range.second, posb, end_of_comand.MustFound());
+			pose = TSimpleSql::find_word_pos(in_str, range.second, posb, end_of_comand.MustFound());
 			if (pose == string::npos)
-				TLog("Отсутствует символ окончания выражения " + range.second).raise(true, "TSection::get_data_by_key_range");
+				throw TLog("Отсутствует символ окончания выражения " + range.second, "TSection::get_data_by_key_range");
 		}
 		else
 			pose = str.size();
@@ -155,69 +269,69 @@ string NS_Sql::TSection::get_data_by_key_range(const string& str, size_t& pos,co
 	in_str = in_str.substr(posb + 1, pose - posb - 1);
 	pos = pose;
 	return in_str;
-
 }
 
-void NS_Sql::TSection::set_fields(const string& str) noexcept(true)
+void NS_Sql::TSection::set_fields() noexcept(true)
 {
 	try
 	{
-		if (str.empty()) return;
+		if (TSimpleSql::Empty()) return;
 		size_t pos = 0;
 		TConstSql open_val(name);
 		TConstSql close_val = open_val + 1;
-		string tmp = get_data_by_key_range(str, pos, open_val, close_val);
+		string tmp = get_data_by_key_range(TSimpleSql::toCase(TSimpleSql::KeyCase::Lower), pos, open_val, close_val);
 		if (!tmp.empty())
-			set_data(tmp);
+			TSimpleSql::Data(tmp);
+		else
+			clear();
 	}
-	catch (const TLog& er)
+	catch (const string& er)
 	{
-		cerr << "Ошибка инициализации объекта TSection: " << er.what() << endl;
+		raise_app_err(TLog("Ошибка инициализации объекта TSection : " + er, "NS_Sql::TSection::set_fields"), false);
 		clear();
 	}
 	catch (...)
 	{
-		cerr << "Необработанная ошибка при инициализации объекта TSection" << endl;
+		raise_app_err(TLog("Необработанная ошибка при инициализации объекта TSection", "NS_Sql::TSection::set_fields"), false);
 		clear();
 	}
 };
 
-void NS_Sql::TSection::clear(void)
+NS_Sql::TSection::TSection(const TSql& title, const TSimpleSql& sql): TSimpleSql(sql), name(title)
 {
-	name = TSql::Empty;
-	data.clear();
+	set_fields();
+}
+
+NS_Sql::TSection::TSection(const TSql& title, const string& str): TSimpleSql(str), name(title)
+{
+	set_fields();
 };
 
-NS_Sql::TSection::TSection(const TSql& title, const string& str): name(title)
+NS_Sql::TSection::TSection(const TConstSql& title, const string& str) : TSimpleSql(str), name(title)
 {
-	if (!str.empty())	set_fields(str);
-};
-
-NS_Sql::TSection::TSection(const TConstSql& title, const string& str) : name(title)
-{
-	if (!str.empty())	set_fields(str);
+	set_fields();
 };
 
 void NS_Sql::TSection::add_field_to_data(const string& str, const string& ch, bool use_brkt) noexcept(false)
 {
 	if (str.empty()) return;
 	if (name.CanUseBrkt() != use_brkt)
-		TLog("В указанном блоке: " + name.toStr() + " запрещено использовать скобки!").raise(true, "TSection::add_field_to_data");
+		throw TLog("В указанном блоке: " + name.toStr() + " запрещено использовать скобки!", "TSection::add_field_to_data");
 	if (!name.CorrectDelimeter(ch))
-		TLog("Указан не верный разделитель: " + ch + " для блока: " +	name.toStr()).raise(true, "TSection::add_field_to_data");
+		throw TLog("Указан не верный разделитель: " + ch + " для блока: " +	name.toStr(), "TSection::add_field_to_data");
 	string tmp = LowerCase(str);
-	if (data.empty())
+	if (TSimpleSql::Empty())
 	{
-		data = tmp;
+		TSimpleSql::Data(tmp);
 		return;
 	}
 	if (use_brkt)
 	{
 		std::stringstream ss;
-		ss << TConstCtrlSym(CtrlSym::lbkt).toStr() << data << TConstCtrlSym(CtrlSym::rbkt).toStr();
-		data = ss.str();
+		ss << TConstCtrlSym(CtrlSym::lbkt).toStr() << TSimpleSql::Data() << TConstCtrlSym(CtrlSym::rbkt).toStr();
+		TSimpleSql::Data(ss.str());
 	}
-	data = ch + TConstCtrlSym(CtrlSym::Space) + tmp;
+	TSimpleSql::Data(ch + TConstCtrlSym(CtrlSym::Space) + tmp);
 };
 
 void NS_Sql::TSection::AddField(const string& str, const TConstSql& ch, bool use_brkt)
@@ -228,13 +342,11 @@ void NS_Sql::TSection::AddField(const string& str, const TConstSql& ch, bool use
 	}
 	catch (const TLog& er)
 	{
-		std::cerr << er.what() << endl;
-		return;
+		throw er;
 	}
 	catch (...)
 	{
-		std::cerr << "Не обработанная ошибка!" << endl;
-		return;
+		throw TLog("Не обработанная ошибка!", "NS_Sql::TSection::AddField");
 	}
 };
 
@@ -248,7 +360,7 @@ NS_Sql::TSection& NS_Sql::TSection::operator=(const TSection& sect)
 	if (this != &sect)
 	{
 		name = sect.name;
-		data = sect.data;
+		TSimpleSql::Data(sect.Data());
 	}
 	return *this;
 };
@@ -271,9 +383,9 @@ vector<string> NS_Sql::getColumnValue(const TSection& section)
 	vector<string> result;
 	if (section.name != TSql::Select) return result;
 	size_t pos = 0;
-	while (pos < section.data.size())
+	while (pos < section.Data().size())
 	{
-		string tmp = TSection::get_data_by_key_range(section.data, pos, TConstSql(TSql::As), TConstSql(TSql::D4L));
+		string tmp = TSection::get_data_by_key_range(section.Data(), pos, TConstSql(TSql::As), TConstSql(TSql::D4L));
 		if (!tmp.empty())
 			result.push_back(tmp);
 	}
@@ -299,15 +411,7 @@ NS_Sql::TText::TText(const string& str)
 
 NS_Sql::TText::TText(std::istream& stream)
 {
-	if (!stream) return;
-	std::stringstream ss;
-	while (stream)
-	{
-		string str;
-		std::getline(stream, str);
-		ss << str;
-	}
-	Init_Sectors(ss.str());
+	Init_Sectors(TSimpleSql::read_sql_file(stream));
 };
 
 string NS_Sql::TText::toStr(bool use_eoc) const
@@ -328,21 +432,19 @@ string NS_Sql::TText::toStr(bool use_eoc) const
 bool NS_Sql::TText::DelSection(const TSql& title) noexcept(true)
 {
 	TConstSql tmp(title);
-	TLog log("Ошибка удаления секции " + tmp.toStr());
+	TLog log("Ошибка удаления секции " + tmp.toStr(), "TText::DelSection");
 	try
 	{
 		if (tmp.MustFound())
 		{
-			//log += "Блок: " + tmp.toStr() + " не подлежит удалению!";
-			log.raise(false, "TText::DelSection");
+			log.toErrBuff();
 			return false;
 		}
 		//ищем указанную секцию:
 		TConstSectIndex i = operator[](tmp);
 		if (i == sect.end())
 		{
-			//log << "Блока: " << tmp.toStr() << " не найдено!";
-			log.raise(false, "TText::DelSection");
+			log.toErrBuff();
 			return false;
 		}
 		else
@@ -355,7 +457,7 @@ bool NS_Sql::TText::DelSection(const TSql& title) noexcept(true)
 	}
 	catch (...)
 	{
-		std::cerr << "Необработанная ошибка при удалении секции: " << tmp.toStr() << endl;
+		TLog("Необработанная ошибка при удалении секции: " + tmp.toStr() + TLog::NL, "TText::DelSection").toErrBuff();
 		return false;
 	}
 	return true;
@@ -399,10 +501,11 @@ bool NS_Sql::TText::AddField2Section(const TSql& title, const string& str,
 		indx->AddField(str, tmp_delimeter, brkt);
 		return true;
 	}
-	catch (const TLog& er)
+	catch (const string& er)
 	{
-		cerr << "Ошибка добавления поля: " << str << " в секцию: " << tmp_title.toStr() << endl;
-		cerr << er.what() << endl;
+		TLog log("Ошибка добавления поля: " + str + " в секцию: " + tmp_title.toStr() + TLog::NL, "NS_Sql::TText::AddField2Section");
+		log << er << TLog::NL;
+		log.toErrBuff();
 		return false;
 	}
 };
