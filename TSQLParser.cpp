@@ -14,100 +14,28 @@ using std::cout;
 using std::endl;
 using std::cerr;
 using NS_Logger::TLog;
+using NS_Const::UpperCase;
+using NS_Const::LowerCase;
+using NS_Const::Trim_Left;
+using NS_Const::Trim_Right;
+using NS_Const::Trim;
+using NS_Const::TTrimObj;
 
 namespace NS_Sql
 {
-	//преобразование в нижний регистр:
-	string LowerCase(const string& str);
-	string UpperCase(const string& str);
-	//убираем из строки служебные символа:
-	void DeleteServiceSymb(string& str);
-	//функция убирающая пробелы из начали и конца строки:
-	void Trim_Left(string& str);
-	void Trim_Right(string& str);
-	void Trim(string& str);
 	void raise_app_err(const TLog& log, bool as_raise = true);
-	//класс для сравнения со строками в качестве предиката:
-	class TTrimObj
+	class TrimSqlObj : public NS_Const::TTrimObj
 	{
-	private:
-		string symb;
 	public:
-		TTrimObj(const string& arr) : symb(arr) {};
-		TTrimObj(const TConstSql& title);
-		//манипуляция с символами:
-		bool operator()(const char& ch) const;
-		//операция сравнения секторов по имени:
-		bool operator()(const TSection& sect) const;
+		TrimSqlObj(const TConstSql& title) : TTrimObj(title) {}
+		TrimSqlObj(const string& arr) : TTrimObj(arr) {}
+		bool operator()(const TSection& sect) const noexcept(true) { return sect.Name() == Symbols(); }
 	};
-};
+}
 
 void NS_Sql::raise_app_err(const TLog& log, bool as_raise)
 {
 	as_raise ? throw log : log.toErrBuff();
-}
-
-//преобразование в нижний регистр:
-string NS_Sql::LowerCase(const string& str)
-{
-	string result;
-	std::transform(str.begin(), str.end(), std::insert_iterator<std::string>(result, result.begin()), tolower);
-	return result;
-}
-
-string NS_Sql::UpperCase(const string& str)
-{
-	string result;
-	std::transform(str.begin(), str.end(), std::insert_iterator<std::string>(result, result.begin()), toupper);
-	return result;
-}
-
-NS_Sql::TTrimObj::TTrimObj(const TConstSql& title)
-{
-	symb = title.toStr();
-}
-
-bool NS_Sql::TTrimObj::operator()(const char& ch) const
-{
-	for (char v : symb)
-		if (v == ch)
-			return true;
-	return false;
-};
-
-bool NS_Sql::TTrimObj::operator()(const TSection& sect) const
-{
-	return sect.Name() == symb;
-}
-
-void NS_Sql::DeleteServiceSymb(string& str)
-{
-	string syms = { TConstCtrlSym(CtrlSym::Space).toChar(), TConstCtrlSym(CtrlSym::NL).toChar(),
-		TConstCtrlSym(CtrlSym::Tab).toChar() };;
-	//std::transform(str.begin(), str.end(), str.begin(), TTrimObj(syms));
-	std::copy_if(str.begin(), str.end(), std::insert_iterator<string>(str, str.begin()), TTrimObj(syms));
-};
-
-void NS_Sql::Trim_Left(string& str)
-{
-	string syms = { TConstCtrlSym(CtrlSym::Space).toChar(), TConstCtrlSym(CtrlSym::NL).toChar(),
-		TConstCtrlSym(CtrlSym::Tab).toChar() };
-	string::const_iterator b = std::find_if_not(str.begin(), str.end(), TTrimObj(syms));
-	if (b >= str.begin()) str.erase(str.begin(), b);
-};
-
-void NS_Sql::Trim_Right(string& str)
-{
-	string syms = { TConstCtrlSym(CtrlSym::Space).toChar(), TConstCtrlSym(CtrlSym::NL).toChar(), 
-		TConstCtrlSym(CtrlSym::Tab).toChar() };
-	string::const_reverse_iterator b = std::find_if_not(str.rbegin(), str.rend(), TTrimObj(syms));
-	if (b != str.rbegin()) str.erase(b.base(), str.end());
-};
-
-void NS_Sql::Trim(string& str)
-{
-	Trim_Left(str);
-	Trim_Right(str);
 }
 
 string NS_Sql::AsString(const TText& sql)
@@ -126,13 +54,13 @@ void NS_Sql::TSimpleSql::Trim(const Side& flg)
 	switch (flg)
 	{
 	case Side::Left:
-		NS_Sql::Trim_Left(text);
+		Trim_Left(text);
 		break;
 	case Side::Right:
-		NS_Sql::Trim_Right(text);
+		Trim_Right(text);
 		break;
 	case Side::Full:
-		NS_Sql::Trim(text);
+		NS_Const::Trim(text);
 		break;
 	}
 }
@@ -142,8 +70,8 @@ string NS_Sql::TSimpleSql::toCase(const KeyCase& flg) const
 	if (text.empty()) return string();
 	switch (flg)
 	{
-	case KeyCase::Lower: return NS_Sql::LowerCase(text);
-	case KeyCase::Upper: return NS_Sql::UpperCase(text);
+	case KeyCase::Lower: return LowerCase(text);
+	case KeyCase::Upper: return UpperCase(text);
 	}
 	return text;
 }
@@ -368,7 +296,7 @@ NS_Sql::TSection& NS_Sql::TSection::operator=(const TSection& sect)
 NS_Sql::TText::TSectIndex NS_Sql::TText::operator[](const TConstSql& title)
 {
 	if (title.isEmpty()) return sect.end();
-	return std::find_if(sect.begin(), sect.end(), TTrimObj(title));
+	return std::find_if(sect.begin(), sect.end(), TrimSqlObj(title));
 };
 
 NS_Sql::TSection NS_Sql::TText::operator[](const TConstSql& title) const

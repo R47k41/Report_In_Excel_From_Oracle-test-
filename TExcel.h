@@ -217,7 +217,7 @@ namespace NS_Excel
 		//конструкторы:
 		explicit TExcelBook(const string& book_name, int header_row = 0): fname(book_name), HeaderRow(header_row) { CrtBook(); }
 		//деструктор:
-		~TExcelBook() { if (isValid()) book->release(); book = nullptr; }
+		~TExcelBook() { close(); }
 		//валидность объекта:
 		bool isValid(bool raise_err = false) const noexcept(false);
 		//заполняем заголовок из массива строк:
@@ -296,6 +296,8 @@ namespace NS_Excel
 		bool Double2Date(double value, TExcelDate& date) noexcept(false);
 		//строка заголовка:
 		int getHeaderRow() const noexcept(true) { return HeaderRow; }
+		//функция получения имени файла:
+		string getFileName() const noexcept(true) { return fname; }
 		//функция получения расширения файла:
 		//если ошибка - вернет пустую строку
 		string getFileExtend() const noexcept(true);
@@ -303,6 +305,8 @@ namespace NS_Excel
 		size_t MaxRowsCount() const { return max_rows; }
 		//функция получения максимального числа столбцов:
 		size_t MaxColsCount() const { return max_cols; }
+		//закрытие книги:
+		void close() noexcept(false) { if (isValid()) book->release(); book = nullptr; }
 	};
 
 	//класс страница/лист excel-документа: http://www.libxl.com/spreadsheet.html

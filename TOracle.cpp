@@ -374,6 +374,17 @@ bool NS_Oracle::TStatement::ExecuteSQL(const string& sql) noexcept(true)
 	return false;
 }
 
+void NS_Oracle::TResultSet::setSize4NullCol()
+{
+	if (meta.size() < 1) return;
+	for (UInt i = 0; i < meta.size(); i++)
+	{
+		if (meta[i].getInt(MetaData::ATTR_DATA_SIZE) == 0)
+			//колонки нумеруются от 1
+			setMaxColumnSize(i+1);
+	}
+}
+
 void NS_Oracle::TResultSet::InitMetaData()
 {
 	using oracle::occi::SQLException;
@@ -410,6 +421,7 @@ NS_Oracle::TResultSet::TResultSet(TStatement& query)
 		result = nullptr;
 	}
 	InitMetaData();
+	setSize4NullCol();
 }
 
 bool NS_Oracle::TResultSet::close() noexcept(false)

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <boost/filesystem.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/property_tree/json_parser.hpp>
 #include "TuneParam.h"
 #include "Logger.h"
 #include "TConverter.cpp"
@@ -120,11 +121,15 @@ string NS_Tune::TStringParam::toStr(bool use_quotes) const
 void NS_Tune::TSubParam::setValue(void)
 {
 	using NS_Converter::toType;
+	using NS_Const::LowerCase;
 	TConstField tmp_field(TuneField::SqlParamQuane);
 	string tmpID = Get_TuneField_Val(tmp_field, CtrlSym::quane, CtrlSym::semicolon);
-	if (!toType(tmpID, &id, false)) id = EmptyID;
+	if (!toType(tmpID, &id)) id = EmptyID;
 	tmp_field = TuneField::SqlParamType;
 	string tmpType = Get_TuneField_Val(tmp_field, CtrlSym::quane, CtrlSym::semicolon);
+	//тип данных берем в нижнем регистре:
+	tmpType = LowerCase(tmpType);
+	//получение ссылки на тип данных:
 	type = TConstType(tmpType);
 	tmp_field = TuneField::SqlParamNote;
 	comment = Get_TuneField_Val(tmp_field, CtrlSym::quane, CtrlSym::semicolon);
@@ -238,9 +243,12 @@ NS_Tune::FileParam NS_Tune::TSimpleTune::getFileParamByCode(const Types& code) c
 	case Types::Config:
 		result.second = getFieldValueByCode(TuneField::ConfigFileExt);
 		break;
-	case Types::Sql:
+	case Types::SQL:
+	case Types::DQL:
+	case Types::DML:
 		result.second = getFieldValueByCode(TuneField::SqlFileExt);
 		break;
+
 	case Types::Template:
 		result.second = getFieldValueByCode(TuneField::TemplateFileExt);
 		break;
@@ -271,7 +279,9 @@ string NS_Tune::TSimpleTune::getPathByCode(const Types& code) const noexcept(tru
 	case Types::Config:
 		name = getFieldValueByCode(TuneField::ConfigPath);
 		break;
-	case Types::Sql:
+	case Types::SQL:
+	case Types::DQL:
+	case Types::DML:
 		name = getFieldValueByCode(TuneField::SqlPath);
 		break;
 	case Types::Template:
@@ -561,9 +571,15 @@ string NS_Tune::TSimpleTune::getNameByCode(const Types& code) const noexcept(tru
 	char delimeter;
 	switch (code)
 	{
-	case Types::Sql:
+	case Types::SQL:
+	case Types::DQL:
 	{
 		name = getFieldValueByCode(TuneField::SqlFile);
+		break;
+	}
+	case Types::DML:
+	{
+		name = getFieldValueByCode(TuneField::DMLFile);
 		break;
 	}
 	case Types::Template:
@@ -616,8 +632,10 @@ string NS_Tune::TSimpleTune::getFullFileName(const Types& code, bool only_path) 
 	return path + name;
 }
 
-string NS_Tune::TSimpleTune::getFieldValueByCode(const TuneField& code, bool exit_on_er) const noexcept(true)
+string NS_Tune::TSimpleTune::getFieldValueByCode(const TuneField& code) const noexcept(true)
 {
+	using std::cerr;
+	using std::endl;
 	try
 	{
 		TStringParam tmp = getConstElementByID(code, fields);
@@ -635,6 +653,16 @@ string NS_Tune::TSimpleTune::getFieldValueByCode(const TuneField& code, bool exi
 	return string();
 }
 
+bool NS_Tune::TSimpleTune::FieldValueAsInt(const TuneField& code, int& val) const noexcept(false)
+{
+	using NS_Converter::toType;
+	string tmp = getFieldValueByCode(code);
+	if (tmp.empty()) return false;
+	if (!toType(tmp, &val))
+		return false;
+	return true;
+}
+
 void NS_Tune::TSimpleTune::show_tunes(void) const
 {
 	using std::cout;
@@ -643,6 +671,24 @@ void NS_Tune::TSimpleTune::show_tunes(void) const
 	for (TStringParam x : fields)
 		cout << x.toStr(false) << endl;
 };
+
+string NS_Tune::TSimpleTune::getOutFileBySheet() const noexcept(false)
+{
+	string result = getPathByCode(Types::OutPath) + getNameByCode(Types::OutSheet);
+	//если путь и страница не пустые
+	if (!result.empty() and result[result.size() - 1] != TConstCtrlSym::asChr(CtrlSym::dash))
+		//получаем расширение из файла:
+		result += NS_Const::TConstExclTune::getFileExtention(getNameByCode(Types::OutName));
+	return result;
+}
+
+bool NS_Tune::TSimpleTune::useFlag(const TuneField& code) const noexcept(true)
+{
+	int val = 0;
+	if (FieldValueAsInt(code, val))
+		return val == 1;
+	return false;
+}
 
 string NS_Tune::TSharedTune::getSectionName() const noexcept(true)
 {
@@ -821,4 +867,200 @@ void NS_Tune::TUserTune::show_params(void) const
 	if (EmptyParams()) return;
 	for (TSubParam par : params)
 		par.show();
+}
+
+vector<string> NS_Tune::TUserTune::getSQLFileLst(const Types& code, bool use_sort) const noexcept(false)
+{
+	//получение данных о файлах и путях(если будут меняться расширения файлов - запихнуть в switch):
+	FileParam param = getFileParamByCode(Types::SQL);
+	//получение обрабатываемых кодов:
+	switch (code)
+	{
+	case Types::DQL:
+		param.first += getFieldValueByCode(TuneField::SqlFile);
+		break;
+	case Types::DML:
+		param.first += getFieldValueByCode(TuneField::DMLFile);
+		break;
+	}
+	return getFileLst(param.first, param.second, use_sort);
+}
+
+bool NS_Tune::TUserTune::isEmptyByCode(const Types& code) const noexcept(false)
+{
+	switch (code)
+	{
+	case Types::DQL:
+		return getFieldValueByCode(TuneField::SqlFile).empty() && getFieldValueByCode(TuneField::SqlText).empty();
+	case Types::DML:
+		return getFieldValueByCode(TuneField::DMLFile).empty() && getFieldValueByCode(TuneField::DMLText).empty();
+	}
+	return false;
+}
+
+size_t NS_Tune::TIndex::getIndexByJson(const ptree& json, const string& parent_node,
+	const NS_Const::JsonParams& child_node) noexcept(true)
+{
+	using NS_Const::TConstJson;
+	using NS_Logger::TLog;
+	using boost::property_tree::json_parser_error;
+	using boost::property_tree::file_parser_error;
+	string tmp = parent_node;
+	tmp << child_node;
+	try
+	{
+		return json.get(tmp, EmptyIndex);
+	}
+	catch (const json_parser_error& err)
+	{
+		TLog(err.what(), "NS_Tune::TIndex::getIndexByJson").toErrBuff();
+	}
+	catch (const file_parser_error& err)
+	{
+		TLog(err.what(), "NS_Tune::TIndex::getIndexByJson").toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка получения значения для узла: " + tmp, "NS_Tune::TIndex::getIndexByJson").toErrBuff();
+	}
+	return EmptyIndex;
+}
+
+size_t NS_Tune::TIndex::getIndexByJson(const ptree& json, const NS_Const::JsonParams& parent_node,
+	const NS_Const::JsonParams& child_node) noexcept(true)
+{
+	using NS_Const::operator<<;
+	string tmp;
+	tmp << parent_node;
+	return getIndexByJson(json, tmp, child_node);
+}
+
+NS_Tune::TCellData::TCellData(const ptree& json) : dst_indx(TIndex::EmptyIndex), src_indx(TIndex::EmptyIndex),
+	dst_ins_indx(TIndex::EmptyIndex)
+{
+	using NS_Const::JsonParams;
+	using NS_Const::TConstJson;
+	if (json.empty()) return;
+	dst_indx = TIndex::getIndexByJson(json, JsonParams::Cells, JsonParams::dst_index);
+	src_indx = TIndex::getIndexByJson(json, JsonParams::Cells, JsonParams::src_index);
+	dst_ins_indx = TIndex::getIndexByJson(json, JsonParams::Cells, JsonParams::dst_insert_index);
+}
+
+NS_Tune::TCellData& NS_Tune::TCellData::setData(size_t dst, size_t src, size_t ins) noexcept(true)
+{
+	setDstIndex(dst);
+	setSrcIndex(src);
+	setInsIndex(ins);
+	return *this;
+}
+
+NS_Tune::TCellData& NS_Tune::TCellData::operator=(const TCellData& cd) noexcept(true)
+{
+	if (this != &cd)
+	{
+		dst_indx = cd.dst_indx;
+		src_indx = cd.src_indx;
+		dst_ins_indx = cd.dst_ins_indx;
+	}
+	return *this;
+}
+
+bool NS_Tune::TFilterData::operator==(const string& val) const noexcept(true)
+{
+	using NS_Const::Trim;
+	using NS_Const::LowerCase;
+	string a = LowerCase(value);
+	string b = LowerCase(val);
+	Trim(a);
+	Trim(b);
+	return a == b;
+}
+
+NS_Tune::TShareData::TShareData(const ptree& json, const NS_Const::JsonParams& param):
+	name(), lst_indx(TIndex::EmptyIndex), strt_row_indx(TIndex::EmptyIndex), fltr()
+{
+	using NS_Const::JsonParams;
+	using NS_Const::TConstJson;
+	using NS_Const::operator<<;
+	using boost::property_tree::ptree;
+	if (json.empty()) return;
+	string tmp;
+	tmp << param << JsonParams::name;
+	name = json.get<string>(tmp);
+	lst_indx = TIndex::getIndexByJson(json, JsonParams::Cells, JsonParams::list_index);
+	strt_row_indx = TIndex::getIndexByJson(json, JsonParams::Cells, JsonParams::start_index);
+	tmp = string();
+	tmp << param << JsonParams::filter;
+	for (const ptree::value_type& v : json.get_child(tmp))
+	{
+		std::pair<size_t, string> val;
+		val.first = TIndex::getIndexByJson(json, tmp, JsonParams::column_index);
+		if (val.first != TIndex::EmptyIndex)
+		{
+			string s = tmp;
+			s << JsonParams::value;
+			val.second = json.get<string>(s);
+			fltr.push_back(TFilterData(val));
+		}
+	}
+}
+
+NS_Tune::TShareData* NS_Tune::TExcelCompareData::crtShareData(const ptree& json, const string& par_name) noexcept(false)
+{
+/*
+	TShareData* tmp = new TShareData(json, par_name);
+	if (!tmp->isEmpty()) return tmp;
+	delete tmp;
+/**/
+	return nullptr;
+}
+
+
+NS_Tune::TExcelCompareData::TExcelCompareData(const string& json_file): DstFile(nullptr), 
+	SrcFile(nullptr), cells()
+{
+	using NS_Logger::TLog;
+	using boost::property_tree::ptree;
+	using boost::property_tree::file_parser_error;
+	using boost::property_tree::json_parser_error;
+	using boost::property_tree::json_parser::read_json;
+	if (json_file.empty()) return;
+	try
+	{
+		//получение настроек из json-файла
+		ptree json;
+		//чтение из json-файла
+		read_json(json_file, json);
+		if (json.empty()) throw TLog("Пустой файл: " + json_file, "NS_Tune::TExcelCompareData");
+		//формирование настроек файла источника:
+		TShareData tmp(json, NS_Const::JsonParams::DstFile);
+		if (!tmp.isEmpty()) DstFile = new TShareData(tmp);
+		//формирование настроек файла приемника:
+
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (const json_parser_error& err)
+	{
+		TLog(err.what(), "NS_Tune::TExcelCompareData").toErrBuff();
+	}
+	catch (const file_parser_error& err)
+	{
+		TLog(err.what(), "NS_Tune::TExcelCompareData").toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка при считывании файла: ", "NS_Tune::TExcelCompareData");
+		log << json_file;
+		log.toErrBuff();
+	}
+
+}
+
+NS_Tune::TExcelCompareData::~TExcelCompareData()
+{
+	if (DstFile) delete DstFile;
+	if (SrcFile) delete SrcFile;
 }

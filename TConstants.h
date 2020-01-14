@@ -32,9 +32,22 @@ namespace NS_Const
 		//отчет
 		SheetName, TemplateName,
 		//запрос
-		SqlFile, SqlText, SqlParam, Column,
+		SqlFirst, SqlFile, SqlText, DMLFile, DMLText, SqlParam, Column,
 		SqlParamQuane, SqlParamType, SqlParamNote, SqlParamValue, UseSqlParser,
 		End_Unq_Tune,
+		Last
+	};
+
+	//параметры для настройки excel-файлов(для сравнения/импорта)
+	enum class JsonParams {Null, False, True,
+		//блок для основных объектов
+		ObjBegin, DstFile, SrcFile, Cells, ObjEnd,
+		//блок для данных в объекте Файл
+		FileBegin, name, list_index, start_index, filter, FileEnd,
+		//блок для данных в объекте Фильтр
+		FilterBegin, column_index, value, FilterEnd,
+		//блок данных для объекта Колонка
+		CellsBegin, dst_index, src_index, dst_insert_index, CellsEnd,
 		Last
 	};
 
@@ -73,7 +86,8 @@ namespace NS_Const
 		REPAYMENT_FOR_DATE,//гашение крелитов СФ + МФ (Скачкова)
 		POTREB_CRED_BY_FILE,//потребительские крелиты МФ по файлу (Борисова)
 		CRED_CASE_MF,//кредитный портфель МФ (Ермакова)
-		NBKI,//данные для отправки в НБКИ (Борисова) все в один файл
+		NBKI_NP,//данные по Физ. лицам(Борисова)
+		NBKI_JP,//данные по Юр. лицам(Борисова)
 		CLOSE_DAY,//закрытие баланса/месяца
 		NBKI_APPLY,//обновление данных по НБКИ (Борисова) когда меняем статус с 3 на 0
 		BALANCE_LIST,//ведомость остатков МФ (Ермакова)
@@ -82,6 +96,17 @@ namespace NS_Const
 		FILE_COMPARE,//сравнение файлов excel
 		Last
 		};
+
+	//базовые операции со строками:
+	//преобразование в нижний регистр:
+	string LowerCase(const string& str);
+	string UpperCase(const string& str);
+	//убираем из строки служебные символа:
+	//void DeleteServiceSymb(string& str);
+	//функция убирающая пробелы из начали и конца строки:
+	void Trim_Left(string& str);
+	void Trim_Right(string& str);
+	void Trim(string& str);
 
 	//базовый интерфейс для константных значений:
 	template <typename T, T min_val, T max_val>
@@ -138,6 +163,7 @@ namespace NS_Const
 	using RC_Const = TConstant<ReportCode, ReportCode::Empty, ReportCode::Last>;
 	using SQL_Const = TConstant<TSql, TSql::Empty, TSql::Last>;
 	using CS_Const = TConstant<CtrlSym, CtrlSym::Empty, CtrlSym::Last>;
+	using JS_Const = TConstant<JsonParams, JsonParams::Null, JsonParams::Last>;
 
 
 	//Поля из файла настроек:
@@ -197,6 +223,8 @@ namespace NS_Const
 		virtual string toStr() const { return asStr(Value()); };
 		//операция присвоения
 		TConstExclTune& operator=(const TExclBaseTune& x) { EBT_Const::operator=(x); return*this; }
+		//получение расширения файла:
+		static string getFileExtention(const string& val) noexcept(true);
 		//проверка валидности расширения для excel-файла:
 		static bool isValidExtensions(const string& val) noexcept(true);
 	};
@@ -279,6 +307,41 @@ namespace NS_Const
 		TConstSql operator+(int x) const noexcept(true);
 		//вывод данныъ TCtrlSym в поток
 		friend std::ostream& operator<<(std::ostream& stream, const TConstSql& val) noexcept(false);
+	};
+
+	//класс для сравнения со строками в качестве предиката:
+	class TTrimObj
+	{
+	private:
+		string symb;
+	protected:
+		string Symbols() const noexcept(true) { return symb; }
+	public:
+		TTrimObj(const string& arr) : symb(arr) {};
+		TTrimObj(const TConstSql& title);
+		//манипуляция с символами:
+		bool operator()(const char& ch) const;
+	};
+
+	string& operator<<(string& str, const JsonParams& param);
+	
+	//класс для обработки Json-констант:
+	class TConstJson : public JS_Const
+	{
+	public:
+		//инициализация
+		explicit TConstJson(const JsonParams& x) : JS_Const(x) {}
+		explicit TConstJson(int x) : JS_Const(x) {}
+		//присвоение:
+		TConstJson& operator=(const JsonParams & x) { JS_Const::operator=(x); return *this; }
+		//получение строкового значения по идентификтору:
+		static string asStr(const JsonParams& val) noexcept(true);
+		static string Concate(const std::vector<JsonParams>& arr) noexcept(true);
+		string toStr() const noexcept(true) { return asStr(Value()); }
+		//сравнение:
+		bool operator==(const string& str) const noexcept(true) { return toStr() == str; }
+		bool operator==(const JsonParams& val) const noexcept(true) { return Value() == val; }
+		friend string& operator<<(string& str, const JsonParams& param);
 	};
 
 }

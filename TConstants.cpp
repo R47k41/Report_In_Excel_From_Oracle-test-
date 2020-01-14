@@ -1,10 +1,63 @@
 //описание функций для модуля Constants.h
 #include <iostream>
+#include <iterator>
+#include <algorithm>
 #include <sstream>
 #include <cstring>
 #include "TConstants.h"
 
 using std::string;
+
+//преобразование в нижний регистр:
+string NS_Const::LowerCase(const string& str)
+{
+	string result;
+	std::transform(str.begin(), str.end(), std::insert_iterator<std::string>(result, result.begin()), tolower);
+	return result;
+}
+
+string NS_Const::UpperCase(const string& str)
+{
+	string result;
+	std::transform(str.begin(), str.end(), std::insert_iterator<std::string>(result, result.begin()), toupper);
+	return result;
+}
+
+NS_Const::TTrimObj::TTrimObj(const TConstSql& title)
+{
+	symb = title.toStr();
+}
+
+bool NS_Const::TTrimObj::operator()(const char& ch) const
+{
+	for (char v : symb)
+		if (v == ch)
+			return true;
+	return false;
+};
+
+void NS_Const::Trim_Left(string& str)
+{
+	string syms = { TConstCtrlSym(CtrlSym::Space).toChar(), TConstCtrlSym(CtrlSym::NL).toChar(),
+		TConstCtrlSym(CtrlSym::Tab).toChar() };
+	string::const_iterator b = std::find_if_not(str.begin(), str.end(), TTrimObj(syms));
+	if (b >= str.begin()) str.erase(str.begin(), b);
+};
+
+void NS_Const::Trim_Right(string& str)
+{
+	string syms = { TConstCtrlSym(CtrlSym::Space).toChar(), TConstCtrlSym(CtrlSym::NL).toChar(),
+		TConstCtrlSym(CtrlSym::Tab).toChar() };
+	string::const_reverse_iterator b = std::find_if_not(str.rbegin(), str.rend(), TTrimObj(syms));
+	if (b != str.rbegin()) str.erase(b.base(), str.end());
+};
+
+void NS_Const::Trim(string& str)
+{
+	Trim_Left(str);
+	Trim_Right(str);
+}
+
 
 template <typename T, T min_val, T max_val>
 bool NS_Const::TConstant<T, min_val, max_val>::isValid(const T& a, const T& b, bool exit_on_err) const noexcept(false)
@@ -82,9 +135,12 @@ string NS_Const::TConstField::asStr(const TuneField& val)
 	case TuneField::Report: return "[REPORT]";
 	case TuneField::SheetName: return "SheetName";
 	case TuneField::TemplateName: return "TemplateName";
+	case TuneField::SqlFirst: return "SqlFirst";
 	case TuneField::SqlFile: return "SQLFile";
 	case TuneField::SqlText: return "SQLText";
 	case TuneField::UseSqlParser: return "UseSqlParser";
+	case TuneField::DMLText: return "DMLText";
+	case TuneField::DMLFile: return "DMLFile";
 	case TuneField::Columns: return "[COLUMNS]";
 	case TuneField::Column: return "Column";
 	case TuneField::SqlParams: return "[PARAMETERS]";
@@ -148,6 +204,16 @@ string NS_Const::TConstExclTune::asStr(const TExclBaseTune& val) noexcept(true)
 	return string();
 }
 
+string NS_Const::TConstExclTune::getFileExtention(const string& val) noexcept(true)
+{
+	if (val.empty()) return string();
+	const char delimeter = TConstCtrlSym::asChr(CtrlSym::point);
+	//получение имени файла из настроек:
+	int pos = val.find_last_of(delimeter);
+	if (pos == string::npos) return string();
+	return val.substr(pos);
+}
+
 bool NS_Const::TConstExclTune::isValidExtensions(const string& val) noexcept(true)
 {
 	if (val.empty()) return false;
@@ -168,7 +234,8 @@ string NS_Const::TConstReportCode::toStr() const
 	case ReportCode::CRED_CASE_MF: return "CRED_CASE_MF";
 	case ReportCode::BALANCE_LIST: return "BALANCE_LIST";
 	case ReportCode::FULL_CRED_REPORT: return "FULL_CRED_REPORT";
-	case ReportCode::NBKI: return "NBKI";
+	case ReportCode::NBKI_NP: return "NBKI_NP";
+	case ReportCode::NBKI_JP: return "NBKI_JP";
 	case ReportCode::NBKI_APPLY: return "NBKI_APPLY";
 	case ReportCode::CLOSE_DAY: return "CLOSE_DAY";
 	case ReportCode::LOAD_FROM_FILE: return "LOAD_FROM_FILE";
@@ -188,8 +255,9 @@ string NS_Const::TConstReportCode::getName() const
 	case ReportCode::CRED_CASE_MF: return "Ермакова: Кредитный портфель МФ";
 	case ReportCode::BALANCE_LIST: return "Ермакова: Ведомость остатков";
 	case ReportCode::FULL_CRED_REPORT: return "Ермакова: Полный кредитный портфель";
-	case ReportCode::NBKI: return "НБКИ выборка";
-	case ReportCode::NBKI_APPLY: return "НБКИ фиксация изменений";
+	case ReportCode::NBKI_NP: return "Борисова: НБКИ Физ. лица";
+	case ReportCode::NBKI_JP: return "Борисова: НБКИ Юр. лица";
+	case ReportCode::NBKI_APPLY: return "Борисова: НБКИ фиксация изменений";
 	case ReportCode::CLOSE_DAY: return "Закрытие баланса";
 	case ReportCode::LOAD_FROM_FILE: return "Загрузка проводок из файла в OraBank";
 	case ReportCode::FILE_COMPARE: return "Сравнение excel-файлов";
@@ -379,6 +447,55 @@ bool NS_Const::TSymGroup::IsCorrectSym(const string& str, std::size_t pos, const
 		}
 	}
 	return true;
+}
+
+string NS_Const::TConstJson::asStr(const JsonParams& val) noexcept(true)
+{
+	switch (val)
+	{
+	case JsonParams::Null: return "null";
+	case JsonParams::False: return "false";
+	case JsonParams::True: return "true";
+	case JsonParams::DstFile: return "DstFile";
+	case JsonParams::SrcFile: return "SrcFile";
+	case JsonParams::Cells: return "Cells";
+	case JsonParams::name: return "name";
+	case JsonParams::list_index: return "lst_indx";
+	case JsonParams::start_index: return "strt_indx";
+	case JsonParams::filter: return "fltr";
+	case JsonParams::column_index: return "col_indx";
+	case JsonParams::value: return "value";
+	case JsonParams::dst_index: return "dst_indx";
+	case JsonParams::src_index: return "src_indx";
+	case JsonParams::dst_insert_index: return "dst_ins_indx";
+	}
+	return string();
+}
+
+string& NS_Const::operator<<(string& str, const JsonParams& param)
+{
+	string tmp;
+	if (param == JsonParams::Null)
+		tmp = string();
+	else
+		tmp = TConstJson::asStr(param);
+	if (str.empty())
+		return str += tmp;
+	char div = TConstCtrlSym::asChr(CtrlSym::point);
+	str += div + tmp;
+	return str;
+}
+
+string NS_Const::TConstJson::Concate(const std::vector<JsonParams>& arr) noexcept(true)
+{
+	if (arr.size() < 1) return string();
+	string rslt;
+	for (size_t i = 0; i < arr.size(); i++)
+	{
+		if (!rslt.empty() and i+1 < arr.size())
+			rslt << arr[i];
+	}
+	return rslt;
 }
 
 //явное инстанцирование для шаблонов

@@ -978,15 +978,7 @@ void NS_Excel::TExcelBook::CrtBook(int header_row) noexcept(true)
 
 string NS_Excel::TExcelBook::getFileExtend() const noexcept(true)
 {
-	using NS_Const::TuneField;
-	using NS_Const::CtrlSym;
-	using NS_Const::TConstCtrlSym;
-	const char delimeter = TConstCtrlSym::asChr(CtrlSym::point);
-	//получение имени файла из настроек:
-	if (fname.empty()) return string();
-	int pos = fname.find_last_of(delimeter);
-	if (pos == string::npos) return string();
-	return fname.substr(pos);
+	return TConstExclTune::getFileExtention(fname);
 }
 
 string NS_Excel::TExcelBook::getDefaultSheetName() const noexcept(true)

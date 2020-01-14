@@ -3,15 +3,19 @@
 
 #include <string>
 
+
 namespace NS_Converter
 {
 	//функции преобразования данных:
 
 	template <class T>
-	std::string toStr(T val, bool no_except = true) noexcept(false);
+	bool toStr(T val, std::string& str) noexcept(true);
 
 	template <class T>
-	bool toType(const std::string& str, T* val, bool no_except = true) noexcept(false);
+	std::string toStr(T val) noexcept(true);
+
+	template <class T>
+	bool toType(const std::string& str, T* val) noexcept(true);
 
 /*
 	template <>
@@ -29,7 +33,12 @@ namespace NS_Converter
 	template <>
 	bool toType<double>(const string& str, double* val, bool no_except) noexcept(false);
 /**/
-
+	//преобразование из unicode-строки в многобайтовую строку
+	std::string UnicodeToMByte(const std::wstring& unicodeStr, size_t toCodePage) noexcept(false);
+	//преобразование из многобайтовой строки в unicode строку
+	std::wstring MByteToUnicode(const std::string& str, size_t toCodePage) noexcept(false);
+	//перекодировка unicode в ansi
+	//bool UTF8ToANSI(std::string& inStr) noexcept(false);
 }
 
 #endif

@@ -93,7 +93,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(CPP_LIB)oracle\occi-oracle\sdk\include\;$(CPP_LIB)boost\boost\date_time;$(CPP_LIB)boost\boost\filesystem\;$(CPP_LIB)LibXL\libxl\include_cpp\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(CPP_LIB)oracle\occi-oracle\sdk\include\;$(CPP_LIB)boost\boost\date_time\;$(CPP_LIB)boost\boost\property_tree\;$(CPP_LIB)boost\boost\filesystem\;$(CPP_LIB)LibXL\libxl\include_cpp\;$(CPP_LIB)boost\boost\locale\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -102,7 +102,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(CPP_LIB)boost\stage\lib;$(CPP_LIB)LibXL\libxl\lib;$(CPP_LIB)boost\libs\filesystem;$(CPP_LIB)boost\libs\date_time;$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(CPP_LIB)boost\stage\lib;$(CPP_LIB)LibXL\libxl\lib;$(CPP_LIB)boost\libs\filesystem;$(CPP_LIB)boost\libs\date_time;$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc;$(CPP_LIB)boost\libs\property_tree;$(CPP_LIB)boost\libs\locale;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc\oraocci18d.lib;$(CPP_LIB)LibXL\libxl\lib\libxl.lib;$(CPP_LIB)boost\stage\lib\libboost_date_time-vc142-mt-gd-x32-1_70.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>

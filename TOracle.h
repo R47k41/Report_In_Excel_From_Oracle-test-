@@ -212,6 +212,8 @@ namespace NS_Oracle
 		TResultSet& operator=(const TResultSet& rs);
 		//запрет копирования:
 		TResultSet(const TResultSet& rs);
+		//утсновка минимального размера данных при значениях NULL в ячейках
+		void setSize4NullCol();
 		//инициализация метаданных колонок:
 		void InitMetaData();
 	protected:
@@ -254,6 +256,8 @@ namespace NS_Oracle
 		TType getColumnType(UInt colIndx) const noexcept(false);
 		//закрытие resultSet
 		bool close(void) noexcept(false);
+		//установка максимально допустимого числа байт для считывания данных из колонки:
+		void setMaxColumnSize(UInt colIndx, UInt size = 1) noexcept(false) { result->setMaxColumnSize(colIndx, size); }
 	};
 }
 

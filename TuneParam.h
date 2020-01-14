@@ -7,6 +7,7 @@
 #include <vector>
 #include <set>
 #include <utility>
+#include <boost/property_tree/ptree.hpp>
 #include "TConstants.h"
 
 //обаласти пространства имен для работы с настройками
@@ -24,6 +25,7 @@ namespace NS_Tune
 	using NS_Const::TConstField;
 	using NS_Const::TConstType;
 	using NS_Const::TConstCtrlSym;
+	using boost::property_tree::ptree;
 
 
 	class TBaseParam
@@ -138,7 +140,7 @@ namespace NS_Tune
 	{
 	protected:
 		TFields fields;//поля настроек с их значениями
-		enum class Types { Config, Sql, Template, OutPath, OutName, OutSheet };
+		enum class Types { Config, SQL, DQL, DML, Template, OutPath, OutName, OutSheet };
 		enum class TRead { Section, TuneVal };
 	private:
 		TSimpleTune& operator=(const TSimpleTune& v);
@@ -202,11 +204,18 @@ namespace NS_Tune
 		//проверка на пустоту для продолжения работы:
 		virtual bool Empty() const { return fields.empty(); }
 		//получение значения:
-		string getFieldValueByCode(const TuneField& code, bool exit_on_er = true) const noexcept(true);
+		string getFieldValueByCode(const TuneField& code) const noexcept(true);
+		//получение целочисленного значения по коду параметра:
+		//если вернуло false - произошла ошибка при получении значения
+		bool FieldValueAsInt(const TuneField& code, int& val) const noexcept(false);
 		//функция отображения списка настроек:
 		virtual void show_tunes(void) const;
 		//если данного параметра не найдено берет наименование страницы по умолчанию
 		string getOutSheet() const noexcept(false) { return getFullFileName(Types::OutSheet); }
+		//функция получения имени выходного файла на основании страницы:
+		string getOutFileBySheet() const noexcept(false);
+		//функция проверки значения bool-параметра:
+		bool useFlag(const TuneField& code) const noexcept(true);
 	};
 	
 	//общие настройки пользователя:
@@ -234,7 +243,7 @@ namespace NS_Tune
 		bool Empty() const { return TSimpleTune::Empty(); }
 		//получение списка файлов:
 		vector<string> getConfFileLst(bool use_sort = true) const noexcept(false) { return getFileLst(Types::Config, use_sort); }
-		vector<string> getSqlFileLst(bool use_sort = true) const noexcept(false) { return getFileLst(Types::Sql, use_sort); }
+		vector<string> getSqlFileLst(bool use_sort = true) const noexcept(false) { return getFileLst(Types::DQL, use_sort); }
 		vector<string> getTemplFileLst(bool use_sort = true) const noexcept(false) { return getFileLst(Types::Template, use_sort); }
 		//получение пути к файлу настроек:
 		string getConfigPath() const noexcept(false) { return getFullFileName(Types::Config, true); }
@@ -260,14 +269,16 @@ namespace NS_Tune
 		void Read_Param_Val(ifstream& file);
 		//функция чтения значений колонок
 		void Read_Col_Val(ifstream& file);
-		TUserTune(const TFields& v);
-		TUserTune(const TUserTune& v);
 		TUserTune& operator=(const TUserTune& v);
+		//получение массива sql-команд для выполнения:
+		vector<string> getSQLFileLst(const Types& kind, bool use_sort = true) const noexcept(false);
+		bool isEmptyByCode(const Types& kind) const noexcept(false);
 	public:
 		//список настроек формируется из файла
 		explicit TUserTune(const string& tunefile);
 		//инициализация структурой настроек и новым файлом
 		explicit TUserTune(const TSimpleTune& tune, const string& file);
+		TUserTune(const TUserTune& tune) : TSimpleTune(tune), cols(tune.cols), params(tune.params) {}
 		~TUserTune() {};
 		//проверка на пустоту для полей:
 		virtual bool EmptyFields(void) const { return TSimpleTune::Empty(); }
@@ -295,10 +306,163 @@ namespace NS_Tune
 		size_t ColumnsCnt() const { return cols.size(); }
 		//функция получения числа параметров:
 		size_t ParamsCnt() const { return params.size(); }
-		//получение имени файла запросов:
-		string getSqlFile() const noexcept(false) { return getFullFileName(Types::Sql, false); }
+		//получение имени файла запросов/команд:
+		string getDQLFile() const noexcept(false) { return getFullFileName(Types::DQL, false); }
+		string getDMLFile() const noexcept(false) {return getFullFileName(Types::DML, false); }
+		//получение списка файлов sql-запросов:
+		vector<string> getDQLFileLst(bool use_sort = true) const noexcept(false) { return getSQLFileLst(Types::DQL); }
+		vector<string> getDMLFileLst(bool use_sort = true) const noexcept(false) { return getSQLFileLst(Types::DML); }
+		//проверка указания параметров:
+		bool isDQLEmpty() const noexcept(true) { return isEmptyByCode(Types::DQL); }
+		bool isDMLEmpty() const noexcept(true) { return isEmptyByCode(Types::DML); }
 		//получение имени шаблонного файла:
 		string getTemplateFile() const noexcept(false) { return getFullFileName(Types::Template, false); }
+	};
+
+	//настройки для сравнения excel-файлов
+	//настройки храняться в формате json-текста
+	//описание класса для обработки данных в ячейках excel-файлов:
+	//обработка будет происходить с использованием boost для json(он тупо быстрее и проще пишется)
+	//ссыль: https://www.boost.org/doc/libs/1_52_0/doc/html/property_tree.html
+	//базовый класс для индексов:
+	class TIndex
+	{
+	private:
+		size_t index;
+	public:
+		static const size_t EmptyIndex = 0;
+		TIndex(size_t indx = EmptyIndex) : index(indx) {}
+		TIndex(const TIndex& x) : index(x.index) {}
+		TIndex(const ptree::value_type& json_node);
+		inline bool isEmpty() const noexcept(true) { return index == EmptyIndex; }
+		inline size_t get() const noexcept(true) { return index; }
+		inline void set(size_t val) noexcept(false) { index = val; }
+		bool operator==(size_t val) const noexcept(true) { return isEmpty() ? false: index == val; }
+		bool operator==(const TIndex& val) const noexcept(false) { return isEmpty() ? false : index == val.index; }
+		//получение значения индекса из json-файла:
+		static size_t getIndexByJson(const ptree& json, const string& parent_node,
+			const NS_Const::JsonParams& child_node) noexcept(true);
+		static size_t getIndexByJson(const ptree& json, const NS_Const::JsonParams& parent_node,
+			const NS_Const::JsonParams& child_node) noexcept(true);
+	};
+
+	//класс описываюийя обрабатываемые поля:
+	class TCellData
+	{
+	private:
+		TIndex dst_indx;//индекс поля в приемнике
+		TIndex src_indx;//индекс поля в источнике
+		TIndex dst_ins_indx;//индекс поля в приемнике, куда вставляются данные
+	public:
+		//инициализация по умолчанию:
+		/*
+		TCellData(TIndex dst = TIndex::EmptyIndex, TIndex src = TIndex::EmptyIndex, TIndex ins = TIndex::EmptyIndex) :
+			dst_indx(dst), src_indx(src), dst_ins_indx(ins) {}
+		/**/
+		//инициализация из ссылки на json-объект
+		TCellData(const ptree& json);
+		//деструктор ни чего не делает
+		~TCellData() {}
+		//проверка на пустоту индексов
+		bool EmptyDstIndx() const noexcept(true) { return dst_indx == TIndex::EmptyIndex; }
+		bool EmptySrcIndx() const noexcept(true) { return src_indx == TIndex::EmptyIndex; }
+		bool EmptyInsIndx() const noexcept(true) { return dst_ins_indx == TIndex::EmptyIndex; }
+		//признак не стандартной обработки значения:
+		inline bool AnotherProcedure() const noexcept(true) { return dst_indx == dst_ins_indx && EmptySrcIndx(); }
+		//вывод данных:
+		inline size_t DstIndex() const noexcept(true) { return dst_indx.get(); }
+		inline size_t SrcIndex() const noexcept(true) { return src_indx.get(); }
+		inline size_t InsIndex() const noexcept(true) { return dst_ins_indx.get(); }
+		//оператор присвоения:
+		inline void setDstIndex(size_t val) noexcept(true) { dst_indx.set(val);}
+		inline void setSrcIndex(size_t val) noexcept(true) { src_indx.set(val); }
+		inline void setInsIndex(size_t val) noexcept(true) { dst_ins_indx.set(val); }
+		//присвоение
+		TCellData& setData(size_t dst, size_t src, size_t ins) noexcept(true);
+		TCellData& operator=(const TCellData& cd) noexcept(true);
+	};
+
+	//класс для обработки значений колонок фильтрации:
+	class TFilterData
+	{
+	private:
+		TIndex col_indx;//индекс колонки, где проверяется условие
+		string value;//условие/значение фильтрации
+	public:
+		//конструктор
+		TFilterData(std::pair<size_t, string> val) : col_indx(val.first), value(val.second) {}
+		TFilterData(size_t indx, const string& val): col_indx(indx), value(val) {}
+		//деструктор
+		~TFilterData() {}
+		//проверка пустого значения
+		bool isEmpty() const noexcept(true) { return col_indx.isEmpty(); }
+		//получение значение индекса
+		size_t getColIndx() const noexcept(true) { return col_indx.get(); }
+		//утсановка индекса
+		void setColIndx(size_t val) noexcept(true) { col_indx.set(val); }
+		//получение значения фильтра строкой
+		inline string getValue() const noexcept(true) { return value; }
+		//установка значения для фильтра
+		inline void setValue(const string& val) noexcept(true) { value = val; }
+		//проверка прохождения фильмтра(возможно не нужна - будем сверять на месте):
+		bool operator==(const string& val) const noexcept(true);
+		bool operator==(const TFilterData& src) const noexcept(true) { return operator==(src.value); }
+		//получение значений колонка/значение в виде пары:
+		pair<size_t, string> getPair() const noexcept(true) { return std::make_pair(getColIndx(), getValue()); }
+	};
+
+	//структура общих данных для файлов сверки:
+	class TShareData
+	{
+	private:
+		string name;//имя файла
+		size_t lst_indx;//индекс листа в файле
+		size_t strt_row_indx;//индекс начальной строки
+		vector<TFilterData> fltr;//данные для фильтрации
+	public:
+		//инициализация именем файла(для открытия файла excel), номером листа(соответтствует ограничениям excel),
+		//номер строки отсчета(сопостовимо с форматом excel) и массив фильтров значений
+		/*
+		TShareData(const string& file = "", size_t ish = TIndex::EmptyIndex, size_t irow = TIndex::EmptyIndex,
+			const vector<TFilterData>& filter = vector<TFilterData>()) : name(file), lst_indx(ish),
+			strt_row_indx(irow), fltr(filter) {}
+		/**/
+		TShareData(const ptree& json, const NS_Const::JsonParams& param);
+		//деструктор
+		~TShareData() {}
+		//проверка на пустоту:
+		inline bool isEmpty() const noexcept(true) { return name.empty() 
+			|| lst_indx == TIndex::EmptyIndex || strt_row_indx == TIndex::EmptyIndex; }
+		//получение имени файла:
+		inline string getName() const noexcept(true) { return name; }
+		inline void setName(const string& val) noexcept(true) { name = val; }
+		//получение номера страницы в файле:
+		inline size_t getListIndex() const noexcept(true) { return lst_indx; }
+		inline void setListIndex(size_t val) noexcept(true) { lst_indx = val; }
+		//получение индекса строки отсчета:
+		inline size_t getFirstRow() const noexcept(true) { return strt_row_indx; }
+		inline void setFirstRow(size_t val) noexcept(true) { strt_row_indx = val; }
+		//проверка пустоты фильтра:
+		inline bool isEmptyFilter() const noexcept(true) { return fltr.size() == 0; }
+		//получение значения фильтра по индексу в массиве:
+		vector<TFilterData> getFilter(size_t val) const noexcept(true) { return fltr; }
+		void setFilter(const vector<TFilterData>& filter) noexcept(true) { fltr = filter; }
+	};
+
+	//структура данных на сравниваемых листах источника и приемника
+	class TExcelCompareData
+	{
+	private:
+		TShareData* DstFile;//файла приемника
+		TShareData* SrcFile;//файла источника
+		vector<TCellData> cells;//колонки обрабатываемых значений
+		static TShareData* crtShareData(const ptree& json, const string& par_name) noexcept(false);
+	public:
+		//инициализация json-файлом
+		TExcelCompareData(const string& json_file);
+		//деинициализация
+		~TExcelCompareData();
+
 	};
 }
 

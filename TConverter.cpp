@@ -5,33 +5,43 @@
 #include <typeinfo>
 #include <stdlib.h>
 #include "TConverter.h"
+#include "Logger.h"
 
 using std::stringstream;
 using std::cerr;
 using std::endl;
 using std::string;
+using NS_Logger::TLog;
 
 template <class T>
-string NS_Converter::toStr(T val, bool no_except) noexcept(false)
+bool NS_Converter::toStr(T val, string& str) noexcept(true)
 {
 	stringstream ss;
 	try
 	{
 		ss << val;
-		return ss.str();
+		str = ss.str();
+		return true;
 	}
 	catch (...)
 	{
 		const std::type_info& ti = typeid(val);
-		string tmp("Ошибка преобразования значения типа ");
-		tmp += ti.name();
-		tmp += " в строку!";
-		if (no_except)
-			return string();
-		else
-			throw tmp;
+		TLog log("Ошибка преобразования значения типа ", "NS_Converter::toStr");
+		log << ti.name() << " в строку!";
+		log.toErrBuff();
 	}
+	return false;
 }
+
+template <class T>
+std::string NS_Converter::toStr(T val) noexcept(true)
+{
+	string tmp;
+	if (toStr(val, tmp))
+		return tmp;
+	return string();
+}
+
 /*
 template <>
 string NS_Converter::toStr<const string&>(const string& val, bool no_except) noexcept(false)
@@ -92,31 +102,29 @@ string toStr<char>(char val, bool no_except) noexcept(false)
 /**/
 
 template <class T>
-bool NS_Converter::toType(const string& str, T* val, bool no_except) noexcept(false)
+bool NS_Converter::toType(const string& str, T* val) noexcept(true)
 {
-	if (str.empty())
-	{
-		string tmp("Для преобразования указана пустая строка!");
-		if (no_except)
-			return false;
-		else
-			throw tmp;
-	}
-	stringstream ss;
 	try
 	{
+		if (str.empty())
+		{
+			throw TLog("Для преобразования указана пустая строка!", "NS_Converter::toType");
+		}
+		stringstream ss;
 		ss << str;
 		ss >> *val;
 		return true;
 	}
+	catch (const TLog& er)
+	{
+		er.toErrBuff();
+	}
 	catch (...)
 	{
 		const std::type_info& ti = typeid(val);
-		string tmp("Ошибка преобразования из строки в указанный тип: ");
-		tmp += ti.name();
-		if (no_except) return false;
-		else throw tmp;
+		TLog("Не обработанная ошибка приведения значения " + str + " к типу: " + ti.name(), "NS_Converter::toType").toErrBuff();
 	}
+	return false;
 }
 /*
 //double

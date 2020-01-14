@@ -5,20 +5,15 @@
 #include "Logger.h"
 #include "TConverter.cpp"
 
-using std::string;
-using std::stringstream;
-using std::endl;
-using std::cerr;
-using NS_Logger::TLog;
-
 template <class T>
-TLog& TLog::operator+=(T val)
+NS_Logger::TLog& NS_Logger::TLog::operator+=(T val)
 {
 	using std::cerr;
 	using std::endl;
+	using std::string;
 	try
 	{
-		string tmp = NS_Converter::toStr(val, false);
+		string tmp = NS_Converter::toStr(val);
 		msg << tmp;
 	}
 	catch (const string& er)

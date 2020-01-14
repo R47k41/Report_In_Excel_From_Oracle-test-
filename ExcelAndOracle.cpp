@@ -13,18 +13,26 @@
 #include <iterator>
 #include <string.h>
 #include <locale.h>
-#include "libxl.h"
-#include "occi.h"
-#include "TConverter.cpp"
+#include <exception>
 #include "Logger.hpp"
 #include "TConstants.h"
+#include "TConverter.h"
 #include "TOracle.h"
 #include "TSQLParser.h"
 #include "TuneParam.h"
 #include "TDBReport.h"
+/**/
+#include "libxl.h"
+#include "occi.h"
 //#include "LibXL_Example.h"
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/date_facet.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/filesystem.hpp>
+
+using std::string;
+using NS_Logger::TLog;
 
 void excel_example(void);
 void excel_test(void);
@@ -45,11 +53,13 @@ void parse_tune_file(const std::string& filename);
 void TOracleTest();
 
 //определение внешней функции
-void CreateReport(const std::string& file_name, const string& code) noexcept(true);
+void CreateReport(const std::string& file_name, const std::string& code) noexcept(true);
 
 //inline void SetRuConsole(int cp) { SetConsoleCP(cp); SetConsoleOutputCP(cp); };
 
 void test_Const_Module(void);
+
+void JsonParse(const std::string& filename);
 
 int main()
 {
@@ -57,15 +67,23 @@ int main()
 	using std::cout;
 	using std::endl;
 	using std::string;
+	using std::locale;
+	using std::cout;
 	//SetRuConsole(1251);
 	setlocale(LC_ALL, "RU");
-//	excel_test();
+	/**/
+		string file_name("nat_person_tune.txt");
+		JsonParse(file_name);
+		
+		return 0;
+	/**/
+	//	excel_test();
 	//oracle_example();
 	//TOracleTest();
-	string file_name("config.ini");
+	string config("config.ini");
 	//parse_tune_file(file_name);
-	CreateReport(file_name, "BALANCE_LIST");
-	//CreateReport(file_name, "RIB_DOCS_FOR_PERIOD");
+	//CreateReport(file_name, "NBKI_JP");
+	CreateReport(config, "BALANCE_LIST");
 	/*
 	Test_toStr();
 	Test_Logger();
@@ -99,6 +117,81 @@ int main()
 	}
 /**/
 	return 0;
+}
+
+void JsonParse(const string& file)
+{
+	using boost::property_tree::ptree;
+	using boost::property_tree::file_parser_error;
+	using boost::property_tree::json_parser_error;
+	using boost::property_tree::json_parser::read_json;
+	using std::string;
+	using NS_Const::JsonParams;
+	using NS_Const::TConstJson;
+	using filter_data = std::pair<size_t, string>;
+	using filters = std::vector<filter_data>;
+	const size_t EmptyVal = 0;
+	try
+	{
+		ptree json;
+		read_json(file, json);
+		if (json.empty()) throw TLog("Пустой файл: " + file, "JsonParse");
+		filters fltr;
+		size_t ilist = EmptyVal;
+		size_t istart = EmptyVal;
+		string name;
+		//параметры json
+		string dst_file = "DstFile";
+		string src_file = "SrcFile";
+		string cells = "Cells";
+		std::vector<string> file_param = { "name", "lst_indx", "strt_indx", "fltr" };
+		std::vector<string> filter_param = { "col_indx", "value" };
+		std::vector<string> cells_param = { "dst_indx", "src_indx", "dst_ins_indx" };
+		//сам парсинг:
+		//проверка наличия DstFile
+		ptree::value_type it = json.find(dst_file).dereference();
+		//выход, если данный параметр пустой
+		if (it.second.empty()) return;
+		name = it.second.get_child(file_param[0]).get_value<string>();
+		//if (!NS_Converter::UTF8ToANSI(name)) return;
+		ilist = it.second.get_child(file_param[1]).get_value<size_t>();
+		istart = it.second.get_child(file_param[2]).get_value<size_t>();
+		for (const ptree::value_type& v : it.second.get_child(file_param[3]))
+		{
+			if (v.second.empty()) continue;
+			filter_data val;
+			val.first = v.second.get_child(filter_param[0]).get_value<size_t>();
+			if (val.first != EmptyVal)
+			{
+				val.second = v.second.get_child(filter_param[1]).get_value<string>();
+				//if (!NS_Converter::UTF8ToANSI(val.second)) continue;
+				fltr.push_back(val);
+			}
+		}
+
+		for (auto& v : fltr)
+		{
+			std::cout << "col index: " << v.first << '\t' << "col_val: " << v.second << std::endl;
+		}
+	}
+	catch (const json_parser_error& err)
+	{
+		TLog(err.what()).toErrBuff();
+	}
+	catch (const std::exception& err)
+	{
+		TLog(err.what()).toErrBuff();
+	}
+	catch (const TLog& er)
+	{
+		er.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка!").toErrBuff();
+	}
+/**/		
+	return;
 }
 
 void test_Const_Module(void)
@@ -212,7 +305,6 @@ void parse_tune_file(const std::string& filename)
 	tune.show_params();
 	cout << "Значение настройки SQLText: " << tune.getFieldValueByCode(NS_Tune::TuneField::SqlText) << endl;
 	cout << endl;
-/**/
 };
 
 void TOracleTest()
@@ -343,7 +435,7 @@ void excel_test(void)
 	srcBook->release();
 
 }
-
+/**/
 /*
 //пример работы с документами Excel
 void excel_example(void)
