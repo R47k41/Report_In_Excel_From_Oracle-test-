@@ -1,6 +1,6 @@
 #include <Windows.h>
-#include "TConverter.h"
-#include "Logger.hpp"
+#include "TConverter.cpp"
+
 
 using std::string;
 
@@ -79,8 +79,8 @@ std::string NS_Converter::UnicodeToMByte(const std::wstring& unicodeStr, size_t 
 	if (multiByteStr) delete[] multiByteStr;
 	return result;
 }
-/*
-bool NS_Converter::UTF8ToANSI(string& inStr) noexcept(false)
+
+bool NS_Converter::UTF8ToANSI(std::string& inStr) noexcept(false)
 {
 	using std::wstring;
 	if (inStr.empty()) return false;

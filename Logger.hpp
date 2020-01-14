@@ -2,7 +2,6 @@
 #ifndef LOGGER_HPP_
 #define LOGGER_HPP_
 #include <typeinfo>
-#include "Logger.h"
 #include "TConverter.cpp"
 
 template <class T>

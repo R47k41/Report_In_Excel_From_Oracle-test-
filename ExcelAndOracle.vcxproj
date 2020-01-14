@@ -181,6 +181,7 @@
     <ClInclude Include="Logger.hpp" />
     <ClInclude Include="TConstants.h" />
     <ClInclude Include="TConverter.h" />
+    <ClCompile Include="TConverter.hpp" />
     <ClInclude Include="TDBReport.h" />
     <ClInclude Include="TExcel.h" />
     <ClInclude Include="TOracle.h" />

@@ -26,9 +26,7 @@ bool NS_Converter::toStr(T val, string& str) noexcept(true)
 	catch (...)
 	{
 		const std::type_info& ti = typeid(val);
-		TLog log("Ошибка преобразования значения типа ", "NS_Converter::toStr");
-		log << ti.name() << " в строку!";
-		log.toErrBuff();
+		TLog("Ошибка преобразования значения типа " + std::string(ti.name()) + " в строку!", "NS_Converter::toStr").toErrBuff();
 	}
 	return false;
 }

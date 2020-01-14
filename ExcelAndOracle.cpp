@@ -153,7 +153,7 @@ void JsonParse(const string& file)
 		//выход, если данный параметр пустой
 		if (it.second.empty()) return;
 		name = it.second.get_child(file_param[0]).get_value<string>();
-		//if (!NS_Converter::UTF8ToANSI(name)) return;
+		if (!NS_Converter::UTF8ToANSI(name)) return;
 		ilist = it.second.get_child(file_param[1]).get_value<size_t>();
 		istart = it.second.get_child(file_param[2]).get_value<size_t>();
 		for (const ptree::value_type& v : it.second.get_child(file_param[3]))
@@ -164,7 +164,7 @@ void JsonParse(const string& file)
 			if (val.first != EmptyVal)
 			{
 				val.second = v.second.get_child(filter_param[1]).get_value<string>();
-				//if (!NS_Converter::UTF8ToANSI(val.second)) continue;
+				if (!NS_Converter::UTF8ToANSI(val.second)) continue;
 				fltr.push_back(val);
 			}
 		}

@@ -38,7 +38,7 @@ namespace NS_Converter
 	//преобразование из многобайтовой строки в unicode строку
 	std::wstring MByteToUnicode(const std::string& str, size_t toCodePage) noexcept(false);
 	//перекодировка unicode в ansi
-	//bool UTF8ToANSI(std::string& inStr) noexcept(false);
+	bool UTF8ToANSI(std::string& inStr) noexcept(false);
 }
 
 #endif
