@@ -71,7 +71,11 @@ int main()
 	using std::cout;
 	//SetRuConsole(1251);
 	setlocale(LC_ALL, "RU");
-	/**/
+	NS_Tune::TExcelProcData ed("F:\\Projects\\SomeThing\\TypicalReport\\Полный портфель\\config\\json\\nat_person_tune.json",
+		"F:\\Projects\\SomeThing\\TypicalReport\\Полный портфель\\");
+	ed.show();
+	return 0;
+	/*
 		string file_name("nat_person_tune.txt");
 		JsonParse(file_name);
 		
@@ -82,8 +86,8 @@ int main()
 	//TOracleTest();
 	string config("config.ini");
 	//parse_tune_file(file_name);
-	//CreateReport(file_name, "NBKI_JP");
-	CreateReport(config, "BALANCE_LIST");
+	//CreateReport(config, "FULL_CRED_REPORT");
+	CreateReport(config, "REPAYMENT_FOR_DATE");
 	/*
 	Test_toStr();
 	Test_Logger();
@@ -154,6 +158,7 @@ void JsonParse(const string& file)
 		if (it.second.empty()) return;
 		name = it.second.get_child(file_param[0]).get_value<string>();
 		if (!NS_Converter::UTF8ToANSI(name)) return;
+		ilist = it.second.get<size_t>(file_param[1], 0);
 		ilist = it.second.get_child(file_param[1]).get_value<size_t>();
 		istart = it.second.get_child(file_param[2]).get_value<size_t>();
 		for (const ptree::value_type& v : it.second.get_child(file_param[3]))
@@ -293,9 +298,9 @@ void parse_tune_file(const std::string& filename)
 	cout << "Считывание общих настроек файла:" << endl;
 	//TSharedTune main_tune(filename, "DOCS_MF_SF_FOR_PERIOD");
 	TSharedTune main_tune(filename, "RIB_DOCS_FOR_PERIOD");
-	cout << "Путь к файлам отчета: " << main_tune.getMainCodeVal() << endl;
+	cout << "Путь к файлам отчета: " << main_tune.getMainPathVal() << endl;
 	main_tune.show_tunes();
-	string subFile = main_tune.getMainCodeVal() + main_tune.getFieldValueByCode(TuneField::ConfigPath) + filename;
+	string subFile = main_tune.getMainPathVal() + main_tune.getFieldValueByCode(TuneField::ConfigPath) + filename;
 	TUserTune tune(main_tune, subFile);
 	cout << "Список колонок:" << endl;
 	tune.show_columns();

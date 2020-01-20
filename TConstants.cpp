@@ -457,19 +457,38 @@ string NS_Const::TConstJson::asStr(const JsonParams& val) noexcept(true)
 	case JsonParams::False: return "false";
 	case JsonParams::True: return "true";
 	case JsonParams::DstFile: return "DstFile";
-	case JsonParams::SrcFile: return "SrcFile";
 	case JsonParams::Cells: return "Cells";
+	case JsonParams::Method: return "Method";
+	case JsonParams::SrcFile: return "SrcFile";
+	case JsonParams::DataArr: return "DataArr";
+	case JsonParams::DB_Config: return "DB_Config";
 	case JsonParams::name: return "name";
 	case JsonParams::list_index: return "lst_indx";
 	case JsonParams::start_index: return "strt_indx";
+	case JsonParams::last_index: return "last_indx";
 	case JsonParams::filter: return "fltr";
 	case JsonParams::column_index: return "col_indx";
 	case JsonParams::value: return "value";
 	case JsonParams::dst_index: return "dst_indx";
-	case JsonParams::src_index: return "src_indx";
 	case JsonParams::dst_insert_index: return "dst_ins_indx";
+	case JsonParams::src_param_index: return "src_param_indx";
+	case JsonParams::src_val_index: return "src_val_indx";
+	case JsonParams::code: return "code";
+	case JsonParams::color_if_found: return "color_if_found";
+	case JsonParams::color_not_found: return "color_not_found";
 	}
 	return string();
+}
+
+bool NS_Const::TConstJson::inRange(const JsonParams& val, const JsonParams& b, const JsonParams& e) noexcept(true)
+{
+	if (val > b and val < e) return true;
+	return false;
+}
+
+bool NS_Const::TConstJson::isTag(const JsonParams& val) noexcept(true)
+{
+	return isObjectTag(val) || isFileTag(val) || isFilterTag(val) || isCellTag(val) || isMethTag(val);
 }
 
 string& NS_Const::operator<<(string& str, const JsonParams& param)
@@ -496,6 +515,18 @@ string NS_Const::TConstJson::Concate(const std::vector<JsonParams>& arr) noexcep
 			rslt << arr[i];
 	}
 	return rslt;
+}
+
+string NS_Const::TConstJSMeth::asStr(const JSonMeth& val) noexcept(true)
+{
+	switch (val)
+	{
+		case JSonMeth::CompareColor: return "Окрашивание цветом при выполнении условия";
+		case JSonMeth::CompareIns: return "Вставка данных при выполнении условия";
+		case JSonMeth::GetFromDB: return "Получение значений из БД";
+		case JSonMeth::SendToDB: return "Запись значения в БД";
+	}
+	return "Указанный метод не обрабатывается!";
 }
 
 //явное инстанцирование для шаблонов

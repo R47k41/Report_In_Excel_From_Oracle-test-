@@ -41,15 +41,20 @@ namespace NS_Const
 	//параметры для настройки excel-файлов(для сравнения/импорта)
 	enum class JsonParams {Null, False, True,
 		//блок для основных объектов
-		ObjBegin, DstFile, SrcFile, Cells, ObjEnd,
+		ObjBegin, DstFile, Cells, SrcFile, DataArr, Method, DB_Config, ObjEnd,
 		//блок для данных в объекте Файл
-		FileBegin, name, list_index, start_index, filter, FileEnd,
+		FileBegin, name, list_index, start_index, last_index, filter, FileEnd,
 		//блок для данных в объекте Фильтр
 		FilterBegin, column_index, value, FilterEnd,
+		//блок для данных объекта Метод
+		MethodBegin, code, color_if_found, color_not_found, MethodEnd,
 		//блок данных для объекта Колонка
-		CellsBegin, dst_index, src_index, dst_insert_index, CellsEnd,
+		CellsBegin, dst_index, dst_insert_index, src_param_index, src_val_index, CellsEnd,
 		Last
 	};
+
+	//методы обработки excel-файлов на основании Json-параметров
+	enum class JSonMeth { Null, CompareColor, CompareIns, GetFromDB, SendToDB, Last };
 
 	//Типы данных для параметров в запросах:
 	enum class DataType { ErrorType = 0, String, Integer, Double, Date, Boolean, Last };
@@ -164,6 +169,7 @@ namespace NS_Const
 	using SQL_Const = TConstant<TSql, TSql::Empty, TSql::Last>;
 	using CS_Const = TConstant<CtrlSym, CtrlSym::Empty, CtrlSym::Last>;
 	using JS_Const = TConstant<JsonParams, JsonParams::Null, JsonParams::Last>;
+	using JS_Meth = TConstant<JSonMeth, JSonMeth::Null, JSonMeth::Last>;
 
 
 	//Поля из файла настроек:
@@ -328,6 +334,8 @@ namespace NS_Const
 	//класс для обработки Json-констант:
 	class TConstJson : public JS_Const
 	{
+	private:
+		static bool inRange(const JsonParams& val, const JsonParams& b, const JsonParams& e) noexcept(true);
 	public:
 		//инициализация
 		explicit TConstJson(const JsonParams& x) : JS_Const(x) {}
@@ -336,6 +344,12 @@ namespace NS_Const
 		TConstJson& operator=(const JsonParams & x) { JS_Const::operator=(x); return *this; }
 		//получение строкового значения по идентификтору:
 		static string asStr(const JsonParams& val) noexcept(true);
+		static bool isObjectTag(const JsonParams& val) noexcept(true) { return inRange(val, JsonParams::ObjBegin, JsonParams::ObjEnd); }
+		static bool isFileTag(const JsonParams& val) noexcept(true) { return inRange(val, JsonParams::FileBegin, JsonParams::FileEnd); }
+		static bool isFilterTag(const JsonParams& val) noexcept(true) { return inRange(val, JsonParams::FilterBegin, JsonParams::FilterEnd); }
+		static bool isCellTag(const JsonParams& val) noexcept(true) { return inRange(val, JsonParams::CellsBegin, JsonParams::CellsEnd); }
+		static bool isMethTag(const JsonParams& val) noexcept(true) { return inRange(val, JsonParams::MethodBegin, JsonParams::MethodEnd); }
+		static bool isTag(const JsonParams& val) noexcept(true);
 		static string Concate(const std::vector<JsonParams>& arr) noexcept(true);
 		string toStr() const noexcept(true) { return asStr(Value()); }
 		//сравнение:
@@ -343,6 +357,20 @@ namespace NS_Const
 		bool operator==(const JsonParams& val) const noexcept(true) { return Value() == val; }
 		friend string& operator<<(string& str, const JsonParams& param);
 	};
+
+	class TConstJSMeth : public JS_Meth
+	{
+	public:
+		explicit TConstJSMeth(const JSonMeth& x) : JS_Meth(x) {}
+		explicit TConstJSMeth(int x) : JS_Meth(x) {}
+		static string asStr(const JSonMeth& val) noexcept(true);
+		string toStr() const noexcept(true) { return asStr(JS_Meth::Value()); };
+		TConstJSMeth& operator=(const JSonMeth& x) noexcept(true) { JS_Meth::operator=(x); return *this; }
+/*
+		TConstJSMeth& operator=(int x) noexcept(true) { JS_Meth::setValue(x); return *this; }
+/**/
+
+		};
 
 }
 

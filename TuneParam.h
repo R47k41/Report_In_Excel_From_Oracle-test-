@@ -9,6 +9,7 @@
 #include <utility>
 #include <boost/property_tree/ptree.hpp>
 #include "TConstants.h"
+#include "libxl.h"
 
 //обаласти пространства имен для работы с настройками
 namespace NS_Tune
@@ -18,13 +19,18 @@ namespace NS_Tune
 	using std::pair;
 	using std::vector;
 	using std::set;
+	using std::size_t;
 	using find_fnc = size_t (string::*)(const string& s, size_t pos) const;
+	using TColor = libxl::Color;
 	using NS_Const::TuneField;
 	using NS_Const::DataType;
 	using NS_Const::CtrlSym;
 	using NS_Const::TConstField;
 	using NS_Const::TConstType;
 	using NS_Const::TConstCtrlSym;
+	using NS_Const::JsonParams;
+	using NS_Const::JSonMeth;
+	using NS_Const::TConstJSMeth;
 	using boost::property_tree::ptree;
 
 
@@ -115,7 +121,7 @@ namespace NS_Tune
 		//установка значения пользователем:
 		bool setValByUser();
 		//значение строкой:
-		void show() const;
+		void show(std::ostream& stream = std::cout) const;
 		//оператор < для сортировки:
 		bool operator<(const TSubParam& val) const { return id < val.id; }
 		bool operator<(const int& x) const { return id < x; }
@@ -145,8 +151,6 @@ namespace NS_Tune
 	private:
 		TSimpleTune& operator=(const TSimpleTune& v);
 	protected:
-		//функция получения списка файлов в каталоге:
-		static vector<string> getFileLst(const string& file_dir, const string& file_ext = "", bool use_sort = true) noexcept(false);
 		//функция добавления разделителя к имени:
 		static void AddDelimeter(string& str, const char delim) noexcept(false);
 		//функция получения пути/директории из настроек:
@@ -209,13 +213,15 @@ namespace NS_Tune
 		//если вернуло false - произошла ошибка при получении значения
 		bool FieldValueAsInt(const TuneField& code, int& val) const noexcept(false);
 		//функция отображения списка настроек:
-		virtual void show_tunes(void) const;
+		virtual void show_tunes(std::ostream& stream = std::cout) const;
 		//если данного параметра не найдено берет наименование страницы по умолчанию
 		string getOutSheet() const noexcept(false) { return getFullFileName(Types::OutSheet); }
 		//функция получения имени выходного файла на основании страницы:
 		string getOutFileBySheet() const noexcept(false);
 		//функция проверки значения bool-параметра:
 		bool useFlag(const TuneField& code) const noexcept(true);
+		//функция получения списка файлов в каталоге:
+		static vector<string> getFileLst(const string& file_dir, const string& file_ext = "", bool use_sort = true) noexcept(false);
 	};
 	
 	//общие настройки пользователя:
@@ -238,7 +244,7 @@ namespace NS_Tune
 		//код основной настройки
 		string getMainCode(bool use_brkt = true) const;
 		//получение значения основной настройки:
-		string getMainCodeVal() const { return getFieldValueByCode(TuneField::MainPath); }
+		string getMainPathVal() const { return getFieldValueByCode(TuneField::MainPath); }
 		//проверка пустоты:
 		bool Empty() const { return TSimpleTune::Empty(); }
 		//получение списка файлов:
@@ -299,9 +305,9 @@ namespace NS_Tune
 		//получение списка колонок:
 		StrArr getColumns(void) const { return cols; }
 		//функция отображения списка колонок:
-		void show_columns(void) const;
+		void show_columns(std::ostream& stream = std::cout) const;
 		//функция отображения параметров:
-		void show_params() const;
+		void show_params(std::ostream& stream = std::cout) const;
 		//функция получения числа колонок:
 		size_t ColumnsCnt() const { return cols.size(); }
 		//функция получения числа параметров:
@@ -329,58 +335,25 @@ namespace NS_Tune
 	{
 	private:
 		size_t index;
+		//установка индекса из узла json-дерева по указанному тегу/строке
+		void setIndexFromJSon(const ptree::value_type& parent_node, const string& tagStr) noexcept(false);
 	public:
 		static const size_t EmptyIndex = 0;
+		//получение строкового значения из json-файла:
+		static string getStrValue(const ptree::value_type& parent_node, const JsonParams& tag) noexcept(true);
+		static string getStrValue(const ptree& parent_node, const JsonParams& tag) noexcept(true);
 		TIndex(size_t indx = EmptyIndex) : index(indx) {}
 		TIndex(const TIndex& x) : index(x.index) {}
-		TIndex(const ptree::value_type& json_node);
+		TIndex(const ptree::value_type& parent_node, const string& tagStr) : index(EmptyIndex) { setIndexFromJSon(parent_node, tagStr); }
+		TIndex(const ptree::value_type& parent_node, const NS_Const::JsonParams& tag) : index(EmptyIndex) { setByJSon(parent_node, tag); }
 		inline bool isEmpty() const noexcept(true) { return index == EmptyIndex; }
 		inline size_t get() const noexcept(true) { return index; }
 		inline void set(size_t val) noexcept(false) { index = val; }
+		void setByJSon(const ptree::value_type& parent_node, const NS_Const::JsonParams& tag) noexcept(true);
 		bool operator==(size_t val) const noexcept(true) { return isEmpty() ? false: index == val; }
 		bool operator==(const TIndex& val) const noexcept(false) { return isEmpty() ? false : index == val.index; }
-		//получение значения индекса из json-файла:
-		static size_t getIndexByJson(const ptree& json, const string& parent_node,
-			const NS_Const::JsonParams& child_node) noexcept(true);
-		static size_t getIndexByJson(const ptree& json, const NS_Const::JsonParams& parent_node,
-			const NS_Const::JsonParams& child_node) noexcept(true);
-	};
-
-	//класс описываюийя обрабатываемые поля:
-	class TCellData
-	{
-	private:
-		TIndex dst_indx;//индекс поля в приемнике
-		TIndex src_indx;//индекс поля в источнике
-		TIndex dst_ins_indx;//индекс поля в приемнике, куда вставляются данные
-	public:
-		//инициализация по умолчанию:
-		/*
-		TCellData(TIndex dst = TIndex::EmptyIndex, TIndex src = TIndex::EmptyIndex, TIndex ins = TIndex::EmptyIndex) :
-			dst_indx(dst), src_indx(src), dst_ins_indx(ins) {}
-		/**/
-		//инициализация из ссылки на json-объект
-		TCellData(const ptree& json);
-		//деструктор ни чего не делает
-		~TCellData() {}
-		//проверка на пустоту индексов
-		bool EmptyDstIndx() const noexcept(true) { return dst_indx == TIndex::EmptyIndex; }
-		bool EmptySrcIndx() const noexcept(true) { return src_indx == TIndex::EmptyIndex; }
-		bool EmptyInsIndx() const noexcept(true) { return dst_ins_indx == TIndex::EmptyIndex; }
-		//признак не стандартной обработки значения:
-		inline bool AnotherProcedure() const noexcept(true) { return dst_indx == dst_ins_indx && EmptySrcIndx(); }
-		//вывод данных:
-		inline size_t DstIndex() const noexcept(true) { return dst_indx.get(); }
-		inline size_t SrcIndex() const noexcept(true) { return src_indx.get(); }
-		inline size_t InsIndex() const noexcept(true) { return dst_ins_indx.get(); }
-		//оператор присвоения:
-		inline void setDstIndex(size_t val) noexcept(true) { dst_indx.set(val);}
-		inline void setSrcIndex(size_t val) noexcept(true) { src_indx.set(val); }
-		inline void setInsIndex(size_t val) noexcept(true) { dst_ins_indx.set(val); }
-		//присвоение
-		TCellData& setData(size_t dst, size_t src, size_t ins) noexcept(true);
-		TCellData& operator=(const TCellData& cd) noexcept(true);
-	};
+		void show(std::ostream& stream = std::cout, const string& front_msg = "") const noexcept(false);
+};
 
 	//класс для обработки значений колонок фильтрации:
 	class TFilterData
@@ -388,10 +361,15 @@ namespace NS_Tune
 	private:
 		TIndex col_indx;//индекс колонки, где проверяется условие
 		string value;//условие/значение фильтрации
+		//установка значений фильмтра из узла json-файла
+		void setData(const ptree::value_type& parent_node,
+			const JsonParams& col_tag = JsonParams::column_index,
+			const JsonParams& val_tag = JsonParams::value) noexcept(true);
 	public:
 		//конструктор
 		TFilterData(std::pair<size_t, string> val) : col_indx(val.first), value(val.second) {}
 		TFilterData(size_t indx, const string& val): col_indx(indx), value(val) {}
+		explicit TFilterData(const ptree::value_type& parent_node) { setData(parent_node); }
 		//деструктор
 		~TFilterData() {}
 		//проверка пустого значения
@@ -409,6 +387,8 @@ namespace NS_Tune
 		bool operator==(const TFilterData& src) const noexcept(true) { return operator==(src.value); }
 		//получение значений колонка/значение в виде пары:
 		pair<size_t, string> getPair() const noexcept(true) { return std::make_pair(getColIndx(), getValue()); }
+		//вывод данных в поток:
+		void show(std::ostream& stream = std::cout) const noexcept(true);
 	};
 
 	//структура общих данных для файлов сверки:
@@ -416,54 +396,220 @@ namespace NS_Tune
 	{
 	private:
 		string name;//имя файла
-		size_t lst_indx;//индекс листа в файле
-		size_t strt_row_indx;//индекс начальной строки
+		TIndex lst_indx;//индекс листа в файле
+		TIndex strt_row_indx;//индекс начальной строки
+		TIndex last_row_indx;//индекс конечной строки
 		vector<TFilterData> fltr;//данные для фильтрации
+		//функция установки значений параметров по json-узлу
+		void setData(const ptree::value_type& parent_node,
+			const JsonParams& name_tag = JsonParams::name,
+			const JsonParams& lst_tag = JsonParams::list_index,
+			const JsonParams& strt_row_tag = JsonParams::start_index,
+			const JsonParams& last_row_tag = JsonParams::last_index,
+			const JsonParams& fltr_tag = JsonParams::filter) noexcept(true);
 	public:
 		//инициализация именем файла(для открытия файла excel), номером листа(соответтствует ограничениям excel),
 		//номер строки отсчета(сопостовимо с форматом excel) и массив фильтров значений
-		/*
-		TShareData(const string& file = "", size_t ish = TIndex::EmptyIndex, size_t irow = TIndex::EmptyIndex,
-			const vector<TFilterData>& filter = vector<TFilterData>()) : name(file), lst_indx(ish),
-			strt_row_indx(irow), fltr(filter) {}
-		/**/
-		TShareData(const ptree& json, const NS_Const::JsonParams& param);
+		TShareData(const ptree::value_type& parent_node, const string& main_path = "");
 		//деструктор
 		~TShareData() {}
 		//проверка на пустоту:
-		inline bool isEmpty() const noexcept(true) { return name.empty() 
-			|| lst_indx == TIndex::EmptyIndex || strt_row_indx == TIndex::EmptyIndex; }
+		inline bool isEmpty() const noexcept(true) { return name.empty() || lst_indx.isEmpty(); }
+		inline bool NoStartRowIndex() const noexcept(true) { return strt_row_indx.isEmpty(); }
+		inline bool NoLastRowIndex() const noexcept(true) { return strt_row_indx.isEmpty(); }
 		//получение имени файла:
 		inline string getName() const noexcept(true) { return name; }
 		inline void setName(const string& val) noexcept(true) { name = val; }
 		//получение номера страницы в файле:
-		inline size_t getListIndex() const noexcept(true) { return lst_indx; }
-		inline void setListIndex(size_t val) noexcept(true) { lst_indx = val; }
+		inline size_t getListIndex() const noexcept(true) { return lst_indx.get(); }
+		inline void setListIndex(size_t val) noexcept(true) { lst_indx.set(val); }
 		//получение индекса строки отсчета:
-		inline size_t getFirstRow() const noexcept(true) { return strt_row_indx; }
-		inline void setFirstRow(size_t val) noexcept(true) { strt_row_indx = val; }
+		inline size_t getStartRow() const noexcept(true) { return NoStartRowIndex() ? 1 : strt_row_indx.get(); }
+		inline void setStartRow(size_t val) noexcept(true) { strt_row_indx.set(val); }
+		inline size_t getLastRow() const noexcept(true) { return last_row_indx.get(); }
+		inline void setLastRow(size_t val) noexcept(true) { last_row_indx.set(val); }
 		//проверка пустоты фильтра:
 		inline bool isEmptyFilter() const noexcept(true) { return fltr.size() == 0; }
+		//получение массива фильтрации:
+		vector<TFilterData> getFilterLst() const noexcept(true) { return fltr; }
 		//получение значения фильтра по индексу в массиве:
-		vector<TFilterData> getFilter(size_t val) const noexcept(true) { return fltr; }
+		TFilterData getFilterByIndex(size_t index) const noexcept(true) { return fltr[index]; }
 		void setFilter(const vector<TFilterData>& filter) noexcept(true) { fltr = filter; }
+		void show(std::ostream& stream = std::cout) const noexcept(true);
+	};
+
+	//класс описываюийя обрабатываемые поля в пределах ячейки в файле:
+	class TCellData
+	{
+	private:
+		TIndex dst_indx;//индекс поля в приемнике
+		TIndex dst_ins_indx;//индекс поля в приемнике, куда вставляются данные
+		TIndex src_param_indx;//индекс поля-параметра в источнике
+		TIndex src_val_indx;//индекс поля-значения в источнике
+	protected:
+		//инициализация по умолчанию:
+		TCellData(size_t idst = TIndex::EmptyIndex, size_t ins_dst = TIndex::EmptyIndex, 
+			size_t isrc = TIndex::EmptyIndex, size_t val_src = TIndex::EmptyIndex) :
+			dst_indx(idst), dst_ins_indx(ins_dst), src_param_indx(isrc), src_val_indx(val_src) {}
+		//установка значений:
+		TCellData& setData(size_t dst, size_t ins, size_t src_param, size_t val) noexcept(true);
+		TCellData& setData(const ptree::value_type& parent_node,
+			const JsonParams& dst_tag = JsonParams::dst_index,
+			const JsonParams& dst_ins_tag = JsonParams::dst_insert_index,
+			const JsonParams& src_param_tag = JsonParams::src_param_index,
+			const JsonParams& src_val_tag = JsonParams::src_val_index
+			) noexcept(true);
+	public:
+		//инициализация из ссылки на json-объект
+		explicit TCellData(const ptree::value_type& parent_node) { setData(parent_node); }
+		//деструктор ни чего не делает
+		~TCellData() {}
+		//проверка на пустоту индексов
+		bool EmptyDstIndx() const noexcept(true) { return dst_indx == TIndex::EmptyIndex; }
+		bool EmptyInsIndx() const noexcept(true) { return dst_ins_indx == TIndex::EmptyIndex; }
+		bool EmptySrcParam() const noexcept(true) { return src_param_indx == TIndex::EmptyIndex; }
+		bool EmptySrcVal() const noexcept(true) { return src_val_indx == TIndex::EmptyIndex; }
+		bool isEmpty() const noexcept(true) { return EmptyDstIndx(); }
+		//признак не стандартной обработки значения:
+		//inline bool AnotherProcedure() const noexcept(true) { return dst_indx == dst_ins_indx && EmptySrcIndx(); }
+		//вывод данных:
+		inline size_t DstIndex() const noexcept(true) { return dst_indx.get(); }
+		inline size_t InsIndex() const noexcept(true) { return dst_ins_indx.get(); }
+		inline size_t SrcParam() const noexcept(true) { return src_param_indx.get(); }
+		inline size_t SrcVal() const noexcept(true) { return src_val_indx.get(); }
+		//оператор присвоения:
+		inline void setDstIndex(size_t val) noexcept(true) { dst_indx.set(val); }
+		inline void setInsIndex(size_t val) noexcept(true) { dst_ins_indx.set(val); }
+		inline void setSrcParam(size_t val) noexcept(true) { src_param_indx.set(val); }
+		inline void setSrcVal(size_t val) noexcept(true) { src_val_indx.set(val); }
+		//присвоение
+		TCellData& operator=(const TCellData& cd) noexcept(true);
+		//отображение:
+		void show(std::ostream& stream = std::cout) const noexcept(true);
+	};
+
+	//класс Метод обработки ячеек
+	class TCellMethod
+	{
+	private:
+		JSonMeth code;//код метода обработки
+		TColor color_if_found;//цвет выделения, если данные совпали
+		TColor color_not_found;//цвет выделения, если данные не совпали
+		//инициализация по умолчанию
+		TCellMethod(const JSonMeth& meth = JSonMeth::Null, const TColor& find_color = TColor::COLOR_WHITE,
+			const TColor& not_find_color = TColor::COLOR_WHITE) :
+			code(meth), color_if_found(find_color), color_not_found(not_find_color) {}
+		//установка значения:
+		void setMethod(size_t meth, size_t find_color, size_t not_find_color) noexcept(true);
+		//установка данных из узла JSon-файла
+		void setMethod(const ptree::value_type& node,	const JsonParams& code_tag = JsonParams::code,
+			const JsonParams& color_find_tag = JsonParams::color_if_found,
+			const JsonParams& color_not_found_tag = JsonParams::color_not_found);
+	public:
+		//инициализация
+		explicit TCellMethod(ptree& parent_node, const JsonParams& tag_meth = JsonParams::Method);
+		explicit TCellMethod(const ptree::value_type& parent_node) : code(JSonMeth::Null), color_if_found(TColor::COLOR_WHITE),
+			color_not_found(TColor::COLOR_WHITE) { setMethod(parent_node); }
+		~TCellMethod() {}
+		//проверка на пустоту:
+		bool isEmpty() const noexcept(true) { return code == JSonMeth::Null; }
+		bool isEmptyIncludeColor() const noexcept(true) { return color_if_found == TColor::COLOR_WHITE; }
+		bool isEmptyExcludeColor() const noexcept(true) { return color_not_found == TColor::COLOR_WHITE; }
+		bool isEmptyColor() const noexcept(true) { return isEmptyExcludeColor() and isEmptyIncludeColor(); }
+		//получение метода обработки
+		JSonMeth getMethod() const noexcept(true) { return code; }
+		//получение цвета заливки при выполнении условия:
+		TColor getIncludeColor() const noexcept(true) { return color_if_found; }
+		//получение цвета заливки при не выполнении условия:
+		TColor getExcludeColor() const noexcept(true) { return color_not_found; }
+		//установка метода:
+		void setMethod(const JSonMeth& val) noexcept(true) { code = val; }
+		//установка цветов:
+		void setColotInclude(const TColor& val) noexcept(true) { color_if_found = val; }
+		void setColorExclude(const TColor& val) noexcept(true) { color_not_found = val; }
+		//вывод данных в поток:
+		void show(std::ostream& stream = std::cout) const noexcept(true);
+	};
+
+	//структура обрабатываемых ячеек:
+	class TProcCell
+	{
+	private:
+		TCellMethod meth;//метод обработки
+		TShareData* SrcFile;//файл-источник
+		vector<TUserTune> db_tune;//настроки для соединения с БД
+		vector<TCellData> cel_arr;//индексы обрабатываемх колонок
+		//инициализация файла-источника
+		void InitSrcFile(ptree& node, const JsonParams& tag = JsonParams::SrcFile) noexcept(true);
+		//деинициализация файла-источника
+		void DeInitSrcFile() noexcept(false) { if (SrcFile) delete SrcFile; SrcFile = nullptr; }
+		//инициализация настроек соединения с БД
+		void InitDBTune(const ptree& node, string conf_path,
+			const JsonParams& tag = JsonParams::DB_Config) noexcept(true);
+		//инициализация массива данных о колонках/столюцах:
+		void InitCellData(ptree& node, const JsonParams& tag = JsonParams::DataArr) noexcept(true);
+		//инициализация в зависимости от метода:
+		void InitByMethod(ptree& node, const string& conf_path = "") noexcept(true);
+	public:
+		//инициализация
+		explicit TProcCell(ptree& parent_node, const string& main_path = "");
+		//деинициализация
+		~TProcCell() { DeInitSrcFile(); }
+		//проверка на пустоту:
+		bool isEmpty() const noexcept(true) { return meth.isEmpty() or cel_arr.empty(); }
+		//данные получаемые из метода:
+		JSonMeth getMethodCode() const noexcept(true) { return meth.getMethod(); }
+		bool NoColors() const noexcept(true) { return meth.isEmptyColor(); }
+		TColor getIncludeColor() const noexcept(true) { return meth.getIncludeColor(); }
+		TColor getExcludeColor() const noexcept(true) { return meth.getExcludeColor(); }
+		//получение данных из файла источника:
+		bool NoSrcFile() const noexcept(true) { return SrcFile == nullptr or SrcFile->isEmpty(); }
+		const TShareData* getSrcFilRef() const noexcept(true) { return SrcFile; }
+		string SrcFileName() const noexcept(true) { return NoSrcFile() ? string() : SrcFile->getName(); }
+		size_t SrcFileSheetIndex() const noexcept(true) { return NoSrcFile() ? TIndex::EmptyIndex : SrcFile->getListIndex(); }
+		size_t SrcFileStartRow() const noexcept(true) { return NoSrcFile() ? TIndex::EmptyIndex : SrcFile->getStartRow(); }
+		size_t SrcFileLastRow() const noexcept(true) { return NoSrcFile() ? TIndex::EmptyIndex : SrcFile->getLastRow(); }
+		size_t TuneCnt() const noexcept(true) { return db_tune.size(); }
+		size_t CellCnt() const noexcept(true) { return cel_arr.size(); }
+		vector<TFilterData> SrcFileFilters() const noexcept(true) { return NoSrcFile() ? vector<TFilterData>() : SrcFile->getFilterLst(); }
+		//получение массива данных для ячеек:
+		vector<TCellData> getCellDataArr() const noexcept(true) { return cel_arr; }
+		//отображение данных:
+		void show(std::ostream& stream = std::cout) const noexcept(true);
 	};
 
 	//структура данных на сравниваемых листах источника и приемника
-	class TExcelCompareData
+	class TExcelProcData
 	{
 	private:
 		TShareData* DstFile;//файла приемника
-		TShareData* SrcFile;//файла источника
-		vector<TCellData> cells;//колонки обрабатываемых значений
-		static TShareData* crtShareData(const ptree& json, const string& par_name) noexcept(false);
+		TProcCell* cells;//колонки обрабатываемых значений
+		//инициализация файла-приемника:
+		void InitDstFile(const ptree::value_type& node, const string& main_path) noexcept(true);
+		//деинииализация файла-приемника
+		void DeInitDstFile() noexcept(true);
+		//инициализация данных о ячейках:
+		void InitCells(ptree::value_type& node, const string& main_path) noexcept(true);
+		//деинициализация данных ячеек
+		void DeInitCells() noexcept(true);
+		//инициализация объекта из json-файла по узловому тегу:
+		bool InitObjByTag(ptree& json, const JsonParams& tag, const string& mpath = "") noexcept(false);
+		//инициализация параметров объекта:
+		void InitExcelProcData(const string& json_file, const string& main_path = "") noexcept(true);
 	public:
 		//инициализация json-файлом
-		TExcelCompareData(const string& json_file);
+		explicit TExcelProcData(const string& json_file, const string& main_path = "");
+		explicit TExcelProcData(const TSharedTune& tune);
 		//деинициализация
-		~TExcelCompareData();
-
+		~TExcelProcData();
+		//проверка на пустоту:
+		bool isDstFileEmpty() const noexcept(true) { return DstFile == nullptr or DstFile->isEmpty(); }
+		bool isCellsEmpty() const noexcept(true) { return cells == nullptr or cells->isEmpty(); }
+		bool isEmpty() const noexcept(true) { return isDstFileEmpty() or isCellsEmpty(); }
+		//отображение данных:
+		void show(std::ostream& stream = std::cout) const noexcept(true);
 	};
+/**/
 }
 
 #endif TUNE_PARAM_H_

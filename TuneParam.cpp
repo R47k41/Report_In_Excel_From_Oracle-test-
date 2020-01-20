@@ -9,7 +9,7 @@
 #include <boost/property_tree/json_parser.hpp>
 #include "TuneParam.h"
 #include "Logger.h"
-#include "TConverter.cpp"
+#include "TConverter.hpp"
 
 
 using std::string;
@@ -143,20 +143,19 @@ void NS_Tune::TSubParam::setValue(const TConstField&, const CtrlSym&, const Ctrl
 	setValue();
 }
 
-void NS_Tune::TSubParam::show() const
+void NS_Tune::TSubParam::show(std::ostream& stream) const
 {
-	using std::cout;
 	using std::endl;
-	if (isEmpty()) return;
+	if (!stream or isEmpty()) return;
 	TConstField field(TuneField::SqlParamQuane);
 	const TConstCtrlSym tag(CtrlSym::quane);
-	cout << field.toStr() << tag.toStr() << id << endl;
+	stream << field.toStr() << tag.toStr() << id << endl;
 	field = TuneField::SqlParamType;
-	cout << field.toStr() << tag.toStr() << type.toStr() << endl;
+	stream << field.toStr() << tag.toStr() << type.toStr() << endl;
 	field = TuneField::SqlParamNote;
-	cout << field.toStr() << tag.toStr() << comment << endl;
+	stream << field.toStr() << tag.toStr() << comment << endl;
 	field = TuneField::SqlParamValue;
-	cout << field.toStr() << tag.toStr() << Value() << endl;
+	stream << field.toStr() << tag.toStr() << Value() << endl;
 }
 
 NS_Tune::TSubParam::TSubParam(const string& str): TBaseParam(str), id(EmptyID),
@@ -663,13 +662,12 @@ bool NS_Tune::TSimpleTune::FieldValueAsInt(const TuneField& code, int& val) cons
 	return true;
 }
 
-void NS_Tune::TSimpleTune::show_tunes(void) const
+void NS_Tune::TSimpleTune::show_tunes(std::ostream& stream) const
 {
-	using std::cout;
 	using std::endl;
-	if (Empty()) return;
+	if (!stream or Empty()) return;
 	for (TStringParam x : fields)
-		cout << x.toStr(false) << endl;
+		stream << x.toStr(false) << endl;
 };
 
 string NS_Tune::TSimpleTune::getOutFileBySheet() const noexcept(false)
@@ -851,20 +849,18 @@ string NS_Tune::TUserTune::getParamValByID(int par_id, bool exit_on_er) const no
 	return tmp.Value();
 }
 
-void NS_Tune::TUserTune::show_columns(void) const
+void NS_Tune::TUserTune::show_columns(std::ostream& stream) const
 {
-	using std::cout;
 	using std::endl;
-	if (EmptyColumns()) return;
+	if (!stream or EmptyColumns()) return;
 	for (string s : cols)
-		cout << s << endl;
+		stream << s << endl;
 }
 
-void NS_Tune::TUserTune::show_params(void) const
+void NS_Tune::TUserTune::show_params(std::ostream& stream) const
 {
-	using std::cout;
 	using std::endl;
-	if (EmptyParams()) return;
+	if (!stream or EmptyParams()) return;
 	for (TSubParam par : params)
 		par.show();
 }
@@ -898,71 +894,86 @@ bool NS_Tune::TUserTune::isEmptyByCode(const Types& code) const noexcept(false)
 	return false;
 }
 
-size_t NS_Tune::TIndex::getIndexByJson(const ptree& json, const string& parent_node,
-	const NS_Const::JsonParams& child_node) noexcept(true)
+string NS_Tune::TIndex::getStrValue(const ptree& parent_node, const JsonParams& tag) noexcept(true)
 {
+	using NS_Converter::UTF8ToANSI;
 	using NS_Const::TConstJson;
-	using NS_Logger::TLog;
-	using boost::property_tree::json_parser_error;
-	using boost::property_tree::file_parser_error;
-	string tmp = parent_node;
-	tmp << child_node;
+	string v_tag = TConstJson::asStr(tag);
 	try
 	{
-		return json.get(tmp, EmptyIndex);
+		if (!TConstJson::isTag(tag))
+			throw TLog("Указанный тег не обрабатывается!", "getStrValue");
+		//если данные в корне пустые или тег не обрабатывается:
+		if (parent_node.empty())
+			throw TLog("Пустое содержимое в JSon-файле!", "getStrValue");
+		//получение строки в uncode-кодировке:
+		string val = parent_node.get_child(v_tag).get_value<string>();
+		if (UTF8ToANSI(val)) return val;
 	}
-	catch (const json_parser_error& err)
+	catch (TLog& er)
 	{
-		TLog(err.what(), "NS_Tune::TIndex::getIndexByJson").toErrBuff();
-	}
-	catch (const file_parser_error& err)
-	{
-		TLog(err.what(), "NS_Tune::TIndex::getIndexByJson").toErrBuff();
+		er << "(тег: " << v_tag << ")\n";
+		er.toErrBuff();
 	}
 	catch (...)
 	{
-		TLog("Не обработанная ошибка получения значения для узла: " + tmp, "NS_Tune::TIndex::getIndexByJson").toErrBuff();
+		TLog log("Не обработанная ошибка получения данных!", "getStrValue");
+		log << "\n(тег: " << v_tag << ")\n";
+		log.toErrBuff();
 	}
-	return EmptyIndex;
+	return string();
 }
 
-size_t NS_Tune::TIndex::getIndexByJson(const ptree& json, const NS_Const::JsonParams& parent_node,
-	const NS_Const::JsonParams& child_node) noexcept(true)
+
+string NS_Tune::TIndex::getStrValue(const ptree::value_type& parent_node, const JsonParams& tag) noexcept(true)
 {
-	using NS_Const::operator<<;
-	string tmp;
-	tmp << parent_node;
-	return getIndexByJson(json, tmp, child_node);
+	return getStrValue(parent_node.second, tag);
 }
 
-NS_Tune::TCellData::TCellData(const ptree& json) : dst_indx(TIndex::EmptyIndex), src_indx(TIndex::EmptyIndex),
-	dst_ins_indx(TIndex::EmptyIndex)
+
+void NS_Tune::TIndex::setIndexFromJSon(const ptree::value_type& parent_node, const string& tagStr) noexcept(false)
+{
+	if (!parent_node.second.empty())
+		index = parent_node.second.get<size_t>(tagStr, EmptyIndex);
+}
+
+void NS_Tune::TIndex::setByJSon(const ptree::value_type& parent_node, const NS_Const::JsonParams& tag) noexcept(true)
 {
 	using NS_Const::JsonParams;
 	using NS_Const::TConstJson;
-	if (json.empty()) return;
-	dst_indx = TIndex::getIndexByJson(json, JsonParams::Cells, JsonParams::dst_index);
-	src_indx = TIndex::getIndexByJson(json, JsonParams::Cells, JsonParams::src_index);
-	dst_ins_indx = TIndex::getIndexByJson(json, JsonParams::Cells, JsonParams::dst_insert_index);
-}
-
-NS_Tune::TCellData& NS_Tune::TCellData::setData(size_t dst, size_t src, size_t ins) noexcept(true)
-{
-	setDstIndex(dst);
-	setSrcIndex(src);
-	setInsIndex(ins);
-	return *this;
-}
-
-NS_Tune::TCellData& NS_Tune::TCellData::operator=(const TCellData& cd) noexcept(true)
-{
-	if (this != &cd)
+	string tmp = TConstJson::asStr(tag);
+	try
 	{
-		dst_indx = cd.dst_indx;
-		src_indx = cd.src_indx;
-		dst_ins_indx = cd.dst_ins_indx;
+		if (!TConstJson::isTag(tag)) throw TLog("Указанный тег: " + tmp + " не обрабатывается!", "setByJSon");
+		setIndexFromJSon(parent_node, tmp);
 	}
-	return *this;
+	catch (const TLog& er)
+	{
+		er.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при установке значения индекса по тегу: " + tmp, "setByJSon").toErrBuff();
+	}
+}
+
+void NS_Tune::TIndex::show(std::ostream& stream, const string& front_msg) const noexcept(false)
+{
+	using std::endl;
+	if (!stream) return;
+	stream << front_msg;
+	if (isEmpty())
+		stream << "пустое значение";
+	else
+		stream << index;
+	stream << endl;
+}
+
+void NS_Tune::TFilterData::setData(const ptree::value_type& parent_node,
+	const JsonParams& col_tag, const JsonParams& val_tag) noexcept(true)
+{
+	col_indx.setByJSon(parent_node, col_tag);
+	value = TIndex::getStrValue(parent_node, val_tag);
 }
 
 bool NS_Tune::TFilterData::operator==(const string& val) const noexcept(true)
@@ -976,91 +987,409 @@ bool NS_Tune::TFilterData::operator==(const string& val) const noexcept(true)
 	return a == b;
 }
 
-NS_Tune::TShareData::TShareData(const ptree& json, const NS_Const::JsonParams& param):
-	name(), lst_indx(TIndex::EmptyIndex), strt_row_indx(TIndex::EmptyIndex), fltr()
+void NS_Tune::TFilterData::show(std::ostream& stream) const noexcept(true)
 {
-	using NS_Const::JsonParams;
-	using NS_Const::TConstJson;
-	using NS_Const::operator<<;
-	using boost::property_tree::ptree;
-	if (json.empty()) return;
-	string tmp;
-	tmp << param << JsonParams::name;
-	name = json.get<string>(tmp);
-	lst_indx = TIndex::getIndexByJson(json, JsonParams::Cells, JsonParams::list_index);
-	strt_row_indx = TIndex::getIndexByJson(json, JsonParams::Cells, JsonParams::start_index);
-	tmp = string();
-	tmp << param << JsonParams::filter;
-	for (const ptree::value_type& v : json.get_child(tmp))
+	if (stream and !isEmpty())
 	{
-		std::pair<size_t, string> val;
-		val.first = TIndex::getIndexByJson(json, tmp, JsonParams::column_index);
-		if (val.first != TIndex::EmptyIndex)
+		col_indx.show(stream, "Индекс колонки для фильтрации: ");
+		stream << "Значение фильтра: " << value << std::endl;
+	}
+}
+
+void NS_Tune::TShareData::setData(const ptree::value_type& parent_node,
+	const JsonParams& name_tag, const JsonParams& lst_tag, 
+	const JsonParams& strt_row_tag, const JsonParams& last_row_tag,
+	const JsonParams& fltr_tag) noexcept(true)
+{
+	using NS_Const::TConstJson;
+	if (parent_node.second.empty()) return;
+	//инициализация параметров
+	name = TIndex::getStrValue(parent_node, name_tag);
+	lst_indx.setByJSon(parent_node, lst_tag);
+	strt_row_indx.setByJSon(parent_node, strt_row_tag);
+	last_row_indx.setByJSon(parent_node, last_row_tag);
+	//инициализация массива фильтров:
+	string nodeStr = TConstJson::asStr(fltr_tag);
+	for (const ptree::value_type& child : parent_node.second.get_child(nodeStr))
+	{
+		//если нет данных
+		if (child.second.empty()) continue;
+		TFilterData tmp(child);
+		if (!tmp.isEmpty())
+			fltr.push_back(tmp);
+	}
+}
+
+NS_Tune::TShareData::TShareData(const ptree::value_type& parent_node, const string& main_path)
+{
+	setData(parent_node);
+	if (!name.empty())	name = main_path + name;
+}
+
+void NS_Tune::TShareData::show(std::ostream& stream) const noexcept(true)
+{
+	using std::endl;
+	if (stream and !isEmpty())
+	{
+		stream << "Наименование файла: " << name << endl;
+		lst_indx.show(stream, "Индекс обрабатываемого листа: ");
+		if (!NoStartRowIndex())
+			strt_row_indx.show(stream, "Начальная строка: ");
+		if (!NoLastRowIndex())
+			last_row_indx.show(stream, "Конечная строка: ");
+		if (!fltr.empty())
 		{
-			string s = tmp;
-			s << JsonParams::value;
-			val.second = json.get<string>(s);
-			fltr.push_back(TFilterData(val));
+			stream << "Данные для фильтрации: " << endl;
+			for (const TFilterData& f : fltr)
+				if (!f.isEmpty())	f.show();
 		}
 	}
 }
 
-NS_Tune::TShareData* NS_Tune::TExcelCompareData::crtShareData(const ptree& json, const string& par_name) noexcept(false)
+NS_Tune::TCellData& NS_Tune::TCellData::setData(size_t dst, size_t ins, size_t src_param, size_t val) noexcept(true)
 {
-/*
-	TShareData* tmp = new TShareData(json, par_name);
-	if (!tmp->isEmpty()) return tmp;
-	delete tmp;
-/**/
-	return nullptr;
+	setDstIndex(dst);
+	setInsIndex(ins);
+	setSrcParam(src_param);
+	setSrcVal(val);
+	return *this;
+}
+
+NS_Tune::TCellData& NS_Tune::TCellData::setData(const ptree::value_type& parent_node,
+	const JsonParams& dst_tag, const JsonParams& dst_ins_tag,
+	const JsonParams& src_param_tag, const JsonParams& src_val_tag) noexcept(true)
+{
+	dst_indx.setByJSon(parent_node, dst_tag);
+	dst_ins_indx.setByJSon(parent_node, dst_ins_tag);
+	src_param_indx.setByJSon(parent_node, src_param_tag);
+	src_val_indx.setByJSon(parent_node, src_val_tag);
+	return *this;
+}
+
+NS_Tune::TCellData& NS_Tune::TCellData::operator=(const TCellData& cd) noexcept(true)
+{
+	if (this != &cd)
+	{
+		dst_indx = cd.dst_indx;
+		dst_ins_indx = cd.dst_ins_indx;
+		src_param_indx = cd.src_param_indx;
+		src_val_indx = cd.src_val_indx;
+	}
+	return *this;
+}
+
+void NS_Tune::TCellData::show(std::ostream& stream) const noexcept(true)
+{
+	if (stream)
+	{
+		dst_indx.show(stream, "Индекс ячейки приемника: ");
+		dst_ins_indx.show(stream, "Индекс ячейки для вставки данных в приемнике: ");
+		src_param_indx.show(stream, "Индекс-параметр в источнике: ");
+		src_val_indx.show(stream, "Индекс-значения в источнике: ");
+	}
+}
+
+void NS_Tune::TCellMethod::setMethod(size_t meth, size_t find_color, size_t not_find_color) noexcept(true)
+{
+	using NS_Const::TConstJson;
+	using NS_Const::JSonMeth;
+	try
+	{
+		code = JSonMeth(meth);
+		if (code >= JSonMeth::Last) throw TLog("Указанный метод не обрабатывается!", "TCellMethod::setMethod");
+		color_if_found = TColor(find_color);
+		color_not_found = TColor(not_find_color);
+	}
+	catch (const TLog& er)
+	{
+		er.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка преобразования данных!", "TCellMethod::setMethod").toErrBuff();
+	}
+}
+
+void NS_Tune::TCellMethod::setMethod(const ptree::value_type& node, const JsonParams& code_tag,	
+	const JsonParams& color_find_tag, const JsonParams& color_not_found_tag)
+{
+	size_t v_code = TIndex(node, code_tag).get();
+	size_t v_color_found = TIndex(node, color_find_tag).get();
+	size_t v_color_no_found = TIndex(node, color_not_found_tag).get();
+	setMethod(v_code, v_color_found, v_color_no_found);
+}
+
+NS_Tune::TCellMethod::TCellMethod(ptree& parent_node, const JsonParams& tag_meth) :
+	code(JSonMeth::Null), color_if_found(TColor::COLOR_WHITE), color_not_found(TColor::COLOR_WHITE)
+{
+	using NS_Const::TConstJson;
+	string v_tag = TConstJson::asStr(tag_meth);
+	if (v_tag.empty()) return;
+	ptree::value_type v_node = parent_node.find(v_tag).dereference();
+	setMethod(v_node);
 }
 
 
-NS_Tune::TExcelCompareData::TExcelCompareData(const string& json_file): DstFile(nullptr), 
-	SrcFile(nullptr), cells()
+void NS_Tune::TCellMethod::show(std::ostream& stream) const noexcept(true)
 {
-	using NS_Logger::TLog;
+	using std::endl;
+	using NS_Const::TConstJSMeth;
+	if (!stream) return;
+	if (isEmpty()) stream << "Метод обработки - пуст!" << endl;
+	stream << "Код метода обработки: " << TConstJSMeth::asStr(code) << endl;
+	if (!isEmptyIncludeColor())
+		stream << "Цвет при выполнении условия: " << color_if_found << endl;
+	if (!isEmptyExcludeColor())
+		stream << "Цвет при не выполнении условия: " << color_not_found << endl;
+}
+
+void NS_Tune::TProcCell::InitSrcFile(ptree& node, const JsonParams& tag) noexcept(true)
+{
+	using NS_Const::TConstJson;
+	try
+	{
+		string v_node = TConstJson::asStr(tag);
+		ptree::value_type tmp = node.find(v_node).dereference();
+		if (tmp.second.empty()) throw TLog("Указанный узел: " + v_node + " не найден!", "TProcCell::InitSrcFile");
+		DeInitSrcFile();
+		SrcFile = new TShareData(tmp);
+	}
+	catch (const TLog& er)
+	{
+		er.toErrBuff();
+		DeInitSrcFile();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка инициализации файла-источника!", "TProcCell::InitSrcFile").toErrBuff();
+		DeInitSrcFile();
+	}
+}
+
+void NS_Tune::TProcCell::InitDBTune(const ptree& node, string conf_path,
+	const JsonParams& tag) noexcept(true)
+{
+	using NS_Const::TConstJson;
+	using NS_Const::TuneField;
+	using NS_Const::TConstField;
+	//получение пути для конфигов:
+	conf_path += TIndex::getStrValue(node, tag);
+	//получение массива файлов настроек:
+	StrArr files = TSimpleTune::getFileLst(conf_path);
+	//создание массива настроек:
+	for (const string& v : files)
+	{
+		TUserTune v_tune(v);
+		if (!v_tune.Empty()) db_tune.push_back(v_tune);
+	}
+}
+
+void NS_Tune::TProcCell::InitCellData(ptree& node, const JsonParams& tag) noexcept(true)
+{
+	using NS_Const::TConstJson;
+	if (node.empty()) return;
+	string v_tag = TConstJson::asStr(tag);
+	for (const ptree::value_type& js : node.get_child(v_tag))
+	{
+		if (js.second.empty()) continue;
+		TCellData cd(js);
+		if (cd.isEmpty()) continue;
+		cel_arr.push_back(cd);
+	}
+}
+
+void NS_Tune::TProcCell::InitByMethod(ptree& node, const string& conf_path) noexcept(true)
+{
+	using NS_Const::JSonMeth;
+	try
+	{
+		switch (meth.getMethod())
+		{
+		case JSonMeth::CompareColor:
+		case JSonMeth::CompareIns:
+		{
+			InitSrcFile(node);
+			break;
+		}
+		case JSonMeth::GetFromDB:
+		case JSonMeth::SendToDB:
+		{
+			if (conf_path.empty()) throw TLog("Не указан путь к основной папке ресурсов!", "TProcCell::InitByMethod");
+			InitDBTune(node, conf_path);
+			break;
+		}
+		}
+		//инициализаци ячеек
+		InitCellData(node);
+	}
+	catch (const TLog& er)
+	{
+		er.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при инициализации из метода!", "TProcCell::InitByMethod").toErrBuff();
+	}
+}
+
+NS_Tune::TProcCell::TProcCell(ptree& parent_node, const string& main_path):
+	meth(parent_node), SrcFile(nullptr), db_tune(), cel_arr()
+{
+	if (meth.isEmpty()) return;
+	InitByMethod(parent_node, main_path);
+}
+
+void NS_Tune::TProcCell::show(std::ostream& stream) const noexcept(true)
+{
+	using std::endl;
+	if (!isEmpty())
+	{
+		stream << "Данные по методу обработки:" << endl;
+		meth.show(stream);
+		if (!NoSrcFile())
+		{
+			stream << "Данные по файлу источнику:" << endl;
+			SrcFile->show(stream);
+		}
+		if (TuneCnt() > 0)
+		{
+			stream << "Конфигурационные файлы:" << endl;
+			for (const TUserTune& t : db_tune)
+			{
+				t.show_tunes(stream);
+				t.show_columns(stream);
+				t.show_params(stream);
+			}
+		}
+		if (CellCnt() > 0)
+		{
+			stream << "Данные об обрабатываемых ячейках: " << endl;
+			for (const TCellData& cd : cel_arr)
+				cd.show(stream);
+		}
+	}
+}
+void NS_Tune::TExcelProcData::DeInitDstFile() noexcept(true)
+{
+	if (DstFile) delete DstFile;
+	DstFile = nullptr;
+}
+
+void NS_Tune::TExcelProcData::DeInitCells() noexcept(true)
+{
+	if (cells) delete cells;
+	cells = nullptr;
+}
+
+void NS_Tune::TExcelProcData::InitDstFile(const ptree::value_type& node, const string& main_path) noexcept(true)
+{
+	if (node.second.empty()) return;
+	DstFile = new TShareData(node, main_path);
+	if (DstFile->isEmpty()) DeInitDstFile();
+}
+
+void NS_Tune::TExcelProcData::InitCells(ptree::value_type& node, const string& main_path) noexcept(true)
+{
+	if (node.second.empty() or main_path.empty()) return;
+	cells = new TProcCell(node.second, main_path);
+	if (cells->isEmpty()) DeInitCells();
+}
+
+bool NS_Tune::TExcelProcData::InitObjByTag(ptree& json, const JsonParams& tag, const string& mpath) noexcept(false)
+{
+	using NS_Const::TConstJson;
+	using NS_Const::JsonParams;
+	if (json.empty()) throw TLog("Пустой json-файл!", "TExcelProcData::InitObjByTag");
+	string v_tag = TConstJson::asStr(tag);
+	ptree::value_type v_node = json.find(v_tag).dereference();
+	if (v_node.second.empty()) throw TLog("Узел: " + v_tag + " не найден в json-файле!", "TExcelProcData::InitObjByTag");
+	switch (tag)
+	{
+		case JsonParams::DstFile:
+			InitDstFile(v_node, mpath);
+			return !(isDstFileEmpty());
+		case JsonParams::Cells:
+		{
+			InitCells(v_node, mpath);
+			return !(isCellsEmpty());
+		}
+	}
+	return false;
+}
+
+void NS_Tune::TExcelProcData::InitExcelProcData(const string& json_file, const string& main_path) noexcept(true)
+{
 	using boost::property_tree::ptree;
 	using boost::property_tree::file_parser_error;
 	using boost::property_tree::json_parser_error;
 	using boost::property_tree::json_parser::read_json;
+	using NS_Const::JsonParams;
+//	using filter_data = std::pair<size_t, string>;
+//	using filters = std::vector<filter_data>;
 	if (json_file.empty()) return;
 	try
 	{
-		//получение настроек из json-файла
-		ptree json;
-		//чтение из json-файла
-		read_json(json_file, json);
-		if (json.empty()) throw TLog("Пустой файл: " + json_file, "NS_Tune::TExcelCompareData");
-		//формирование настроек файла источника:
-		TShareData tmp(json, NS_Const::JsonParams::DstFile);
-		if (!tmp.isEmpty()) DstFile = new TShareData(tmp);
-		//формирование настроек файла приемника:
-
-	}
-	catch (const TLog& err)
-	{
-		err.toErrBuff();
+		//инициализация json-файла:
+		ptree js;
+		read_json(json_file, js);
+		if (js.empty()) throw TLog("Пустой json-файл: " + json_file + "!", "TExcelProcData::InitExcelProcData");
+		//DstFile:
+		if (!InitObjByTag(js, JsonParams::DstFile, main_path))
+			throw TLog("Файл приемник не инициализирован!", "TExcelProcData::InitExcelProcData");
+		//cells
+		if (!InitObjByTag(js, JsonParams::Cells, main_path)) 
+			throw TLog("Данные о ячейках не инициализированы!", "TExcelProcData::InitExcelProcData");
 	}
 	catch (const json_parser_error& err)
 	{
-		TLog(err.what(), "NS_Tune::TExcelCompareData").toErrBuff();
+		TLog(err.what()).toErrBuff();
 	}
-	catch (const file_parser_error& err)
+	catch (const std::exception& err)
 	{
-		TLog(err.what(), "NS_Tune::TExcelCompareData").toErrBuff();
+		TLog(err.what()).toErrBuff();
+	}
+	catch (const TLog& er)
+	{
+		er.toErrBuff();
 	}
 	catch (...)
 	{
-		TLog log("Не обработанная ошибка при считывании файла: ", "NS_Tune::TExcelCompareData");
-		log << json_file;
-		log.toErrBuff();
+		TLog("Не обработанная ошибка при инициализации объектов json!", "TExcelProcData::InitExcelProcData").toErrBuff();
 	}
-
 }
 
-NS_Tune::TExcelCompareData::~TExcelCompareData()
+NS_Tune::TExcelProcData::TExcelProcData(const string& json_file, const string& main_path): 
+	DstFile(nullptr), cells(nullptr)
 {
-	if (DstFile) delete DstFile;
-	if (SrcFile) delete SrcFile;
+	InitExcelProcData(json_file, main_path);
 }
+
+NS_Tune::TExcelProcData::TExcelProcData(const TSharedTune& tune): DstFile(nullptr), cells(nullptr)
+{
+	string v_file = tune.getConfigPath();
+	string v_path = tune.getMainPathVal();
+	InitExcelProcData(v_file, v_path);
+}
+
+NS_Tune::TExcelProcData::~TExcelProcData()
+{
+	DeInitDstFile();
+	DeInitCells();
+}
+
+void NS_Tune::TExcelProcData::show(std::ostream& stream) const noexcept(true)
+{
+	using std::endl;
+	if (!stream) return;
+	if (!isDstFileEmpty())
+	{
+		stream << "Данные о файле приемнике: " << endl;
+		DstFile->show(stream);
+	}
+	if (!isCellsEmpty())
+	{
+		stream << "Данные о ячейках: " << endl;
+		cells->show();
+	}
+}
+/**/
