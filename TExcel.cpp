@@ -277,22 +277,16 @@ NS_Excel::TColor NS_Excel::TExcelBookFormat::getBorderColor(const TBorderSide& s
 	throw TLog("Ошибка получения цвета!", "TExcelBookFormat::getBorderColor");
 }
 
-NS_Excel::TBaseObj::TBaseObj(int par_val, int par_min, int par_max): min_val(par_min), max_val(par_max), val(par_val)
+NS_Excel::TBaseObj::TBaseObj(int par_val, bool zero_flg): from_zero(zero_flg), val(par_val)
 {
+	if (!from_zero and val > 0) val--;
 	if (!isValid()) val = EmptyType;
 }
 
 bool NS_Excel::TBaseObj::isValid() const
 {
 	if (isEmpty()) return false;
-	if (min_val <= val)
-	{
-		if (max_val == 0)
-			return true;
-		else
-			return val <= max_val;
-	}
-	return false;
+	return from_zero ? val >= 0 : val > 0;
 }
 
 int NS_Excel::TBaseObj::Next()
@@ -313,6 +307,7 @@ NS_Excel::TBaseObj& NS_Excel::TBaseObj::operator=(const TBaseObj& v)
 {
 	if (this == &v) return *this;
 	val = v.val;
+	from_zero = v.from_zero;
 	return *this;
 }
 
@@ -387,14 +382,18 @@ bool NS_Excel::TExcelBookSheet::WriteAsString(const TExcelCell& cell, const stri
 	return false;
 }
 
-std::string NS_Excel::TExcelBookSheet::ReadAsString(const TExcelCell& cell) noexcept(false)
+std::string NS_Excel::TExcelBookSheet::ReadAsString(const TExcelCell& cell) const noexcept(false)
 {
 	if (isValid())
 	{
 //		FormatPtr* format = new FormatPtr;
-		 const char* val = sheet->readStr(cell.getRow(), cell.getCol());
+		if (isBlank(cell)) return string();
+		const char* val = sheet->readStr(cell.getRow(), cell.getCol());
 //		delete format;
 		if (val) return string(val);
+		TLog log("Пустое занчение считываемой ячейки: ", "TExcelBookSheet::ReadAsString");
+		log << "(" << cell.getRow() << ", " << cell.getCol() << ")\n";
+		throw log;
 	}
 	throw TLog("Объект не валиден - лист не создан!", "TExcelBookSheet::ReadAsString");
 }
@@ -1028,7 +1027,13 @@ bool NS_Excel::TExcelBook::loadFromFile(const TLoadParam& param, const LoadType&
 		result = book->loadPartially(param.file.c_str(), param.Indx, param.first, param.last, param.tmp_file.c_str());
 		break;
 	}
-	if (!result) raise_app_err(TLog(book->errorMessage(), "TExcelBook::loadFromFile"), raise_err);
+	if (!result)
+	{
+		TLog log("Ошибка при загрузке", "TExcelBook::loadFromFile");
+		if (param.Indx >= 0) log << " страницы: " << param.Indx;
+		log << " для книги: " << param.file << '\n' << getError();
+		raise_app_err(log, raise_err);
+	}
 	return result;
 }
 
@@ -1339,10 +1344,19 @@ NS_Excel::TExcelBookFont NS_Excel::TExcelBook::getFontByIndex(int index) noexcep
 
 bool NS_Excel::TExcelBook::setActiveSheet(int index) noexcept(true)
 {
-	if (isValid())
+	try
 	{
-		book->setActiveSheet(index);
-		return true;
+		if (isValid())
+		{
+			book->setActiveSheet(index);
+			return true;
+		}
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка уставноки активной страницы: ", "TExcelBook::setActiveSheet");
+		log << index << "!\n" << getError() << "'n";
+		log.toErrBuff();
 	}
 	return false;
 }

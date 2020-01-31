@@ -172,9 +172,9 @@ NS_Const::TConstType::TConstType(const string& str): NS_Const::DF_const(DataType
 		setValue(DataType::ErrorType);
 }
 
-string NS_Const::TConstType::toStr() const
+string NS_Const::TConstType::asStr(const DataType& dt) noexcept(true)
 {
-	switch (Value())
+	switch (dt)
 	{
 	case DataType::String: return "string";
 	case DataType::Integer: return "integer";
@@ -233,6 +233,7 @@ string NS_Const::TConstReportCode::toStr() const
 	case ReportCode::POTREB_CRED_BY_FILE: return "POTREB_CRED_BY_FILE";
 	case ReportCode::CRED_CASE_MF: return "CRED_CASE_MF";
 	case ReportCode::BALANCE_LIST: return "BALANCE_LIST";
+	case ReportCode::BALANCE_SUA: return "BALANCE_SUA";
 	case ReportCode::FULL_CRED_REPORT: return "FULL_CRED_REPORT";
 	case ReportCode::NBKI_NP: return "NBKI_NP";
 	case ReportCode::NBKI_JP: return "NBKI_JP";
@@ -254,6 +255,7 @@ string NS_Const::TConstReportCode::getName() const
 	case ReportCode::POTREB_CRED_BY_FILE: return "Борисова: Потребительские кредиты МФ по файлу";
 	case ReportCode::CRED_CASE_MF: return "Ермакова: Кредитный портфель МФ";
 	case ReportCode::BALANCE_LIST: return "Ермакова: Ведомость остатков";
+	case ReportCode::BALANCE_SUA: return "Борисова: Ведомость остатков для загрузки в СУА";
 	case ReportCode::FULL_CRED_REPORT: return "Ермакова: Полный кредитный портфель";
 	case ReportCode::NBKI_NP: return "Борисова: НБКИ Физ. лица";
 	case ReportCode::NBKI_JP: return "Борисова: НБКИ Юр. лица";
@@ -457,6 +459,7 @@ string NS_Const::TConstJson::asStr(const JsonParams& val) noexcept(true)
 	case JsonParams::False: return "false";
 	case JsonParams::True: return "true";
 	case JsonParams::DstFile: return "DstFile";
+	case JsonParams::Sheet: return "Sheet"; 
 	case JsonParams::Cells: return "Cells";
 	case JsonParams::Method: return "Method";
 	case JsonParams::SrcFile: return "SrcFile";
@@ -464,8 +467,8 @@ string NS_Const::TConstJson::asStr(const JsonParams& val) noexcept(true)
 	case JsonParams::DB_Config: return "DB_Config";
 	case JsonParams::name: return "name";
 	case JsonParams::list_index: return "lst_indx";
-	case JsonParams::start_index: return "strt_indx";
-	case JsonParams::last_index: return "last_indx";
+	case JsonParams::first_row: return "first_row";
+	case JsonParams::last_row: return "last_row";
 	case JsonParams::filter: return "fltr";
 	case JsonParams::column_index: return "col_indx";
 	case JsonParams::value: return "value";
@@ -473,6 +476,8 @@ string NS_Const::TConstJson::asStr(const JsonParams& val) noexcept(true)
 	case JsonParams::dst_insert_index: return "dst_ins_indx";
 	case JsonParams::src_param_index: return "src_param_indx";
 	case JsonParams::src_val_index: return "src_val_indx";
+	case JsonParams::in_data_type: return "in_data_type";
+	case JsonParams::out_data_type: return "out_data_type";
 	case JsonParams::code: return "code";
 	case JsonParams::color_if_found: return "color_if_found";
 	case JsonParams::color_not_found: return "color_not_found";
@@ -525,6 +530,7 @@ string NS_Const::TConstJSMeth::asStr(const JSonMeth& val) noexcept(true)
 		case JSonMeth::CompareIns: return "Вставка данных при выполнении условия";
 		case JSonMeth::GetFromDB: return "Получение значений из БД";
 		case JSonMeth::SendToDB: return "Запись значения в БД";
+		case JSonMeth::GetRowIDByDB: return "Формируем массив строк, относящихся к указанной БД";
 	}
 	return "Указанный метод не обрабатывается!";
 }
@@ -537,3 +543,5 @@ template NS_Const::TConstant<NS_Const::TExclBaseTune, NS_Const::TExclBaseTune::E
 template NS_Const::TConstant<NS_Const::ReportCode, NS_Const::ReportCode::Empty, NS_Const::ReportCode::Last>;
 template NS_Const::TConstant<NS_Const::TSql, NS_Const::TSql::Empty, NS_Const::TSql::Last>;
 template NS_Const::TConstant<NS_Const::CtrlSym, NS_Const::CtrlSym::Empty, NS_Const::CtrlSym::Last>;
+template NS_Const::TConstant<NS_Const::JsonParams, NS_Const::JsonParams::Null, NS_Const::JsonParams::Last>;
+template NS_Const::TConstant<NS_Const::JSonMeth, NS_Const::JSonMeth::Null, NS_Const::JSonMeth::Last>;

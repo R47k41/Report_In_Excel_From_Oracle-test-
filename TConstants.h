@@ -41,20 +41,21 @@ namespace NS_Const
 	//параметры для настройки excel-файлов(для сравнения/импорта)
 	enum class JsonParams {Null, False, True,
 		//блок для основных объектов
-		ObjBegin, DstFile, Cells, SrcFile, DataArr, Method, DB_Config, ObjEnd,
+		ObjBegin, DstFile, Sheet, Cells, SrcFile, DataArr, Method, DB_Config, ObjEnd,
 		//блок для данных в объекте Файл
-		FileBegin, name, list_index, start_index, last_index, filter, FileEnd,
+		FileBegin, name, list_index, first_row, last_row, filter, FileEnd,
 		//блок для данных в объекте Фильтр
 		FilterBegin, column_index, value, FilterEnd,
 		//блок для данных объекта Метод
 		MethodBegin, code, color_if_found, color_not_found, MethodEnd,
 		//блок данных для объекта Колонка
-		CellsBegin, dst_index, dst_insert_index, src_param_index, src_val_index, CellsEnd,
+		CellsBegin, dst_index, dst_insert_index, src_param_index, src_val_index, 
+		in_data_type, out_data_type, CellsEnd,
 		Last
 	};
 
 	//методы обработки excel-файлов на основании Json-параметров
-	enum class JSonMeth { Null, CompareColor, CompareIns, GetFromDB, SendToDB, Last };
+	enum class JSonMeth { Null, CompareColor, CompareIns, GetFromDB, SendToDB, GetRowIDByDB, Last };
 
 	//Типы данных для параметров в запросах:
 	enum class DataType { ErrorType = 0, String, Integer, Double, Date, Boolean, Last };
@@ -96,6 +97,7 @@ namespace NS_Const
 		CLOSE_DAY,//закрытие баланса/месяца
 		NBKI_APPLY,//обновление данных по НБКИ (Борисова) когда меняем статус с 3 на 0
 		BALANCE_LIST,//ведомость остатков МФ (Ермакова)
+		BALANCE_SUA,//ведомость остатков для загрузки в СУА(Борисова)
 		FULL_CRED_REPORT,//полный кредитный портфель (Ермакова) большой отчет по файлу
 		LOAD_FROM_FILE,//загрузка документов из excel/xml/txt-файла
 		FILE_COMPARE,//сравнение файлов excel
@@ -198,7 +200,8 @@ namespace NS_Const
 		explicit TConstType(int x) : DF_const(x) {};
 		explicit TConstType(const string& str);
 		//перевод значения в строку
-		virtual string toStr() const;
+		static string asStr(const DataType& code) noexcept(true);
+		virtual string toStr() const noexcept(true) { return asStr(Value()); }
 		//операция присвоения:
 		TConstType& operator=(const DataType& x) { DF_const::operator=(x); return *this; }
 	};

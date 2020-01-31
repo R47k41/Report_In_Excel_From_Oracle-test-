@@ -147,7 +147,7 @@ void NS_Oracle::TStatement::setPrefetchVal()
 }
 
 bool NS_Oracle::TStatement::crtStatement(ConnectionPtr c, const string& sql, 
-	bool auto_commit)
+	bool auto_commit, UInt maxIteration)
 {
 	using oracle::occi::SQLException;
 	using std::cerr;
@@ -157,7 +157,9 @@ bool NS_Oracle::TStatement::crtStatement(ConnectionPtr c, const string& sql,
 		if (c)
 		{
 			connect = c;
-			statement = connect->createStatement(sql);
+			statement = connect->createStatement();
+			setMaxIterationCnt(maxIteration);
+			setSQL(sql);
 			statement->setAutoCommit(auto_commit);
 		}
 		else
@@ -177,15 +179,16 @@ bool NS_Oracle::TStatement::crtStatement(ConnectionPtr c, const string& sql,
 	return false;
 }
 
-NS_Oracle::TStatement::TStatement(EnvironmentPtr env, ConnectionPtr c, const string& sql, bool auto_commit, UInt prefetch): environment(env), prefetch_cnt(prefetch)
+NS_Oracle::TStatement::TStatement(EnvironmentPtr env, ConnectionPtr c, const string& sql, 
+	bool auto_commit, UInt prefetch, UInt maxIteration): environment(env), prefetch_cnt(prefetch)
 {
-	crtStatement(c, sql, auto_commit);
+	crtStatement(c, sql, auto_commit, maxIteration);
 }
 
-NS_Oracle::TStatement::TStatement(const TDBConnect& dbc, const string& sql, UInt prefetch): 
+NS_Oracle::TStatement::TStatement(const TDBConnect& dbc, const string& sql, UInt prefetch, UInt maxIteration): 
 	environment(dbc.getenviroument()), prefetch_cnt(prefetch)
 {
-	crtStatement(dbc.connect, sql, dbc.commit_on_close);
+	crtStatement(dbc.connect, sql, dbc.commit_on_close, maxIteration);
 }
 
 NS_Oracle::UInt NS_Oracle::TStatement::getCurIteration() const
@@ -355,6 +358,15 @@ NS_Oracle::ResultSet* NS_Oracle::TStatement::getResultSetVal() noexcept(true)
 	return nullptr;
 }
 
+void NS_Oracle::TStatement::closeResultSet(NS_Oracle::ResultSetPtr dataSet) noexcept(false)
+{
+	if (dataSet)
+	{
+		statement->closeResultSet(dataSet);
+	}
+}
+
+
 NS_Oracle::ResultSetPtr NS_Oracle::TStatement::executeQuery(const string& sql) noexcept(true)
 {
 	Execute(sql);
@@ -420,6 +432,15 @@ NS_Oracle::TResultSet::TResultSet(TStatement& query)
 	default:
 		result = nullptr;
 	}
+	InitMetaData();
+	setSize4NullCol();
+}
+
+NS_Oracle::TResultSet::TResultSet(ResultSetPtr dataSet)
+{
+	//если пустой датасет или он уже есть - выход
+	if (dataSet == nullptr or dataSet == result) return;
+	result = dataSet;
 	InitMetaData();
 	setSize4NullCol();
 }

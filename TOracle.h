@@ -135,16 +135,16 @@ namespace NS_Oracle
 		TStatement(ConnectionPtr c, StatementPtr s);
 		TStatement& operator=(const TStatement& st);
 		//создаем команду на выполнение:
-		bool crtStatement(ConnectionPtr c, const string& sql = "", bool auto_commit = false);
+		bool crtStatement(ConnectionPtr c, const string& sql = "", bool auto_commit = false, UInt maxIteration = 1);
 		//выполнить нетипизированную sql-команду:
 		TSQLState Execute(const string& sql = "") noexcept(true);
 		//установка числа выбираемых записей за одно обращение:
 		void setPrefetchVal();
 		TStatement(EnvironmentPtr env, ConnectionPtr c, const string& sql = "", bool auto_commit = false,
-			UInt prefetch = prefetch_rows);
+			UInt prefetch = prefetch_rows, UInt maxIteration = 1);
 	public:
 		//инициализация строкой и ссылкой на соединение:
-		explicit TStatement(const TDBConnect& dbc, const string& sql = "", UInt prefetch = prefetch_rows);
+		explicit TStatement(const TDBConnect& dbc, const string& sql = "", UInt prefetch = prefetch_rows, UInt maxIteration = 1);
 		//функция закрытия sql-команды:
 		bool close() noexcept(false);
 		~TStatement();
@@ -168,6 +168,7 @@ namespace NS_Oracle
 		void setStringVal(UInt paramIndx, const string& value) { statement->setString(paramIndx, value); };
 		void setDateVal(UInt paramIndx, const TDate& date) { statement->setDate(paramIndx, date); };
 		void setDateAsStringVal(UInt paramIndx, const string& date, const string& date_frmt = "DD.MM.YYYY");
+		void setNullVal(UInt paramIndx, const TType& data_type) noexcept(false) { statement->setNull(paramIndx, data_type); }
 		//функции проверки значений полей/параметров:
 		virtual bool isNullVal(UInt paramIndx) const { return statement->isNull(paramIndx); };
 		//включение/отключение возникновения исключения при пустом значении параметра/колонки
@@ -195,10 +196,18 @@ namespace NS_Oracle
 		bool ExecuteSQL(const string& sql = "") noexcept(true);
 		//получение данных из выполненного запроса:
 		ResultSetPtr getResultSetVal() noexcept(true);
+		//закрытие ResultSet:
+		void closeResultSet(ResultSetPtr dataSet) noexcept(false);
 		//выполнить запрос как DQL:
 		ResultSetPtr executeQuery(const string& sql = "") noexcept(true);
 		//выполнить запрос как DML
 		UInt executeDML(const string& sql = "") noexcept(true);
+		//добавление итерации на выполнение после переустановки параметров запроса:
+		void addIteration() noexcept(false) { statement->addIteration(); }
+		//установка максимального числа итераций:
+		void setMaxIterationCnt(UInt cnt) noexcept(false) { statement->setMaxIterations(cnt); }
+		//получение максимально числа итераций:
+		UInt getMaxIterationCnt() const noexcept(false) { return statement->getMaxIterations(); }
 	};
 
 	//класс Результирующий набор:
@@ -222,6 +231,7 @@ namespace NS_Oracle
 	public:
 		//иниализация объктом sql-команды
 		explicit TResultSet(TStatement& query);
+		explicit TResultSet(ResultSetPtr dataSet);
 		//деинициализация набора данных:
 		~TResultSet();
 		//Определение общего интерфейса:
@@ -245,7 +255,7 @@ namespace NS_Oracle
 		//проверка на урезание данных строки:
 		bool isTruncatedVal(UInt paramIndx) const { return result->isTruncated(paramIndx); };
 		//получение статуса
-		TDataSetState Next(UInt RowsCnt = 1) { return (isValid() ? result->next() : TDataSetState::END_OF_FETCH); };
+		TDataSetState Next(UInt RowsCnt = 1) { return (isValid() ? result->next(RowsCnt) : TDataSetState::END_OF_FETCH); };
 		//получение длины параметра перед truncate
 		int getPreTruncLenght(UInt paramIndx) const { return result->preTruncationLength(paramIndx); };
 		//вызывать ошибку при отрезанной длине параметра:

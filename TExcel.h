@@ -77,13 +77,12 @@ namespace NS_Excel
 	class TBaseObj
 	{
 	private:
-		const int min_val;
-		const int max_val;
+		bool from_zero;//отсчет ведетс€ от 0 иначе от 1
 		int val;//значение
 	public:
-		explicit TBaseObj(int par_val, int par_min = 0, int par_max = 0);
+		explicit TBaseObj(int par_val, bool zero_flg = true);
 		//проверка на пустое значение:
-		bool isEmpty() const { return val == EmptyType; }
+		bool isEmpty() const { return from_zero ? val < 0 : val <= 0; }
 		//проверка корректности значени€:
 		bool isValid() const;
 		//полчение значени€:
@@ -104,7 +103,7 @@ namespace NS_Excel
 		bool operator<(int x) const { return val < x; }
 		bool operator<=(int x) const { return val <= x; }
 		bool operator>=(int x) const { return val >= x; }
-		void clear() { val = min_val; }
+		void clear() { from_zero ? val = EmptyType : val = 0; }
 		bool isZero() const noexcept(true) { return val == 0; }
 		string getName(bool row) const;
 	};
@@ -118,7 +117,7 @@ namespace NS_Excel
 	public:
 		//конструктор
 		TExcelCell(const TBaseObj& par_row, const TBaseObj& par_col) : row(par_row), col(par_col) {}
-		TExcelCell(int par_row, int par_col) : row(par_row), col(par_col) {}
+		TExcelCell(int par_row, int par_col, bool from_zero = true) : row(par_row, from_zero), col(par_col, from_zero) {}
 		//получение индекса строки €чейки:
 		int getRow() const { return row.Value(); }
 		//получение индекса столбца €чейки:
@@ -207,8 +206,6 @@ namespace NS_Excel
 		struct TLoadParam { string file; int Indx; int first; int last; string tmp_file; };
 		//функци€ загрузки:
 		bool loadFromFile(const TLoadParam& param, const LoadType& lt, bool raise_err) noexcept(false);
-		//сообщение об ошибке:
-		string getError() const noexcept(true);
 		//сформировать им€ листа по умолчанию:
 		string getDefaultSheetName() const noexcept(true);
 		//функци€ проверки наличи€ указанной страницы в книге:
@@ -218,8 +215,12 @@ namespace NS_Excel
 		explicit TExcelBook(const string& book_name, int header_row = 0): fname(book_name), HeaderRow(header_row) { CrtBook(); }
 		//деструктор:
 		~TExcelBook() { close(); }
+		//сообщение об ошибке:
+		string getError() const noexcept(true);
 		//валидность объекта:
 		bool isValid(bool raise_err = false) const noexcept(false);
+		//проверка на пустоту:
+		bool isEmpty() const noexcept(true) { return book ? !SheetCount() : true; }
 		//заполн€ем заголовок из массива строк:
 		void setHeaderByStrArr(const TStrArr& arr, bool use_active_sheet = true, const string& new_sh_name = "") noexcept(true);
 		//инициализаци€ книги по параметрам
@@ -354,7 +355,7 @@ namespace NS_Excel
 		//запись строки в €чейку с указанием формата и типа данных:
 		bool WriteAsString(const TExcelCell& cell, const string& val, FormatPtr format = nullptr, const TDataType& type = TDataType::CELLTYPE_STRING);
 		//чтение строки из €чейки, формат не считываетс€:
-		string ReadAsString(const TExcelCell& cell) noexcept(false);
+		std::string ReadAsString(const TExcelCell& cell) const noexcept(false);
 		//чтение числа:
 		double ReadAsNumber(const TExcelCell& cell) const;
 		//запись числа в €чейку:
@@ -369,7 +370,7 @@ namespace NS_Excel
 		//установка формата дл€ пустой €чейкт, если€чейка не пуста€ - возвращает false
 		bool setBlank(const TExcelCell& cell, FormatPtr format = 0) const;
 		//чтение формулы:
-		string ReadFormula(const TExcelCell& cell);
+		std::string ReadFormula(const TExcelCell& cell);
 		//запись в €чейку формулы:
 		bool WirteFormula(const TExcelCell& cell, const string& formula, FormatPtr format = 0);
 		//запись в €чейку формулы с установленных значением по умолчанию в виде числа:
@@ -387,7 +388,7 @@ namespace NS_Excel
 		//удаление коментари€ из €чейки:
 		bool delComment(const TExcelCell& cell) noexcept(false);
 		//проверка €вл€етс€ ли значение в €чейки датой
-		bool isDate(const TExcelCell& cell) noexcept(false) { return sheet->isDate(cell.getRow(), cell.getCol()); }
+		bool isDate(const TExcelCell& cell) const noexcept(false) { return sheet->isDate(cell.getRow(), cell.getCol()); }
 		//чтение вида ошибки в €чейки:
 		TErrorType getErrorType(const TExcelCell& cell) const { return sheet->readError(cell.getRow(), cell.getCol()); }
 		//запись в €чейку ошибки:

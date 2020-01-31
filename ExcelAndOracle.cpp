@@ -71,23 +71,19 @@ int main()
 	using std::cout;
 	//SetRuConsole(1251);
 	setlocale(LC_ALL, "RU");
-	NS_Tune::TExcelProcData ed("F:\\Projects\\SomeThing\\TypicalReport\\Полный портфель\\config\\json\\nat_person_tune.json",
+/*
+	NS_Tune::TExcelProcData exl("F:\\Projects\\SomeThing\\TypicalReport\\Полный портфель\\config\\json\\nat_person_tune.json",
 		"F:\\Projects\\SomeThing\\TypicalReport\\Полный портфель\\");
-	ed.show();
+	exl.show();
 	return 0;
-	/*
-		string file_name("nat_person_tune.txt");
-		JsonParse(file_name);
-		
-		return 0;
-	/**/
+/**/
 	//	excel_test();
 	//oracle_example();
 	//TOracleTest();
 	string config("config.ini");
 	//parse_tune_file(file_name);
-	//CreateReport(config, "FULL_CRED_REPORT");
-	CreateReport(config, "REPAYMENT_FOR_DATE");
+	CreateReport(config, "FULL_CRED_REPORT");
+	//CreateReport(config, "REPAYMENT_FOR_DATE");
 	/*
 	Test_toStr();
 	Test_Logger();
