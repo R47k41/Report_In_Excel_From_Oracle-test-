@@ -71,6 +71,7 @@ int main()
 	using std::cout;
 	//SetRuConsole(1251);
 	setlocale(LC_ALL, "RU");
+//	excel_test();
 /*
 	NS_Tune::TExcelProcData exl("F:\\Projects\\SomeThing\\TypicalReport\\Полный портфель\\config\\json\\nat_person_tune.json",
 		"F:\\Projects\\SomeThing\\TypicalReport\\Полный портфель\\");
@@ -82,7 +83,7 @@ int main()
 	//TOracleTest();
 	string config("config.ini");
 	//parse_tune_file(file_name);
-	CreateReport(config, "FULL_CRED_REPORT");
+	CreateReport(config, "FILE_COMPARE_RIB");
 	//CreateReport(config, "REPAYMENT_FOR_DATE");
 	/*
 	Test_toStr();
@@ -341,9 +342,13 @@ void CreateReport(const std::string& file_name, const string& code) noexcept(tru
 void excel_test(void)
 {
 	using namespace libxl;
-	Book* srcBook = xlCreateBook();
+	Book* srcBook = xlCreateXMLBook();
 	NS_Excel::TExcelBook::UseLicenseKey(&srcBook);
-	bool b = srcBook->loadSheet("F:\\Projects\\SomeThing\\TypicalReport\\FILIAL_DOCS.xlt", 0);
+	//F:\\Projects\\SomeThing\\TypicalReport\\Кредитный портфель excel\\RIB\\template\\RIB_Data.xlsx
+	string name("F:\\Projects\\SomeThing\\TypicalReport\\Кредитный портфель excel\\RIB\\template\\RIB_Data.xlsx");
+//	bool b = srcBook->loadSheet(name.c_str(), 0);
+	string tmp = "";
+	bool b = srcBook->load(name.c_str());
 	if (!b)
 	{
 		std::cerr << srcBook->errorMessage() << std::endl;

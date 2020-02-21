@@ -29,8 +29,11 @@ namespace NS_Tune
 	using NS_Const::TConstField;
 	using NS_Const::TConstType;
 	using NS_Const::TConstCtrlSym;
+	using NS_Const::TConstJson;
 	using NS_Const::JsonParams;
 	using NS_Const::JSonMeth;
+	using NS_Const::JsonCellFill;
+	using NS_Const::TConstJSCellFill;
 	using NS_Const::TConstJSMeth;
 	using boost::property_tree::ptree;
 
@@ -360,12 +363,14 @@ namespace NS_Tune
 	class TSheetData
 	{
 	private:
-		TIndex index;
-		TIndex first_row;
-		TIndex last_row;
+		TIndex index;//индекс листа excel-файла
+		TIndex col_id;//колонка идентификатор данных
+		TIndex first_row;//строка с которой начинается обработка
+		TIndex last_row;//строка на которой заканчивается обработка
 		//установка значений по json-дереву:
 		void setData(const ptree::value_type& parent_node,
 			const JsonParams& indx_tag = JsonParams::list_index,
+			const JsonParams& col_tag = JsonParams::col_id,
 			const JsonParams& first_row_tag = JsonParams::first_row,
 			const JsonParams& last_row_tag = JsonParams::last_row) noexcept(true);
 	public:
@@ -375,11 +380,15 @@ namespace NS_Tune
 		~TSheetData() {}
 		//провекра на пустоту:
 		inline bool isEmpty() const noexcept(true) { return index.isEmpty(); }
+		inline bool NoColID() const noexcept(true) { return col_id.isEmpty(); }
 		inline bool NoFirstRowIndex() const noexcept(true) { return first_row.isEmpty(); }
 		inline bool NoLastRowIndex() const noexcept(true) { return last_row.isEmpty(); }
 		//установка и получение значений:
 		inline size_t getListIndex() const noexcept(true) { return index.get(); }
 		inline void setListIndex(size_t val) noexcept(true) { index.set(val); }
+		//получение данных о колонке-идентификаторе:
+		inline size_t getColID() const noexcept(true) { return NoColID() ? 1 : col_id.get(); }
+		inline void setColID(size_t val) noexcept(true) { col_id.set(val); }
 		//получение индекса строки отсчета:
 		inline size_t getStartRow() const noexcept(true) { return NoFirstRowIndex() ? 1 : first_row.get(); }
 		inline void setStartRow(size_t val) noexcept(true) { first_row.set(val); }
@@ -427,13 +436,15 @@ namespace NS_Tune
 		void show(std::ostream& stream = std::cout) const noexcept(true);
 	};
 
+	using FilterArr = vector<TFilterData>;
+	
 	//структура общих данных для файлов сверки:
 	class TShareData
 	{
 	private:
 		string name;//имя файла
 		vector<TSheetData> sh_params;//список параметров страницы
-		vector<TFilterData> fltr;//данные для фильтрации
+		FilterArr fltr;//данные для фильтрации
 		//функция установки значений параметров по json-узлу
 		//заполнение массива значений:
 		template <typename Type>
@@ -460,10 +471,10 @@ namespace NS_Tune
 		vector<TSheetData> getSheetParams() const noexcept(true) { return sh_params; }
 		const TSheetData& getSheetParam(size_t page) const noexcept(false) { return sh_params[page]; }
 		//получение массива фильтрации:
-		vector<TFilterData> getFilterLst() const noexcept(true) { return fltr; }
+		FilterArr getFilterLst() const noexcept(true) { return fltr; }
 		//получение значения фильтра по индексу в массиве:
 		TFilterData getFilterByIndex(size_t index) const noexcept(true) { return fltr[index]; }
-		void setFilter(const vector<TFilterData>& filter) noexcept(true) { fltr = filter; }
+		void setFilter(const FilterArr& filter) noexcept(true) { fltr = filter; }
 		//функция получения числа обрабатываемых страниц:
 		size_t getPageCnt() const noexcept(true) { return sh_params.size(); }
 		void show(std::ostream& stream = std::cout) const noexcept(true);
@@ -505,10 +516,10 @@ namespace NS_Tune
 		//деструктор ни чего не делает
 		~TCellData() {}
 		//проверка на пустоту индексов
-		bool EmptyDstIndx() const noexcept(true) { return dst_indx == TIndex::EmptyIndex; }
-		bool EmptyInsIndx() const noexcept(true) { return dst_ins_indx == TIndex::EmptyIndex; }
-		bool EmptySrcParam() const noexcept(true) { return src_param_indx == TIndex::EmptyIndex; }
-		bool EmptySrcVal() const noexcept(true) { return src_val_indx == TIndex::EmptyIndex; }
+		bool EmptyDstIndx() const noexcept(true) { return dst_indx.isEmpty(); }
+		bool EmptyInsIndx() const noexcept(true) { return dst_ins_indx.isEmpty(); }
+		bool EmptySrcParam() const noexcept(true) { return src_param_indx.isEmpty(); }
+		bool EmptySrcVal() const noexcept(true) { return src_val_indx.isEmpty(); }
 		bool isEmpty() const noexcept(true) { return EmptyDstIndx(); }
 		//вывод данных:
 		inline size_t DstIndex() const noexcept(true) { return dst_indx.get(); }
@@ -530,49 +541,90 @@ namespace NS_Tune
 		void show(std::ostream& stream = std::cout) const noexcept(true);
 	};
 
+	//класс Тип заливки:
+	class TCellFillType
+	{
+	private:
+		TConstJSCellFill code;//тип заливки ячеек
+		TColor color_if_found;//цвет выделения, если данные совпали
+		TColor color_not_found;//цвет выделения, если данные не совпали
+		//установка значений:
+		void setFillType(size_t code, size_t color_find, size_t color_nfind) noexcept(false);
+		void setFillType(const ptree::value_type& node, const JsonParams& code_tag = JsonParams::code,
+			const JsonParams& color_find_tag = JsonParams::color_if_found,
+			const JsonParams& color_not_found_tag = JsonParams::color_not_found);
+	public:
+		//инициализация
+		TCellFillType(const JsonCellFill& ftype = JsonCellFill::Null,
+			const TColor& find_color = TColor::COLOR_NONE, const TColor& not_find_color = TColor::COLOR_NONE) :
+			code(ftype), color_if_found(find_color), color_not_found(not_find_color) {}
+		explicit TCellFillType(ptree& parent_node): code(JsonCellFill::Null), 
+			color_if_found(TColor::COLOR_NONE), color_not_found(TColor::COLOR_NONE) { setByJsonNode(parent_node); }
+		explicit TCellFillType(const ptree::value_type& sub_node) : code(),
+			color_if_found(TColor::COLOR_NONE), color_not_found(TColor::COLOR_NONE)	{ setFillType(sub_node); }
+		//проверка на пустоту
+		bool isEmpty() const noexcept(true) { return code.isEmpty() or code.isValid(true) == false; }
+ 		bool isEmptyColorFind() const noexcept(true) { return color_if_found == TColor::COLOR_NONE; }
+		bool isEmptyColorNFind() const noexcept(true) { return color_not_found == TColor::COLOR_NONE; }
+		bool isEmptyColor() const noexcept(true) { return isEmptyColorFind() and isEmptyColorNFind(); }
+		//получение значений:
+		JsonCellFill getCellFillType() const noexcept(true) { return code.Value(); }
+		TColor getFindColor() const noexcept(true) { return color_if_found; }
+		TColor getNFindColor() const noexcept(true) { return color_not_found; }
+		//установка значений:
+		void setCellFillType(const JsonCellFill& ftype) noexcept(true) { code = ftype; }
+		void setFindColor(const TColor& val) noexcept(true) { color_if_found = val; }
+		//установка значений из json-узла:
+		bool setByJsonNode(ptree& parent_node, const JsonParams& type_tag = JsonParams::fill_type) noexcept(true);
+		//присвоение
+		TCellFillType& operator=(const TCellFillType& ftype) noexcept(false);
+		//отображение информации:
+		void show(std::ostream& stream = std::cout) const noexcept(true);
+		//получение признака выполнения условия в зависимости от числа элементов, числа ошибок и кода:
+		bool isSuccess(size_t cnt, size_t fail) const noexcept(true);
+	};
+
 	//класс Метод обработки ячеек
 	class TCellMethod
 	{
 	private:
-		JSonMeth code;//код метода обработки
-		TColor color_if_found;//цвет выделения, если данные совпали
-		TColor color_not_found;//цвет выделения, если данные не совпали
+		TConstJSMeth code;//код метода обработки
+		TCellFillType fill_type;//метод заливки
 		//установка значения:
-		void setMethod(size_t meth, size_t find_color, size_t not_find_color) noexcept(true);
 		//установка данных из узла JSon-файла
-		void setMethod(const ptree::value_type& node,	const JsonParams& code_tag = JsonParams::code,
-			const JsonParams& color_find_tag = JsonParams::color_if_found,
-			const JsonParams& color_not_found_tag = JsonParams::color_not_found);
+		void setMethod(ptree::value_type& node,	const JsonParams& code_tag = JsonParams::code) noexcept(true);
 	public:
 		//инициализация по умолчанию
-		TCellMethod(const JSonMeth& meth = JSonMeth::Null, const TColor& find_color = TColor::COLOR_WHITE,
-			const TColor& not_find_color = TColor::COLOR_WHITE) :
-			code(meth), color_if_found(find_color), color_not_found(not_find_color) {}
+		TCellMethod(const JSonMeth& meth = JSonMeth::Null, const TCellFillType& ftype = TCellFillType()) :
+			code(meth), fill_type(ftype) {}
 		//инициализация
 		explicit TCellMethod(ptree& parent_node, const JsonParams& tag_meth = JsonParams::Method);
-		explicit TCellMethod(const ptree::value_type& parent_node) : code(JSonMeth::Null), color_if_found(TColor::COLOR_WHITE),
-			color_not_found(TColor::COLOR_WHITE) { setMethod(parent_node); }
+		explicit TCellMethod(ptree::value_type& sub_node) : code(JSonMeth::Null), fill_type() { setMethod(sub_node); }
 		~TCellMethod() {}
 		//проверка на пустоту:
 		bool isEmpty() const noexcept(true) { return code == JSonMeth::Null; }
-		bool isEmptyIncludeColor() const noexcept(true) { return color_if_found == TColor::COLOR_WHITE; }
-		bool isEmptyExcludeColor() const noexcept(true) { return color_not_found == TColor::COLOR_WHITE; }
-		bool isEmptyColor() const noexcept(true) { return isEmptyExcludeColor() and isEmptyIncludeColor(); }
+		bool isEmptyIncludeColor() const noexcept(true) { return fill_type.isEmptyColorFind(); }
+		bool isEmptyExcludeColor() const noexcept(true) { return fill_type.isEmptyColorNFind(); }
+		bool isEmptyColor() const noexcept(true) { return fill_type.isEmpty() or fill_type.isEmptyColor(); }
 		//получение метода обработки
-		JSonMeth getMethod() const noexcept(true) { return code; }
+		JSonMeth getMethod() const noexcept(true) { return code.Value(); }
 		//получение цвета заливки при выполнении условия:
-		TColor getIncludeColor() const noexcept(true) { return color_if_found; }
+		TColor getIncludeColor() const noexcept(true) { return fill_type.getFindColor(); }
 		//получение цвета заливки при не выполнении условия:
-		TColor getExcludeColor() const noexcept(true) { return color_not_found; }
+		TColor getExcludeColor() const noexcept(true) { return fill_type.getNFindColor(); }
+		//получение метода заливки:
+		JsonCellFill getFillType() const noexcept(true) { return fill_type.getCellFillType(); }
 		//установка метода:
 		void setMethod(const JSonMeth& val) noexcept(true) { code = val; }
-		//установка цветов:
-		void setColotInclude(const TColor& val) noexcept(true) { color_if_found = val; }
-		void setColorExclude(const TColor& val) noexcept(true) { color_not_found = val; }
+		//уставнока вида заливки:
+		void setCellFillType(const TCellFillType& ftype) noexcept(true) { fill_type = ftype; }
 		//вывод данных в поток:
 		void show(std::ostream& stream = std::cout) const noexcept(true);
+		//функция определения удачного выполнения по коду заливки:
+		bool isSuccess(size_t cnt, size_t fail) const noexcept(true) { return fill_type.isSuccess(cnt, fail); }
 	};
 
+	using CellDataArr = vector<TCellData>;
 
 	//структура обрабатываемых ячеек:
 	class TProcCell
@@ -581,9 +633,10 @@ namespace NS_Tune
 		TCellMethod meth;//метод обработки
 		TShareData* SrcFile;//файл-источник
 		vector<TUserTune> db_tune;//настроки для соединения с БД
-		vector<TCellData> cel_arr;//индексы обрабатываемх колонок
+		CellDataArr cel_arr;//индексы обрабатываемх колонок
 		//инициализация файла-источника
-		void InitSrcFile(ptree& node, const JsonParams& tag = JsonParams::SrcFile) noexcept(true);
+		void InitSrcFile(ptree& node, const JsonParams& tag = JsonParams::SrcFile,
+			const string& main_path = "") noexcept(true);
 		//деинициализация файла-источника
 		void DeInitSrcFile() noexcept(false) { if (SrcFile) delete SrcFile; SrcFile = nullptr; }
 		//инициализация настроек соединения с БД
@@ -602,18 +655,17 @@ namespace NS_Tune
 		bool isEmpty() const noexcept(true) { return meth.isEmpty() or cel_arr.empty(); }
 		//данные получаемые из метода:
 		JSonMeth getMethodCode() const noexcept(true) { return meth.getMethod(); }
-		bool NoColors() const noexcept(true) { return meth.isEmptyColor(); }
-		TColor getIncludeColor() const noexcept(true) { return meth.getIncludeColor(); }
-		TColor getExcludeColor() const noexcept(true) { return meth.getExcludeColor(); }
+		//получение ссылки на метод обработки:
+		const TCellMethod& getMethod() const noexcept(true) { return meth; }
 		//получение данных из файла источника:
 		bool NoSrcFile() const noexcept(true) { return SrcFile == nullptr or SrcFile->isEmpty(); }
 		const TShareData* getSrcFilRef() const noexcept(true) { return SrcFile; }
 		string SrcFileName() const noexcept(true) { return NoSrcFile() ? string() : SrcFile->getName(); }
 		size_t TuneCnt() const noexcept(true) { return db_tune.size(); }
 		size_t CellCnt() const noexcept(true) { return cel_arr.size(); }
-		vector<TFilterData> SrcFileFilters() const noexcept(true) { return NoSrcFile() ? vector<TFilterData>() : SrcFile->getFilterLst(); }
+		FilterArr SrcFileFilters() const noexcept(true) { return NoSrcFile() ? FilterArr() : SrcFile->getFilterLst(); }
 		//получение массива данных для ячеек:
-		vector<TCellData> getCellDataArr() const noexcept(true) { return cel_arr; }
+		const CellDataArr& getCellDataArr() const noexcept(true) { return cel_arr; }
 		//получение настроек для соединения с БД
 		vector<TUserTune> getDBTuneArr() const noexcept(true) { return db_tune; }
 		//отображение данных:

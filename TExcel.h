@@ -82,11 +82,11 @@ namespace NS_Excel
 	public:
 		explicit TBaseObj(int par_val, bool zero_flg = true);
 		//проверка на пустое значение:
-		bool isEmpty() const { return from_zero ? val < 0 : val <= 0; }
+		bool isEmpty() const { return val < 0; }
 		//проверка корректности значени€:
 		bool isValid() const;
 		//полчение значени€:
-		int Value() const { return val; }
+		int Value(bool frm_zero = true) const { return frm_zero ? val : val + 1; }
 		//получение значени€ следующего элемента:
 		int Next();
 		//получение значени€ предыдущего объекта:
@@ -119,9 +119,9 @@ namespace NS_Excel
 		TExcelCell(const TBaseObj& par_row, const TBaseObj& par_col) : row(par_row), col(par_col) {}
 		TExcelCell(int par_row, int par_col, bool from_zero = true) : row(par_row, from_zero), col(par_col, from_zero) {}
 		//получение индекса строки €чейки:
-		int getRow() const { return row.Value(); }
+		int getRow(bool frm_zero = true) const { return row.Value(frm_zero); }
 		//получение индекса столбца €чейки:
-		int getCol() const { return col.Value(); }
+		int getCol(bool frm_zero = true) const { return col.Value(frm_zero); }
 		//валидность объекта:
 		bool isValid() const { return row.isValid() and col.isValid(); }
 		//пустой объект:
@@ -260,6 +260,7 @@ namespace NS_Excel
 		int SheetCount() const noexcept(false) { return book->sheetCount(); };
 		//добавление формата в книгу:
 		TExcelBookFormat AddFormat(FormatPtr initFormat = nullptr) noexcept(false);
+		TExcelBookFormat AddFormat(TExcelBookFormat& initFormat) noexcept(false);
 		//добавление формата в книгу на основании списка имеющихс€ форматов:
 		FormatPtr InsertFormat(const TExcelBookFormat& frmt, PFormatArr& frmt_list) noexcept(false);
 		//получение формата по индексу:
@@ -340,6 +341,8 @@ namespace NS_Excel
 		TExcelBookSheet& operator=(const TExcelBookSheet& sh) { return operator=(sh.sheet); }
 		//валидностьобъекта:
 		bool isValid() const { return sheet; }
+		//проверка €чейки на пустое значение:
+		bool isEmptyCell(const TExcelCell& cell) const noexcept(false);
 		//получение ссылки на страницу/лист:
 		SheetPtr getRef() { return sheet; }
 		//получение типа данных в €чейке:
@@ -451,13 +454,13 @@ namespace NS_Excel
 		TExcelBookFormat getCellFormat(const TExcelCell& cell) const noexcept(false);
 		//установка формата €чейки:
 		bool setCellFormat(const TExcelCell& cell, TExcelBookFormat& format) noexcept(false);
-		//установка цвета дл€ €чейки
+		//установка цвета дл€ формата в указанной €чейке!!!!
 		bool setCellColor(const TExcelCell& cell, const TColor& color) noexcept(true);
-		//утсновка цвета дл€ диапазона:
+		//утсновка цвета дл€ формата в диапазоне:
 		bool setRangeColor(const TExcelRange& range, const TColor& color) noexcept(true);
-		//установка цвета дл€ строки
+		//установка цвета дл€ формата в строке
 		bool setRowColor(int row_indx, const TColor& color) noexcept(true);
-		//установка цвета дл€ столбца:
+		//установка цвета дл€ формата в столбце:
 		bool setColColor(int col_indx, const TColor& color) noexcept(true);
 		//установка цвета текста €чейки:
 		bool setCellTextColor(const TExcelCell& cell, const TColor& color) noexcept(true);
@@ -549,6 +552,7 @@ namespace NS_Excel
 		friend bool NS_Excel::TExcelBookSheet::setCellFormat(const TExcelCell& cell, TExcelBookFormat& format) noexcept(false);
 		friend FormatPtr TExcelBook::InsertFormat(const TExcelBookFormat& frmt, PFormatArr& frmt_list) noexcept(false);
 		friend void TExcelBook::setHeaderByStrArr(const TStrArr& arr, bool use_active_sheet, const string& new_sh_name) noexcept(true);
+		friend TExcelBookFormat TExcelBook::AddFormat(TExcelBookFormat& initFormat) noexcept(false);
 	};
 
 	// ласс шрифта - http://www.libxl.com/font.html

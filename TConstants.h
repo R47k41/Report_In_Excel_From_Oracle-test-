@@ -43,11 +43,11 @@ namespace NS_Const
 		//блок для основных объектов
 		ObjBegin, DstFile, Sheet, Cells, SrcFile, DataArr, Method, DB_Config, ObjEnd,
 		//блок для данных в объекте Файл
-		FileBegin, name, list_index, first_row, last_row, filter, FileEnd,
+		FileBegin, name, list_index, col_id, first_row, last_row, filter, FileEnd,
 		//блок для данных в объекте Фильтр
 		FilterBegin, column_index, value, FilterEnd,
 		//блок для данных объекта Метод
-		MethodBegin, code, color_if_found, color_not_found, MethodEnd,
+		MethodBegin, code, color_if_found, color_not_found, fill_type, MethodEnd,
 		//блок данных для объекта Колонка
 		CellsBegin, dst_index, dst_insert_index, src_param_index, src_val_index, 
 		in_data_type, out_data_type, CellsEnd,
@@ -56,6 +56,9 @@ namespace NS_Const
 
 	//методы обработки excel-файлов на основании Json-параметров
 	enum class JSonMeth { Null, CompareColor, CompareIns, GetFromDB, SendToDB, GetRowIDByDB, Last };
+
+	//типы закраски ячеек excel для методов json-обработки
+	enum class JsonCellFill {Null, CurCell, ID_All_Find, ID_More_One_Find, ID_And_CurCell, Last};
 
 	//Типы данных для параметров в запросах:
 	enum class DataType { ErrorType = 0, String, Integer, Double, Date, Boolean, Last };
@@ -99,8 +102,11 @@ namespace NS_Const
 		BALANCE_LIST,//ведомость остатков МФ (Ермакова)
 		BALANCE_SUA,//ведомость остатков для загрузки в СУА(Борисова)
 		FULL_CRED_REPORT,//полный кредитный портфель (Ермакова) большой отчет по файлу
+		FULL_CRED_REPORT_SUA,//полный портфель дял СУА(Борисова)
 		LOAD_FROM_FILE,//загрузка документов из excel/xml/txt-файла
-		FILE_COMPARE,//сравнение файлов excel
+		FILE_COMPARE_RIB,//сравнение файлов excel
+		FILE_COMPARE_RTBK,
+		EXCEL_SET_DATA_FROM_BASE,//заполнение полей excel файла из БД
 		Last
 		};
 
@@ -172,6 +178,7 @@ namespace NS_Const
 	using CS_Const = TConstant<CtrlSym, CtrlSym::Empty, CtrlSym::Last>;
 	using JS_Const = TConstant<JsonParams, JsonParams::Null, JsonParams::Last>;
 	using JS_Meth = TConstant<JSonMeth, JSonMeth::Null, JSonMeth::Last>;
+	using JS_CellFill = TConstant<JsonCellFill, JsonCellFill::Null, JsonCellFill::Last>;
 
 
 	//Поля из файла настроек:
@@ -206,18 +213,6 @@ namespace NS_Const
 		TConstType& operator=(const DataType& x) { DF_const::operator=(x); return *this; }
 	};
 
-	/*
-	class TConstTag : public Tag_Const
-	{
-	public:
-		explicit TConstTag(const Tags& x) : Tag_Const(x) { }
-		explicit TConstTag(int x) : Tag_Const(x) { }
-		//перевод значения в строку
-		virtual string toStr() const;
-		//операция присвоения:
-		TConstTag& operator=(const Tags& x) { Tag_Const::operator=(x); return *this; }
-	};
-	/**/
 	//Поля для работы с Excel:
 	//класс для работы с настройками файла:
 	class TConstExclTune : public EBT_Const
@@ -369,11 +364,23 @@ namespace NS_Const
 		static string asStr(const JSonMeth& val) noexcept(true);
 		string toStr() const noexcept(true) { return asStr(JS_Meth::Value()); };
 		TConstJSMeth& operator=(const JSonMeth& x) noexcept(true) { JS_Meth::operator=(x); return *this; }
-/*
-		TConstJSMeth& operator=(int x) noexcept(true) { JS_Meth::setValue(x); return *this; }
-/**/
-
+		TConstJSMeth& operator=(size_t x) noexcept(true) { JSonMeth val = JSonMeth(x); return operator=(val); }
 		};
+
+	class TConstJSCellFill : public JS_CellFill
+	{
+	public:
+		//инициализация
+		TConstJSCellFill(const JsonCellFill& x = JsonCellFill::Null) : JS_CellFill(x) {}
+		explicit TConstJSCellFill(const int x) : JS_CellFill(x) {}
+		explicit TConstJSCellFill(size_t x) : JS_CellFill(JsonCellFill(x)) {}
+		//отображение методов
+		static string asStr(const JsonCellFill& val) noexcept(true);
+		string toStr() const noexcept(true) { return asStr(JS_CellFill::Value()); }
+		//присвоение
+		TConstJSCellFill& operator=(const JsonCellFill& x) noexcept(true) { JS_CellFill::setValue(x); return *this; }
+		TConstJSCellFill& operator=(size_t x) noexcept(true) { JsonCellFill val = JsonCellFill(x); return operator=(val); }
+	};
 
 }
 

@@ -286,7 +286,7 @@ NS_Excel::TBaseObj::TBaseObj(int par_val, bool zero_flg): from_zero(zero_flg), v
 bool NS_Excel::TBaseObj::isValid() const
 {
 	if (isEmpty()) return false;
-	return from_zero ? val >= 0 : val > 0;
+	return val >= 0;
 }
 
 int NS_Excel::TBaseObj::Next()
@@ -373,6 +373,13 @@ NS_Excel::TExcelBookSheet::TExcelBookSheet(BookPtr book, const string& name, boo
 	initSheet(book, name, as_active);
 }
 
+bool NS_Excel::TExcelBookSheet::isEmptyCell(const TExcelCell& cell) const noexcept(false)
+{
+	if (isBlank(cell)) return true;
+	//надо ли проверять на TDataType::CELLTYPE_EMPTY???
+	return getCellType(cell) == TDataType::CELLTYPE_ERROR;
+}
+
 bool NS_Excel::TExcelBookSheet::WriteAsString(const TExcelCell& cell, const string& val, FormatPtr format, const TDataType& type)
 {
 	if (cell.isValid())
@@ -387,7 +394,7 @@ std::string NS_Excel::TExcelBookSheet::ReadAsString(const TExcelCell& cell) cons
 	if (isValid())
 	{
 //		FormatPtr* format = new FormatPtr;
-		if (isBlank(cell)) return string();
+		if (isEmptyCell(cell)) return string();
 		const char* val = sheet->readStr(cell.getRow(), cell.getCol());
 //		delete format;
 		if (val) return string(val);
@@ -824,6 +831,7 @@ bool NS_Excel::TExcelBookSheet::setCellColor(const TExcelCell& cell, const TColo
 		{
 			//получение формата ячейки:
 			TExcelBookFormat format = getCellFormat(cell);
+			format.setPatternFill(TExcelBookFormat::TFill::FILLPATTERN_SOLID);
 			format.setBorderColor(color, TExcelBookFormat::TBorderSide::Foreground);
 			//не известно надо ли:
 			setCellFormat(cell, format);
@@ -1014,17 +1022,19 @@ bool NS_Excel::TExcelBook::loadFromFile(const TLoadParam& param, const LoadType&
 		raise_app_err(TLog("Объект excel-книга - не валиден!", "TExcelBook::loadFromFile"), raise_err);
 		return false;
 	}
+	const char* tmp_file = nullptr;
+	if (!param.tmp_file.empty()) tmp_file = param.tmp_file.c_str();
 	bool result = false;
 	switch (lt)
 	{
 	case LoadType::Full: 
-		result = book->load(param.file.c_str(), param.tmp_file.c_str());
+		result = book->load(param.file.c_str(), tmp_file);
 		break;
 	case LoadType::Sheet:
-		result = book->loadSheet(param.file.c_str(), param.Indx, param.tmp_file.c_str());
+		result = book->loadSheet(param.file.c_str(), param.Indx, tmp_file);
 		break;
 	case LoadType::Rows:
-		result = book->loadPartially(param.file.c_str(), param.Indx, param.first, param.last, param.tmp_file.c_str());
+		result = book->loadPartially(param.file.c_str(), param.Indx, param.first, param.last, tmp_file);
 		break;
 	}
 	if (!result)
@@ -1057,7 +1067,7 @@ void NS_Excel::TExcelBook::setHeaderByStrArr(const TStrArr& arr, bool use_active
 			sh_name = getDefaultSheetName();
 		sheet = AddSheet(sh_name, true);
 	}
-	//задаем формат b шрифт заголовка:
+	//задаем формат и шрифт заголовка:
 	TExcelBookFont font = AddFont();
 	TExcelBookFormat format = AddFormat();
 	//формируем формат
@@ -1282,6 +1292,11 @@ NS_Excel::TExcelBookFormat NS_Excel::TExcelBook::AddFormat(FormatPtr initFormat)
 		return TExcelBookFormat(format);
 	}
 	throw TLog("Книга не инициализирована!", "TExcelBook::AddFormat");
+}
+
+NS_Excel::TExcelBookFormat NS_Excel::TExcelBook::AddFormat(TExcelBookFormat& initFormat) noexcept(false)
+{
+	return AddFormat(initFormat.pformat);
 }
 
 NS_Excel::FormatPtr NS_Excel::TExcelBook::InsertFormat(const TExcelBookFormat& frmt, PFormatArr& frmt_list) noexcept(false)

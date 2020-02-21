@@ -13,14 +13,16 @@ using NS_Const::TuneField;
 using NS_Oracle::TConnectParam;
 using NS_Oracle::TStatement;
 using NS_ExcelReport::DBUserTuneArr;
-using NS_ExcelReport::CellDataArr;
 using NS_Tune::TShareData;
 using NS_Tune::TExcelProcData;
 using NS_Tune::TProcCell;
+using NS_Tune::CellDataArr;
+using NS_Tune::FilterArr;
 using NS_Excel::TExcelBook;
 using NS_ExcelReport::TBaseSheetReport;
 using NS_ExcelReport::TDataBaseInterface;
 using NS_ExcelReport::TSheetTuneReport;
+using NS_ExcelReport::TExtendSheetReport;
 using NS_ExcelReport::TJsonReport;
 using NS_ExcelReport::TJsonMarkReport;
 using NS_ExcelReport::TDataBaseSheetReport;
@@ -130,37 +132,100 @@ NS_Excel::TDataType TBaseSheetReport::convertDataType(const NS_Const::DataType& 
 	return TDataType::CELLTYPE_ERROR;
 }
 
-void TJsonReport::InitDstFile(const TShareData& dstFile, size_t page) noexcept(false)
+bool TBaseSheetReport::setCellFormat(size_t Row, size_t Column, NS_Excel::TExcelBookFormat& format) noexcept(true)
+{
+	using NS_Excel::TExcelCell;
+	using NS_Excel::TExcelBookFormat;
+	//если указан недопустимый цвет
+	if (!format.isValid()) return false;
+	TExcelCell cell(Row, Column, false);
+	//если указана пустая ячейка
+	if (cell.isEmpty()) return false;
+	try
+	{
+		bool rslt = sheet.setCellFormat(cell, format);
+		if (rslt == false)
+		{
+			TLog log("Ошибка установки формата для ячейки: ", "TExtendSheetReport::setCellColor");
+			log << cell.getName() << '\n' << book.getError() << '\n';
+			throw log;
+		}
+		return rslt;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка при окраске ячейки:", "TExtendSheetReport::setCellColor");
+		log << cell.getName() << '\n';
+		log.toErrBuff();
+	}
+	return false;
+}
+
+bool TBaseSheetReport::EqualCellsType(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
+	const NS_Excel::TExcelCell& srcCell) const noexcept(false)
+{
+	using NS_Excel::TDataType;
+	//получение типа данных в ячейке источнике:
+	TDataType srcType = sheet.getCellType(srcCell);
+	//получение типа данных в ячейке приемнике:
+	TDataType dstType = dstSheet.getCellType(dstCell);
+	return srcType == dstType;
+}
+
+void TExtendSheetReport::InitDstFile(const TShareData& dstFile, size_t page) noexcept(false)
 {
 	using NS_Tune::TSheetData;
 	const TSheetData& tmp_sh = dstFile.getSheetParam(page);
-	begin_row = tmp_sh.getStartRow();
-	end_row = tmp_sh.getLastRow();
+	rowB = tmp_sh.getStartRow();
+	rowE = tmp_sh.getLastRow();
+	filters = dstFile.getFilterLst();
+	colID = tmp_sh.getColID();
 	//открываем указанный excel-файл приемник:
-	OpenBookSheet(dstFile.getName(), page);
+	OpenBookSheet(dstFile.getName(), tmp_sh.getListIndex()-1);
 }
 
-TJsonReport::TJsonReport(TExcelBook& book_ref, const TExcelProcData& json_tune, size_t page) :
-	TBaseSheetReport(book_ref, TExcelBookSheet(nullptr)), begin_row(), end_row(),
-	filters(json_tune.getDstFile().getFilterLst()), cells_data(json_tune.getCellsData())
+TExtendSheetReport::TExtendSheetReport(TExcelBook& book_ref, const TShareData& file, size_t page) :
+	TBaseSheetReport(book_ref), rowB(0), rowE(0), filters()
 {
-	//заполнение параметров для текущего excel-файла
-	InitDstFile(json_tune.getDstFile(), page);
+	InitDstFile(file, page);
 }
 
-size_t TJsonReport::FirstRow() const noexcept(true)
+bool TExtendSheetReport::noDataInColID(size_t Row) const noexcept(false)
+{
+	using NS_Excel::TExcelCell;
+	TExcelCell cell(Row, colID, false);
+	try
+	{
+		return sheet.isBlank(cell);
+	}
+	catch (...)
+	{
+		string s = book.getError();
+		TLog log("Не обработанная ошибка при проверке данных в ячейке: ", "TExtendSheetReport::noDataInColID");
+		log << cell.getName() << "\n";
+		if (!s.empty())
+			log << s << '\n';
+		throw log;
+	}
+}
+
+size_t TExtendSheetReport::FirstRow() const noexcept(true)
 {
 	size_t row = getRow(true);
 	return row == NS_Tune::TIndex::EmptyIndex ? sheet.getFirstRow() : row;
 }
 
-size_t TJsonReport::LastRow() const noexcept(true)
+size_t TExtendSheetReport::LastRow() const noexcept(true)
 {
 	size_t row = getRow(false);
 	return row == NS_Tune::TIndex::EmptyIndex ? sheet.getLastRow() : row;
 }
 
-bool TJsonReport::CorrectFilter(size_t cur_row) const noexcept(true)
+bool TExtendSheetReport::isCorrectFilter(size_t curRow) const noexcept(true)
 {
 	using NS_Tune::TFilterData;
 	using NS_Excel::TExcelCell;
@@ -171,7 +236,7 @@ bool TJsonReport::CorrectFilter(size_t cur_row) const noexcept(true)
 		for (const TFilterData& fltr : filters)
 		{
 			//формирование ячейки для проверки значения:
-			TExcelCell cell(cur_row, fltr.getColIndx(), false);
+			TExcelCell cell(curRow, fltr.getColIndx(), false);
 			string tmp = sheet.ReadAsString(cell);
 			if (tmp == fltr.getValue())
 				continue;
@@ -179,7 +244,7 @@ bool TJsonReport::CorrectFilter(size_t cur_row) const noexcept(true)
 			{
 				TLog log("Не соответствие условиям фильтра!\nЗначение в файле: ", "TJsonReport::CorrectFilter");
 				log << tmp << " значение в условии: " << fltr.getValue() << '\n';
-				log << "Строка: " << cur_row << '\n';
+				log << "Ячейка: " << cell.getName() << '\n';
 				throw log;
 			}
 		}
@@ -192,10 +257,208 @@ bool TJsonReport::CorrectFilter(size_t cur_row) const noexcept(true)
 	catch (...)
 	{
 		TLog log("Не обработанная ошибка при проверке фильтра для строки: ", "TJsonReport::CorrectFilter");
-		log << cur_row << '\n';
+		log << curRow << '\n';
 		log.toErrBuff();
 	}
 	return false;
+}
+
+NS_ExcelReport::TRowsFlag TExtendSheetReport::setFiltredRowsArr() const noexcept(true)
+{
+	using NS_ExcelReport::TRowsFlag;
+	using NS_ExcelReport::TRowFlag;
+	using std::make_pair;
+	TRowsFlag rows;
+	size_t i = FirstRow();
+	size_t size = LastRow();
+	bool all_flg = filters.empty();
+	//заносим все строки
+	for (; i <= size; i++) 
+	{
+		if (all_flg or isCorrectFilter(i))
+			rows.push_back(TRowFlag(i, true));
+	}
+	return rows;
+}
+
+bool TExtendSheetReport::Compare_Cells(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
+	const NS_Excel::TExcelCell& srcCell) const noexcept(true)
+{
+	using NS_Excel::TDataType;
+	try
+	{
+		//проверка на пустоту ячейки источника:
+		if (sheet.isEmptyCell(srcCell))	return false;
+		//if (QualCellsType(dstSheet, dstCell, srcCell) == false) return false;
+		//получение типа данных для ячейки с которой сравниваем:
+		TDataType src_dt = sheet.getCellType(srcCell);
+		switch (src_dt)
+		{
+		case TDataType::CELLTYPE_BOOLEAN: 
+		{
+			bool srcVal = sheet.ReadAsBool(srcCell);
+			bool dstVal = dstSheet.ReadAsBool(dstCell);
+			return dstVal == srcVal;
+		}
+		case TDataType::CELLTYPE_NUMBER: 
+		{
+			double srcVal = sheet.ReadAsNumber(srcCell);
+			double dstVal = dstSheet.ReadAsNumber(dstCell);
+			return dstVal == srcVal;
+		}
+		case TDataType::CELLTYPE_STRING: 
+		//case TDataType::CELLTYPE_EMPTY:
+		{
+			string srcVal = sheet.ReadAsString(srcCell);
+			string dstVal = dstSheet.ReadAsString(dstCell);
+			return dstVal == srcVal;
+		}
+		default: 
+		{
+			TLog log("Тип данных с ID: ", "TExtendSheetReport::Compare_Cells");
+			log << src_dt << " не обрабатывается!\n";
+			throw log;
+		}
+		}
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		string tmp = book.getError();
+		TLog log("Ошибка сравнения данных в ячейки источника: ", "TExtendSheetReport::Compare_Cells");
+		log << srcCell.getName() << " и ячейки приемника: " << dstCell.getName() << '\n';
+		if (!tmp.empty()) log << tmp << '\n';
+		log.toErrBuff();
+	}
+	return false;
+}
+
+size_t TExtendSheetReport::CheckOnSheet(const NS_Excel::TExcelBookSheet& dstSheet,
+	const NS_Excel::TExcelCell& dstCell, size_t srcCol, TRowsFlag* RowsArr) const noexcept(true)
+{
+	using NS_Excel::TExcelCell;
+	using NS_Tune::TIndex;
+	//признак использования фильтрации по умолчанию:
+	bool use_fltr = true;
+	size_t curRow = 0;
+	size_t lastRow = 0;
+	if (RowsArr)
+	{
+		use_fltr = false;
+		curRow = (*RowsArr)[0].first;
+		lastRow = (*RowsArr).size() - 1;
+	}
+	else
+	{
+		curRow = FirstRow();
+		lastRow = LastRow();
+	}
+	//проходим по строкам листа:
+	for (; curRow <= lastRow; curRow++)
+	{
+		bool filtred = false;
+		//проверяем условия фильтра:
+		if (use_fltr == false)
+			filtred = (*RowsArr)[curRow].second;
+		else
+			filtred = isCorrectFilter(curRow);
+		//если фильтрация для строки прошла успешно:
+		if (filtred)
+		{
+			//формирование ячейки источника:
+			TExcelCell srcCell(curRow, srcCol, false);
+			//если данные совпали:
+			if (Compare_Cells(dstSheet, dstCell, srcCell))
+			{
+				//исключаем строку источника из массива строк:
+				if (RowsArr) (*RowsArr)[curRow].second = false;
+				//выходим
+				return curRow;
+			}
+		}
+	}
+	return TIndex::EmptyIndex;
+}
+
+bool TExtendSheetReport::setDstCellBySrcCell(NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
+	const NS_Excel::TExcelCell& srcCell) const noexcept(true)
+{
+	using NS_Excel::TDataType;
+	try
+	{
+		//если данные в ячейке источнике - пустые:
+		if (sheet.isBlank(srcCell))
+		{
+			//ставим пустые данные
+			if (dstSheet.isBlank(dstCell) == false)
+				dstSheet.setBlank(dstCell);
+			return true;
+		}
+		//если типы данных в ячейках не совпадают:
+		//if (QualCellsType(dstSheet, dstCell, srcCell) == false) return false;
+		//получение типа данных в ячейке источнике:
+		TDataType srcType = sheet.getCellType(srcCell);
+		switch (srcType)
+		{
+		case TDataType::CELLTYPE_BOOLEAN:
+		{
+			bool srcVal = sheet.ReadAsBool(srcCell);
+			dstSheet.WriteAsBool(dstCell, srcVal);
+			break;
+		}
+		case TDataType::CELLTYPE_NUMBER:
+		{
+			double srcVal = sheet.ReadAsNumber(srcCell);
+			//если значения отличаются - заменяем
+			//double dstVal = dstSheet.ReadAsNumber(dstCell);
+			//if (srcVal != dstVal)
+			dstSheet.WriteAsNumber(dstCell, srcVal);
+			break;
+		}
+		case TDataType::CELLTYPE_STRING:
+		{
+			string srcVal = sheet.ReadAsString(srcCell);
+			dstSheet.WriteAsString(dstCell, srcVal);
+			break;
+		}
+		default: 
+		{
+			TLog log("Указанный тип данных: ", "TExtendSheetReport::setDstCellBySrcCell");
+			log << srcType << " не обрабатывается\n";
+			throw log;
+		}
+		}
+		return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		string tmp = book.getError();
+		TLog log("Ошибка добавления данных в ячейку: ", "TExtendSheetReport::setDstCellBySrcCell");
+		log << dstCell.getName() << " листа: " << dstSheet.getName() << " из ячейки: " << srcCell.getName()
+			<< " листа: " << sheet.getName() << '\n';
+		if (!tmp.empty()) log << tmp << '\n';
+		log.toErrBuff();
+	}
+	return false;
+}
+
+TJsonReport::TJsonReport(TExcelBook& book_ref, const TExcelProcData& json_tune, size_t page) :
+	TExtendSheetReport(book_ref, json_tune.getDstFile(), page), cells_data(json_tune.getCellsData())
+{
+	//формирование форматов закраски:
+	crtCellFillFormatArr();
+}
+
+bool TJsonReport::CorrectFilter(size_t cur_row) const noexcept(true)
+{
+	return TExtendSheetReport::isCorrectFilter(cur_row);
 }
 
 void TJsonReport::setDQLParamByCell(TStatement& query, const NS_Excel::TExcelCell& cell, const NS_Tune::TCellData& value) const noexcept(false)
@@ -312,6 +575,7 @@ bool TJsonReport::setSelectParams(TStatement& query, size_t curRow) const noexce
 void TJsonReport::writeExcelFromDB(NS_Oracle::TResultSet& rs, size_t curRow) noexcept(false)
 {
 	using NS_Excel::TExcelCell;
+	using NS_Tune::TIndex;
 	//получение массива параметров:
 	vector<TCellData> params = cells_data.getCellDataArr();
 	//если параметры пустые - устанавливать ни чего не надо
@@ -337,7 +601,7 @@ void TJsonReport::writeExcelFromDB(NS_Oracle::TResultSet& rs, size_t curRow) noe
 bool TJsonReport::checkINDataBase(NS_Oracle::TResultSet& rs, size_t curRow) noexcept(false)
 {
 	bool f = false;
-	if (rs.Next())//if????
+	if (rs.Next())
 	{
 		size_t cnt = rs.getIntVal(1);
 		if (cnt > 0)
@@ -492,6 +756,283 @@ void TJsonReport::ProcessSheetDataWithDB() noexcept(false)
 	}
 }
 
+size_t TJsonReport::crtFillFormat(NS_Excel::TExcelBookFormat& init_format, bool find_flg, bool font_flg) noexcept(false)
+{
+	using NS_Excel::TExcelBookFormat;
+	using NS_Excel::TExcelBookFont;
+	using NS_Excel::TColor;
+	using NS_Tune::TCellMethod;
+	const int NoColor = 0;
+	//если формат не валидет - выходим
+	if (init_format.isValid())
+	{
+		TColor color = TColor::COLOR_NONE;
+		//получение цвета заливки из настроек:
+		const TCellMethod& meth = cells_data.getMethod();
+		if (find_flg)
+			color = meth.getIncludeColor();
+		else
+			color = meth.getExcludeColor();
+		if (color == TColor::COLOR_NONE) return NoColor;
+		TExcelBookFormat result = book.AddFormat(init_format);
+		if (result.isValid())
+		{
+			if (font_flg)
+			{
+				//меняем цвет шрифта
+				TExcelBookFont font = result.getFont();
+				font.setColor(color);
+				result.setFont(font);
+			}
+			else
+			{
+				//меняем цвет ячейки
+				result.setPatternFill(TExcelBookFormat::TFill::FILLPATTERN_SOLID);
+				result.setBorderColor(color, TExcelBookFormat::TBorderSide::Foreground);
+			}
+			return book.FormatCount();
+		}
+	}
+	return NoColor;
+}
+
+void TJsonReport::crtCellFillFormat(size_t Row, size_t Col, bool font_flg) noexcept(false)
+{
+	using NS_Excel::TExcelCell;
+	using NS_Excel::TExcelBookFormat;
+	//получение формата текущей ячейки
+	TExcelCell cell(Row, Col, false);
+	TExcelBookFormat cur_format = sheet.getCellFormat(cell);
+	//формирование новых форматов для текущей ячейки
+	TFillFormat format;
+	format.first = crtFillFormat(cur_format, true, font_flg);
+	format.second = crtFillFormat(cur_format, false, font_flg);
+	frmt_arr.push_back(format);
+}
+
+void TJsonReport::crtRowFillFormat(size_t Row, const NS_Const::JsonCellFill& fill_code) noexcept(true)
+{
+	using NS_Tune::TCellData;
+	using NS_Tune::CellDataArr;
+	using  NS_Const::JsonCellFill;
+	using NS_ExcelReport::TFillFormat;
+	using NS_ExcelReport::TFillFrmts;
+	//добавление формата для ячейки-идентификатора:
+	bool colID_flg = fill_code == JsonCellFill::ID_And_CurCell;
+	if (colID_flg)	crtCellFillFormat(Row, getColID(), false);
+	//получение ссылки на массив обрабатываемых колонок
+	const CellDataArr& arr = cells_data.getCellDataArr();
+	//установка формата для всех указанных в паратрах ячеек:
+	for (const TCellData& param : arr)
+	{
+		//если параметр пустой - берем следующий
+		if (param.isEmpty()) continue;
+		//если ячейка параметра совпадает с ячейкой-идентификатором - пропускаем данный шаг
+		if (colID_flg and param.DstIndex() == getColID()) continue;
+		crtCellFillFormat(Row, param.DstIndex(), true);
+	}
+}
+
+void TJsonReport::crtCellFillFormatArr() noexcept(true)
+{
+	using NS_Tune::TCellMethod;
+	using NS_Tune::TCellData;
+	using NS_Tune::CellDataArr;
+	using NS_Const::JsonCellFill;
+	using NS_Tune::TCellFillType;
+	try
+	{
+		//проверяем наличие обрабатываемых ячеек:
+		if (cells_data.CellCnt() <= 0) return;
+		//получение ссылки на метод обработки:
+		const TCellMethod& meth = cells_data.getMethod();
+		//если не указан метод заливки или цвета пустые - выходи
+		if (meth.isEmptyColor()) return;
+		//получение ссылки на строку
+		size_t Row = FirstRow();
+		const NS_Const::JsonCellFill fill_code = meth.getFillType();
+		//формируем массив форматов ячеек:
+		switch (fill_code)
+		{
+		case JsonCellFill::CurCell:
+		case JsonCellFill::ID_And_CurCell:
+		{
+			crtRowFillFormat(Row, fill_code);
+			break;
+		}
+		case JsonCellFill::ID_All_Find:
+		case JsonCellFill::ID_More_One_Find:
+		{
+			crtCellFillFormat(Row, getColID(), false);
+			break;
+		}
+		}
+		return;
+	}
+	catch (TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при установке формата!\n", "TJsonReport::crtCellFillFormatArr").toErrBuff();
+	}
+	frmt_arr.clear();
+}
+
+bool TJsonReport::procRowCell(size_t Row, size_t Col, size_t index, bool find_flg) noexcept(true)
+{
+	using NS_Excel::TExcelBookFormat;
+	using NS_Excel::TExcelCell;
+	if (index >= frmt_arr.size()) return false;
+	//получение формата ячейки из списка форматов:
+	try
+	{
+		TFillFormat fill = frmt_arr[index];
+		int FormatIndex = find_flg ? fill.first : fill.second;
+		FormatIndex--;//т.к. в excel индексы от 0
+		if (FormatIndex >= 0)
+		{
+			TExcelBookFormat format = book.getFormatByIndex(FormatIndex);
+			TBaseSheetReport::setCellFormat(Row, Col, format);
+			return true;
+		}
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TExcelCell cell(Row, Col, false);
+		TLog log("Не обработанная ошибка при установке формата ячейке: ", "TJsonReport::procRowCell");
+		log << cell.getName() << '\n';
+		log.toErrBuff();
+	}
+	return false;
+}
+
+bool TJsonReport::procRowCell(const NS_Excel::TExcelCell& cell, size_t index, bool find_flg) noexcept(true)
+{
+	return procRowCell(cell.getRow(false), cell.getCol(false), index, find_flg);
+}
+
+bool TJsonReport::Search_DstRow_In_SrcSheet(const TExtendSheetReport& srcSheet, const NS_Tune::CellDataArr& cols, 
+	size_t curRow) noexcept(true)
+{
+	using NS_Tune::CellDataArr;
+	using NS_Tune::TCellData;
+	using NS_Excel::TExcelCell;
+	using NS_Tune::TIndex;
+	using NS_ExcelReport::TRowsFlag;
+	//счетчик не найденных ячеек:
+	int failCnt = 0, col_cnt = 0;
+	//формируем массив строк для обработки:
+	TRowsFlag srcRows = srcSheet.setFiltredRowsArr();
+	//для каждой строки в файле приемнике - обрабатываем указанные в json-файле колонки
+	for (const TCellData& indx : cols)
+	{
+		//если нет данных по колонкам из строки приемника/источника - переходим к следующей строке
+		if (indx.EmptyDstIndx() and indx.EmptySrcParam()) continue;
+		col_cnt++;
+		size_t dstCol = indx.DstIndex();
+		size_t srcCol = indx.SrcParam();
+		//формируем ячейки в которых будут сравниваться данные:
+		TExcelCell dstCell(curRow, dstCol, false);
+		//если ячейка в приемнике для сравнения - пустая - идем дальше
+		if (sheet.isEmptyCell(dstCell)) continue;
+		//выполняем поиск на листе источника:
+		size_t srcRow = srcSheet.CheckOnSheet(sheet, dstCell, srcCol, &srcRows);
+		//если строка не найдена:
+		if (srcRow == TIndex::EmptyIndex)
+		{
+			failCnt++;
+			//окраска текущей ячейи, если данные не найденны
+			procRowCell(dstCell, col_cnt, false);
+		}
+		else
+		{
+			//ячейка приемника:
+			TExcelCell dCell(curRow, indx.InsIndex(), false);
+			//ячейка источника
+			TExcelCell sCell(srcRow, indx.SrcVal(), false);
+			//вставляем требуемые данные в ячейку приемника из ячейки страницы источника:
+			srcSheet.setDstCellBySrcCell(sheet, dCell, sCell);
+			//окраска текущей ячейи, если данные найденны
+			procRowCell(dstCell, col_cnt, true);
+		}
+		//book.SaveToFile("D:\\Отчеты\\2020\\02\\test.xlsx");
+	}
+	//обработка и окраска ячейки-идентификатора:
+	bool FindFlg = cells_data.getMethod().isSuccess(col_cnt, failCnt);
+	procRowCell(curRow, getColID(), 0, FindFlg);
+	return FindFlg;
+}
+
+bool TJsonReport::Search_Dest_Data_In_Src_Sheet(TRowsFlag& DstRows, const TExtendSheetReport& srcSheet) noexcept(true)
+{
+	using NS_Excel::TExcelCell;
+	using NS_ExcelReport::TRowFlag;
+	try
+	{
+		//получаем список сравниваемых аттрибутов:
+		CellDataArr cellArr = cells_data.getCellDataArr();
+		if (cellArr.empty()) 
+			throw TLog("Пустые индексы колонок для сравнения!", "TJsonReport::Search_Dest_Data_In_Src_Sheet");
+		//проходим по каждой строке листа-приемника:
+		for (size_t row = 0; row < DstRows.size(); row++)
+		{
+			//если строка найдена - исключаем ее из списка:
+			if (Search_DstRow_In_SrcSheet(srcSheet, cellArr, DstRows[row].first) == true)
+				DstRows[row].second = false;
+		}
+		return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка поиска данных из страницы-приемника в странице-источнике!", 
+			"TJsonReport::Search_Dest_Data_In_Src_Sheet").toErrBuff();
+	}
+	return false;
+}
+
+void TJsonReport::Compare_Excel_Sheets() noexcept(false)
+{
+	using NS_ExcelReport::TRowsFlag;
+	using NS_Tune::TShareData;
+	//проверка валидности excel-книги
+	if (!book.isValid()) throw TLog("Книга не инициализирована!", "TJsonReport::Compare_Excel_Sheets");
+	//формируем массив из сравниваемых строк, которые удовлетворяют условиям фильтрации:
+	TRowsFlag DestRows = TExtendSheetReport::setFiltredRowsArr();
+	if (DestRows.empty()) throw TLog("На листе не найдено строк удовлетворяющих фильтру!", "TJsonReport::Compare_Excel_Sheets");
+	//получаем число листов в файле источнике:
+	size_t srcPageCnt = 0;
+	//данные о файле источнике:
+	const TShareData* src_file_data = cells_data.getSrcFilRef();
+	if (!src_file_data) throw TLog("Не указаны данные о файле источнике!", "TJsonReport::Compare_Excel_Sheets");
+	srcPageCnt = src_file_data->getPageCnt();
+	//получение имени файла-источника
+	string src_name = src_file_data->getName();
+	//инициализация книги для файла-источника
+	TExcelBook src_book(src_name);
+	//проходим по каждому листу файла источника:
+	for (size_t i = 0; i < srcPageCnt; i++)
+	{
+		//инициализация листа файла-источника
+		TExtendSheetReport src(src_book, *src_file_data, i);
+		//выполняем поиск данных для каждой строки файла-приемника на листе файла-источника:
+		if (Search_Dest_Data_In_Src_Sheet(DestRows, src) == false)
+		{
+			TLog("При сверке страницы приемника: " + getSheetName() + " и страницы источника: " +
+				src.getSheetName() + " произошла ошибка!", "TJsonReport::Compare_Excel_Sheets").toErrBuff();
+		}
+	}
+}
+
 bool TJsonReport::crtSheetReport() noexcept(true)
 {
 	using NS_Const::JSonMeth;
@@ -504,7 +1045,7 @@ bool TJsonReport::crtSheetReport() noexcept(true)
 			throw TLog("Функция сравнения не реализована!", "ProcessExcelFileByJson");
 			break;
 		case JSonMeth::CompareIns:
-			throw TLog("Функция вставки данных в файл из excel-файла не реализована!", "ProcessExcelFileByJson");
+			Compare_Excel_Sheets();
 			break;
 		case JSonMeth::GetFromDB:
 		case JSonMeth::GetRowIDByDB:
@@ -601,7 +1142,7 @@ std::string TJsonMarkReport::getFlgName() const noexcept(true)
 }
 
 TSheetTuneReport::TSheetTuneReport(NS_Excel::TExcelBook& book_link, const NS_Tune::TUserTune& config): 
-	TBaseSheetReport(book_link, TExcelBookSheet(nullptr)), tune(config)
+	TBaseSheetReport(book_link, nullptr), tune(config)
 {
 	SetSheetByTune();
 }
@@ -855,7 +1396,7 @@ bool TDataBaseSheetReport::WriteFromResultSet(NS_Oracle::TResultSet& rs) noexcep
 			//если привысили число строк на странице
 			//создаем новую страницу
 			if (CreateNewPage(row, true)) 
-				row = LastRow() + 1;
+				row = LastRow();
 		}
 		return true;
 	}
@@ -1409,20 +1950,21 @@ bool TReport::ProcessExcelFileByJson(TExcelBook& book, const string& js_file,
 	return false;
 }
 
-void TReport::run_JS_Excel_Report() const noexcept(false)
+void TReport::Json_One_Row_One_DBQuery() const noexcept(false)
 {
 	using NS_Logger::TLog;
 	using NS_Tune::TExcelProcData;
 	using NS_Excel::TExcelBook;
 	using NS_Tune::StrArr;
-	using NS_ExcelReport::TRowsFlag;
+	using NS_ExcelReport::TRowsTNS;
 	//формируем список файлов настроек из config
 	StrArr js_files = config.getConfFileLst();
 	if (js_files.empty()) throw TLog("Пустая директория с js-файлами настроек!", "ProcessExcelFileByJson");
 	//создаем excel-файл:
 	string book_name = config.getOutFile();
 	TExcelBook book(book_name);
-	//формирование массива обрабатываемых строк:
+	//формирование массива обрабатываемых строк
+	//учитывается при использовании предварительной фильтрации данных для отбора в разных БД:
 	vector<TRowsTNS> rows;
 	//выполнение прохода по всфайламфайлам:
 	for (const string& js : js_files)
@@ -1431,7 +1973,85 @@ void TReport::run_JS_Excel_Report() const noexcept(false)
 		ProcessExcelFileByJson(book, js, rows);
 	}
 	//сохраняем наработки
-	saveReport(book);
+	if (!book.isEmpty())
+		saveReport(book);
+}
+
+bool TReport::Json_Report_By_File_Compare(const string& js_file) const noexcept(true)
+{
+	using NS_Logger::TLog;
+	using NS_Tune::TExcelProcData;
+	using NS_Excel::TExcelBook;
+	if (js_file.empty()) return false;
+	try
+	{
+		//формирование json-настроек:
+		TExcelProcData js_tune(js_file, &config);
+		//проверка наличия excel-файла приемника:
+		if (js_tune.isDstFileEmpty()) throw TLog("Не указан excel-файл приемник!", "Json_Report_By_File_Compare");
+		//получение числа страниц:
+		size_t pageCnt = js_tune.getProcPagesCnt();
+		if (pageCnt == 0) throw TLog("Не указаны параметры страниц для excel-файла приемника!", "Json_Report_By_File_Compare");
+		//инициализируем excel-книгу отчета:
+		string book_name = config.getOutFile();
+		TExcelBook book(book_name);
+		//счетчик ошибок
+		size_t errCnt = 0;
+		//выполняем обработку для каждой страницы файла приемника:
+		for (size_t i = 0; i < pageCnt; i++)
+		{
+			//инициализация данных для отчета
+			TJsonReport page(book, js_tune, i);
+			if (page.NoSheet())
+			{
+				TLog log("Ошибка при загрузке страницы: ", "Json_Report_By_File_Compare");
+				log << i << '\n';
+				log.toErrBuff();
+				errCnt++;
+				continue;
+			}
+			//формирование отчета
+			if (page.crtSheetReport() == false)
+			{
+				TLog log("Ошибка формирования отчета для страницы: ", "Json_Report_By_File_Compare");
+				log << i << '\n';
+				log.toErrBuff();
+				errCnt++;
+			}
+		}
+		//если число обработаннах страницы больше числа ошибок
+		if (errCnt < pageCnt)
+		{
+			saveReport(book);
+			return true;
+		}
+	}
+	catch (TLog& err)
+	{
+		err << "Ошибка при обработке файла: " << js_file << ":\n";
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при формировании отчета для файла: " + js_file,
+			"Json_Report_By_File_Compare").toErrBuff();
+	}
+	return false;
+}
+
+void TReport::Json_Report_By_Files_Compare() const noexcept(true)
+{
+	using NS_Logger::TLog;
+	using NS_Tune::StrArr;
+	//формирование списка json-файлов:
+	StrArr js_files = config.getConfFileLst();
+	//проход по каждому json-файлу
+	for (const string& file : js_files)
+	{
+		//формирование отчета для файла:
+		if (Json_Report_By_File_Compare(file) == false)
+			TLog("Файл: " + file + " не обработан!", "Json_Report_By_Files_Compare").toErrBuff();
+	}
 }
 
 void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
@@ -1449,17 +2069,17 @@ void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
 	switch (code)
 	{
 	//отчеты основанные на выполнении одиночного sql-запроса на лист:
-	case ReportCode::CRED_CASE_MF:
-	case ReportCode::POTREB_CRED_BY_FILE:
 	case ReportCode::BALANCE_LIST:
+	case ReportCode::REPAYMENT_FOR_DATE:
 	case ReportCode::DOCS_MF_SF_FOR_PERIOD:
-		One_Report_For_Each_Config();
+		One_Sheet_By_One_Config();
 		break;
 	//case ReportCode::DOCS_MF_SF_FOR_PERIOD:
-	//один отчет под один config-файл
+	//один файл отчета для одного config-файла
 	case ReportCode::RIB_DOCS_FOR_PERIOD:
-	case ReportCode::REPAYMENT_FOR_DATE:
-		One_Sheet_By_One_Config();
+	case ReportCode::POTREB_CRED_BY_FILE:
+	case ReportCode::CRED_CASE_MF:
+		One_Report_For_Each_Config();
 		break;
 	//отчет основан на записи результатов различных запросов на одну страницу в один файл:
 	case ReportCode::NBKI_NP:
@@ -1473,16 +2093,22 @@ void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
 		runDML_By_Tune(true);
 		break;
 	//полный кредитный портфель + манипуляция с excel-файлом
-	case ReportCode::FULL_CRED_REPORT:
-		run_JS_Excel_Report();
+	//!!!!!   case ReportCode::FULL_CRED_REPORT:
+	//данные о кредитном портфеле для СУА
+	case ReportCode::FULL_CRED_REPORT_SUA:
+	case ReportCode::EXCEL_SET_DATA_FROM_BASE:
+		Json_One_Row_One_DBQuery();
 		break;
 	//загрузка данных в oracle из excel
 	case ReportCode::LOAD_FROM_FILE:
 		throw raise_err(code);
 		break;
 	//сравнение файлов excel
-	case ReportCode::FILE_COMPARE:
-		throw raise_err(code);
+	case ReportCode::FILE_COMPARE_RIB:
+		Json_Report_By_Files_Compare();
+		break;
+	case ReportCode::FILE_COMPARE_RTBK:
+		Json_Report_By_Files_Compare();
 		break;
 	default:
 		throw raise_err(code);

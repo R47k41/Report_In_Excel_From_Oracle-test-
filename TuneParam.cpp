@@ -975,9 +975,10 @@ void NS_Tune::TIndex::show(std::ostream& stream, const string& front_msg) const 
 }
 
 void NS_Tune::TSheetData::setData(const ptree::value_type& parent_node, const JsonParams& indx_tag,
-	const JsonParams& first_row_tag, const JsonParams& last_row_tag) noexcept(true)
+	const JsonParams& col_tag, const JsonParams& first_row_tag, const JsonParams& last_row_tag) noexcept(true)
 {
 	index.setByJSon(parent_node, indx_tag);
+	col_id.setByJSon(parent_node, col_tag);
 	first_row.setByJSon(parent_node, first_row_tag);
 	last_row.setByJSon(parent_node, last_row_tag);
 }
@@ -993,6 +994,8 @@ void NS_Tune::TSheetData::show(std::ostream& stream) const noexcept(true)
 	if (!stream or isEmpty()) return;
 	//выводим данные:
 	index.show(stream, "Индекс листа страницы: ");
+	if (!NoColID())
+		col_id.show(stream, "Индекс колонки-идентификатора: ");
 	if (!NoFirstRowIndex())
 		first_row.show(stream, "Индекс первой строки: ");
 	if (!NoLastRowIndex())
@@ -1143,38 +1146,111 @@ void NS_Tune::TCellData::show(std::ostream& stream) const noexcept(true)
 	}
 }
 
-void NS_Tune::TCellMethod::setMethod(size_t meth, size_t find_color, size_t not_find_color) noexcept(true)
+void NS_Tune::TCellFillType::setFillType(size_t type_code, size_t color_find, size_t color_nfind) noexcept(false)
 {
-	using NS_Const::TConstJson;
-	using NS_Const::JSonMeth;
+	code = JsonCellFill(type_code);
+	color_if_found = TColor(color_find);
+	color_not_found = TColor(color_nfind);
+}
+
+void NS_Tune::TCellFillType::setFillType(const ptree::value_type& node, const JsonParams& code_tag,
+	const JsonParams& color_find_tag, const JsonParams& color_not_found_tag)
+{
+	//считывание из json-дерева
+	size_t v_type = TIndex(node, code_tag).get();
+	size_t v_color_found = TIndex(node, color_find_tag).get();
+	size_t v_color_no_found = TIndex(node, color_not_found_tag).get();
+	//установка значений
+	setFillType(v_type, v_color_found, v_color_no_found);
+}
+
+NS_Tune::TCellFillType& NS_Tune::TCellFillType::operator=(const TCellFillType& ftype) noexcept(false)
+{
+	code = ftype.code;
+	color_if_found = ftype.color_if_found;
+	color_not_found = ftype.color_not_found;
+	return *this;
+}
+
+bool NS_Tune::TCellFillType::setByJsonNode(ptree& parent_node, const JsonParams& type_tag) noexcept(true)
+{
 	try
 	{
-		code = JSonMeth(meth);
-		if (code >= JSonMeth::Last) throw TLog("Указанный метод не обрабатывается!", "TCellMethod::setMethod");
-		color_if_found = TColor(find_color);
-		color_not_found = TColor(not_find_color);
+		//получение тега объекта:
+		string v_tag = TConstJson::asStr(type_tag);
+		if (v_tag.empty()) return false;
+		//получение дерева параметров объекта
+		ptree::value_type v_node = parent_node.find(v_tag).dereference();
+		//установка значений
+		setFillType(v_node);
+		return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка получения данных из узла!", "TCellFillType::setByJsonNode").toErrBuff();
+	}
+	return false;
+}
+
+void NS_Tune::TCellFillType::show(std::ostream& stream) const noexcept(true)
+{
+	using std::endl;
+	if (!stream) return;
+	if (isEmpty())
+		stream << "Не указан метод заливки!" << endl;
+	else
+		stream << "Метод заливки: " << code.toStr() << endl;
+	if (isEmptyColorFind())
+		stream << "Не указан цвет заливки при совпадении!" << endl;
+	else
+		stream << "Код цвета заливки при совпадении: " << color_if_found << endl;
+	if (isEmptyColorNFind())
+		stream << "Не указан цвет заливки, если данные не найдены!" << endl;
+	else
+		stream << "Код цвета заливки, если данные не найдены: " << color_not_found << endl;
+}
+
+bool NS_Tune::TCellFillType::isSuccess(size_t cnt, size_t fail) const noexcept(true)
+{
+	using NS_Const::JsonCellFill;
+	switch (code.Value())
+	{
+	case JsonCellFill::CurCell: 
+	case JsonCellFill::ID_All_Find:
+		return cnt > 0 and fail == 0;
+	case JsonCellFill::ID_More_One_Find:
+	case JsonCellFill::ID_And_CurCell:
+		return cnt > fail;
+	}
+	return true;
+}
+
+void NS_Tune::TCellMethod::setMethod(ptree::value_type& node, const JsonParams& code_tag) noexcept(true)
+{
+	try
+	{
+		code = TIndex(node, code_tag).get();
+		if (code.isValid(true) == false) throw TLog("Указанный метод не обрабатывается!", "TCellMethod::setMethod");
+		fill_type.setByJsonNode(node.second);
 	}
 	catch (const TLog& er)
 	{
 		er.toErrBuff();
+		code = JSonMeth::Null;
 	}
 	catch (...)
 	{
 		TLog("Не обработанная ошибка преобразования данных!", "TCellMethod::setMethod").toErrBuff();
+		code = JSonMeth::Null;
 	}
 }
 
-void NS_Tune::TCellMethod::setMethod(const ptree::value_type& node, const JsonParams& code_tag,	
-	const JsonParams& color_find_tag, const JsonParams& color_not_found_tag)
-{
-	size_t v_code = TIndex(node, code_tag).get();
-	size_t v_color_found = TIndex(node, color_find_tag).get();
-	size_t v_color_no_found = TIndex(node, color_not_found_tag).get();
-	setMethod(v_code, v_color_found, v_color_no_found);
-}
-
 NS_Tune::TCellMethod::TCellMethod(ptree& parent_node, const JsonParams& tag_meth) :
-	code(JSonMeth::Null), color_if_found(TColor::COLOR_WHITE), color_not_found(TColor::COLOR_WHITE)
+	code(JSonMeth::Null), fill_type()
 {
 	using NS_Const::TConstJson;
 	string v_tag = TConstJson::asStr(tag_meth);
@@ -1183,21 +1259,18 @@ NS_Tune::TCellMethod::TCellMethod(ptree& parent_node, const JsonParams& tag_meth
 	setMethod(v_node);
 }
 
-
 void NS_Tune::TCellMethod::show(std::ostream& stream) const noexcept(true)
 {
 	using std::endl;
-	using NS_Const::TConstJSMeth;
 	if (!stream) return;
-	if (isEmpty()) stream << "Метод обработки - пуст!" << endl;
-	stream << "Код метода обработки: " << TConstJSMeth::asStr(code) << endl;
-	if (!isEmptyIncludeColor())
-		stream << "Цвет при выполнении условия: " << color_if_found << endl;
-	if (!isEmptyExcludeColor())
-		stream << "Цвет при не выполнении условия: " << color_not_found << endl;
+	if (isEmpty())
+		stream << "Метод обработки - пуст!" << endl;
+	else
+		stream << "Метод обработки: " << code.toStr() << endl;
+	fill_type.show(stream);
 }
 
-void NS_Tune::TProcCell::InitSrcFile(ptree& node, const JsonParams& tag) noexcept(true)
+void NS_Tune::TProcCell::InitSrcFile(ptree& node, const JsonParams& tag, const string& main_path) noexcept(true)
 {
 	using NS_Const::TConstJson;
 	try
@@ -1206,7 +1279,7 @@ void NS_Tune::TProcCell::InitSrcFile(ptree& node, const JsonParams& tag) noexcep
 		ptree::value_type tmp = node.find(v_node).dereference();
 		if (tmp.second.empty()) throw TLog("Указанный узел: " + v_node + " не найден!", "TProcCell::InitSrcFile");
 		DeInitSrcFile();
-		SrcFile = new TShareData(tmp);
+		SrcFile = new TShareData(tmp, main_path);
 	}
 	catch (const TLog& er)
 	{
@@ -1257,6 +1330,7 @@ void NS_Tune::TProcCell::InitCellData(ptree& node, const JsonParams& tag) noexce
 void NS_Tune::TProcCell::InitByMethod(ptree& node, const TSimpleTune* tune_ref) noexcept(true)
 {
 	using NS_Const::JSonMeth;
+	using NS_Const::JsonParams;
 	try
 	{
 		switch (meth.getMethod())
@@ -1264,7 +1338,7 @@ void NS_Tune::TProcCell::InitByMethod(ptree& node, const TSimpleTune* tune_ref) 
 		case JSonMeth::CompareColor:
 		case JSonMeth::CompareIns:
 		{
-			InitSrcFile(node);
+			InitSrcFile(node, JsonParams::SrcFile, tune_ref->getFieldValueByCode(TuneField::MainPath));
 			break;
 		}
 		case JSonMeth::GetFromDB:

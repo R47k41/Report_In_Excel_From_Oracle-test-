@@ -235,12 +235,15 @@ string NS_Const::TConstReportCode::toStr() const
 	case ReportCode::BALANCE_LIST: return "BALANCE_LIST";
 	case ReportCode::BALANCE_SUA: return "BALANCE_SUA";
 	case ReportCode::FULL_CRED_REPORT: return "FULL_CRED_REPORT";
+	case ReportCode::FULL_CRED_REPORT_SUA: return "FULL_CRED_REPORT_SUA";
 	case ReportCode::NBKI_NP: return "NBKI_NP";
 	case ReportCode::NBKI_JP: return "NBKI_JP";
 	case ReportCode::NBKI_APPLY: return "NBKI_APPLY";
 	case ReportCode::CLOSE_DAY: return "CLOSE_DAY";
 	case ReportCode::LOAD_FROM_FILE: return "LOAD_FROM_FILE";
-	case ReportCode::FILE_COMPARE: return "FILE_COMPARE";
+	case ReportCode::FILE_COMPARE_RIB: return "FILE_COMPARE_RIB";
+	case ReportCode::FILE_COMPARE_RTBK: return "FILE_COMPARE_RTBK";
+	case ReportCode::EXCEL_SET_DATA_FROM_BASE: return "EXCEL_SET_DATA_FROM_BASE";
 	}
 	return  string();
 }
@@ -257,12 +260,15 @@ string NS_Const::TConstReportCode::getName() const
 	case ReportCode::BALANCE_LIST: return "Ермакова: Ведомость остатков";
 	case ReportCode::BALANCE_SUA: return "Борисова: Ведомость остатков для загрузки в СУА";
 	case ReportCode::FULL_CRED_REPORT: return "Ермакова: Полный кредитный портфель";
+	case ReportCode::FULL_CRED_REPORT_SUA: return "Борисова: Отчет по всем кредитам для СУА";
 	case ReportCode::NBKI_NP: return "Борисова: НБКИ Физ. лица";
 	case ReportCode::NBKI_JP: return "Борисова: НБКИ Юр. лица";
 	case ReportCode::NBKI_APPLY: return "Борисова: НБКИ фиксация изменений";
 	case ReportCode::CLOSE_DAY: return "Закрытие баланса";
 	case ReportCode::LOAD_FROM_FILE: return "Загрузка проводок из файла в OraBank";
-	case ReportCode::FILE_COMPARE: return "Сравнение excel-файлов";
+	case ReportCode::FILE_COMPARE_RIB: return "Фоминых: Заполнение остатков по РИБ из файла со счетами";
+	case ReportCode::FILE_COMPARE_RTBK: return "Борисова: Заполнение остатков по РТБК из файла со счетами";
+	case ReportCode::EXCEL_SET_DATA_FROM_BASE: return "Excel: Заполнение из БД";
 	}
 	return  string();
 }
@@ -467,6 +473,7 @@ string NS_Const::TConstJson::asStr(const JsonParams& val) noexcept(true)
 	case JsonParams::DB_Config: return "DB_Config";
 	case JsonParams::name: return "name";
 	case JsonParams::list_index: return "lst_indx";
+	case JsonParams::col_id: return "col_id";
 	case JsonParams::first_row: return "first_row";
 	case JsonParams::last_row: return "last_row";
 	case JsonParams::filter: return "fltr";
@@ -481,6 +488,7 @@ string NS_Const::TConstJson::asStr(const JsonParams& val) noexcept(true)
 	case JsonParams::code: return "code";
 	case JsonParams::color_if_found: return "color_if_found";
 	case JsonParams::color_not_found: return "color_not_found";
+	case JsonParams::fill_type: return "fill_type";
 	}
 	return string();
 }
@@ -535,6 +543,21 @@ string NS_Const::TConstJSMeth::asStr(const JSonMeth& val) noexcept(true)
 	return "Указанный метод не обрабатывается!";
 }
 
+string NS_Const::TConstJSCellFill::asStr(const NS_Const::JsonCellFill& val) noexcept(true)
+{
+	using NS_Const::JsonCellFill;
+	switch (val)
+	{
+	case JsonCellFill::CurCell: return "Заливка текущей ячейки";
+	case JsonCellFill::ID_All_Find: return "Заливка ячейки-идентификатора, если все ячейки совпали";
+	case JsonCellFill::ID_More_One_Find: return "Заливка ячейки-идентификатора, если есть хоть одно совпадение";
+	case JsonCellFill::ID_And_CurCell:
+		return "Заливка ячейки-идентификатора, если есть хоть одно совпадение, и заливка каждой не совпавшей ячейки";
+	default: return "Метод не обрабатывается!";
+	}
+	return string();
+}
+
 //явное инстанцирование для шаблонов
 //http://www.cyberforum.ru/cpp-beginners/thread1798717.html#post9488987
 template NS_Const::TConstant<NS_Const::TuneField, NS_Const::TuneField::Empty, NS_Const::TuneField::Last>;
@@ -545,3 +568,4 @@ template NS_Const::TConstant<NS_Const::TSql, NS_Const::TSql::Empty, NS_Const::TS
 template NS_Const::TConstant<NS_Const::CtrlSym, NS_Const::CtrlSym::Empty, NS_Const::CtrlSym::Last>;
 template NS_Const::TConstant<NS_Const::JsonParams, NS_Const::JsonParams::Null, NS_Const::JsonParams::Last>;
 template NS_Const::TConstant<NS_Const::JSonMeth, NS_Const::JSonMeth::Null, NS_Const::JSonMeth::Last>;
+template NS_Const::TConstant<NS_Const::JsonCellFill, NS_Const::JsonCellFill::Null, NS_Const::JsonCellFill::Last>;
