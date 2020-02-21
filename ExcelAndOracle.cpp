@@ -83,7 +83,7 @@ int main()
 	//TOracleTest();
 	string config("config.ini");
 	//parse_tune_file(file_name);
-	CreateReport(config, "FILE_COMPARE_RIB");
+	CreateReport(config, "FILE_COMPARE_RTBK");
 	//CreateReport(config, "REPAYMENT_FOR_DATE");
 	/*
 	Test_toStr();

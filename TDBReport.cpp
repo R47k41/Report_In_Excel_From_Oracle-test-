@@ -176,6 +176,42 @@ bool TBaseSheetReport::EqualCellsType(const NS_Excel::TExcelBookSheet& dstSheet,
 	return srcType == dstType;
 }
 
+bool TBaseSheetReport::checkCellStrVal(const NS_Excel::TExcelCell& cell, const string& val) const noexcept(false)
+{
+	using NS_Const::Trim;
+	using NS_Const::LowerCase;
+	try
+	{
+		//формирование €чейки дл€ проверки значени€:
+		string tmp = sheet.ReadAsString(cell);
+		if (tmp.empty()) return false;
+		Trim(tmp);
+		tmp = LowerCase(tmp);
+		string str = LowerCase(val);
+		Trim(str);
+		if (tmp == str)
+			return true;
+		else
+		{
+			TLog log("«начение в €чейке: ", "TBaseSheetReport::checkCellStrVal");
+			log << tmp << " не соответствует указанному значению: " << str << '\n';
+			log << "ячейка: " << cell.getName() << '\n';
+			throw log;
+		}
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Ќе обработанна€ ошибка при сравнениии значений €чейки:", "TBaseSheetReport::checkCellStrVal");
+		log << cell.getName() << " и значени€: " << val << '\n';
+		log.toErrBuff();
+	}
+	return false;
+}
+
 void TExtendSheetReport::InitDstFile(const TShareData& dstFile, size_t page) noexcept(false)
 {
 	using NS_Tune::TSheetData;
@@ -230,37 +266,20 @@ bool TExtendSheetReport::isCorrectFilter(size_t curRow) const noexcept(true)
 	using NS_Tune::TFilterData;
 	using NS_Excel::TExcelCell;
 	//если фильтра нет - услови€ истины
-	if (filters.empty()) return true;
-	try
+	if (filters.empty())
 	{
-		for (const TFilterData& fltr : filters)
-		{
-			//формирование €чейки дл€ проверки значени€:
-			TExcelCell cell(curRow, fltr.getColIndx(), false);
-			string tmp = sheet.ReadAsString(cell);
-			if (tmp == fltr.getValue())
-				continue;
-			else
-			{
-				TLog log("Ќе соответствие услови€м фильтра!\n«начение в файле: ", "TJsonReport::CorrectFilter");
-				log << tmp << " значение в условии: " << fltr.getValue() << '\n';
-				log << "ячейка: " << cell.getName() << '\n';
-				throw log;
-			}
-		}
+		if (noColID()) return true;
+		TExcelCell cell(curRow, getColID(), false);
+		if (sheet.isEmptyCell(cell)) return false;
 		return true;
 	}
-	catch (const TLog& err)
+	for (const TFilterData& fltr : filters)
 	{
-		err.toErrBuff();
+		TExcelCell cell(curRow, fltr.getColIndx(), false);
+		if (checkCellStrVal(cell, fltr.getValue()) == false)
+			return false;
 	}
-	catch (...)
-	{
-		TLog log("Ќе обработанна€ ошибка при проверке фильтра дл€ строки: ", "TJsonReport::CorrectFilter");
-		log << curRow << '\n';
-		log.toErrBuff();
-	}
-	return false;
+	return true;
 }
 
 NS_ExcelReport::TRowsFlag TExtendSheetReport::setFiltredRowsArr() const noexcept(true)
@@ -934,13 +953,13 @@ bool TJsonReport::Search_DstRow_In_SrcSheet(const TExtendSheetReport& srcSheet, 
 	{
 		//если нет данных по колонкам из строки приемника/источника - переходим к следующей строке
 		if (indx.EmptyDstIndx() and indx.EmptySrcParam()) continue;
-		col_cnt++;
 		size_t dstCol = indx.DstIndex();
 		size_t srcCol = indx.SrcParam();
 		//формируем €чейки в которых будут сравниватьс€ данные:
 		TExcelCell dstCell(curRow, dstCol, false);
 		//если €чейка в приемнике дл€ сравнени€ - пуста€ - идем дальше
 		if (sheet.isEmptyCell(dstCell)) continue;
+		col_cnt++;
 		//выполн€ем поиск на листе источника:
 		size_t srcRow = srcSheet.CheckOnSheet(sheet, dstCell, srcCol, &srcRows);
 		//если строка не найдена:
@@ -1997,6 +2016,7 @@ bool TReport::Json_Report_By_File_Compare(const string& js_file) const noexcept(
 		TExcelBook book(book_name);
 		//счетчик ошибок
 		size_t errCnt = 0;
+		pageCnt = 1;
 		//выполн€ем обработку дл€ каждой страницы файла приемника:
 		for (size_t i = 0; i < pageCnt; i++)
 		{

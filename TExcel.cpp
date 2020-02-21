@@ -377,7 +377,8 @@ bool NS_Excel::TExcelBookSheet::isEmptyCell(const TExcelCell& cell) const noexce
 {
 	if (isBlank(cell)) return true;
 	//надо ли проверять на TDataType::CELLTYPE_EMPTY???
-	return getCellType(cell) == TDataType::CELLTYPE_ERROR;
+	TDataType dt = getCellType(cell);
+	return  dt == TDataType::CELLTYPE_ERROR or dt == TDataType::CELLTYPE_EMPTY;
 }
 
 bool NS_Excel::TExcelBookSheet::WriteAsString(const TExcelCell& cell, const string& val, FormatPtr format, const TDataType& type)

@@ -62,6 +62,8 @@ namespace NS_ExcelReport
 		//проверка типов данных в €чейках разных листов:
 		bool EqualCellsType(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
 			const NS_Excel::TExcelCell& srcCell) const noexcept(false);
+		//функци€ проверки соответстви€ значени€ в €чйеке:
+		bool checkCellStrVal(const NS_Excel::TExcelCell& cell, const string& val) const noexcept(false);
 	public:
 		//инициализаци€ ссылкой на книгу и ссылкой на страницу данной книги:
 		explicit TBaseSheetReport(TExcelBook& book_ref, NS_Excel::SheetPtr sheet_ref = nullptr) :
