@@ -53,7 +53,7 @@ void parse_tune_file(const std::string& filename);
 void TOracleTest();
 
 //определение внешней функции
-void CreateReport(const std::string& file_name, const std::string& code) noexcept(true);
+void CreateReport(const std::string& file_name, const std::string& code = "") noexcept(true);
 
 //inline void SetRuConsole(int cp) { SetConsoleCP(cp); SetConsoleOutputCP(cp); };
 
@@ -83,7 +83,7 @@ int main()
 	//TOracleTest();
 	string config("config.ini");
 	//parse_tune_file(file_name);
-	CreateReport(config, "FILE_COMPARE_RTBK");
+	CreateReport(config);
 	//CreateReport(config, "REPAYMENT_FOR_DATE");
 	/*
 	Test_toStr();
@@ -335,8 +335,7 @@ void TOracleTest()
 void CreateReport(const std::string& file_name, const string& code) noexcept(true)
 {
 	using NS_ExcelReport::TReport;
-	TReport report(file_name, code);
-	report.Execute();
+	TReport report(file_name);
 }
 
 void excel_test(void)

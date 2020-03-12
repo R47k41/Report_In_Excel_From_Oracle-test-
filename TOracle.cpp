@@ -272,6 +272,61 @@ void NS_Oracle::TStatement::setDateAsStringVal(UInt paramIndx, const string& dat
 	setDateVal(paramIndx, value);
 }
 
+void NS_Oracle::TStatement::setSqlStringVal(UInt paramIndx, const string& str) noexcept(false)
+{
+	using std::stringstream;
+	if (isValid())
+	{
+		string tmp_sql = getSQL();
+		if (tmp_sql.empty())
+			throw TLog("Пустой запрос!", "TStatement::setSqlStringVal");
+		stringstream ss;
+		ss << ':' << paramIndx;
+		size_t pos = tmp_sql.find(ss.str(), 0);
+		while (pos != string::npos)
+		{
+			tmp_sql.replace(pos, ss.str().size(), str);
+			pos = tmp_sql.find(ss.str(), pos + str.size());
+		}
+		if (tmp_sql.empty()) return;
+		setSQL(tmp_sql);
+	}
+}
+
+NS_Oracle::TDate NS_Oracle::TStatement::initOCCIDate(int yy, UInt mm, UInt dd, UInt hh, UInt mi, UInt sec) const noexcept(true)
+{
+	try
+	{
+		TDate dateVal(environment, yy, mm, dd, hh, mi, sec);
+		return dateVal;
+	}
+	catch (const SQLException& err)
+	{
+		TLog log("Ошибка преобразования даты: ", "TStatement::initOCCIDate");
+		log << dd << '.' << mm << '.' << yy << ' ' << hh << ':' << mi << ':' << sec << '\n' << err.getMessage() << '\n';
+		log.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка преобразрвания даты: ", "TStatement::initOCCIDate");
+		log << dd << '.' << mm << '.' << yy << ' ' << hh << ':' << mi << ':' << sec << '\n';
+		log.toErrBuff();
+	}
+	return TDate();
+}
+
+void NS_Oracle::TStatement::registerOutParam(UInt paramIndx, const TType& data_type,
+	UInt max_size, const string& sql_type) noexcept(false)
+{
+	if (isValid())
+	{
+		//для OCCIBYTES и OCCISTRING max_size должен быть больше 0
+		if (max_size == 0 and (data_type == TType::OCCIBYTES 
+			or data_type == TType::OCCISTRING)) max_size = max_bytes_size;
+		statement->registerOutParam(paramIndx, data_type, max_size, sql_type);
+	}
+}
+
 int NS_Oracle::TStatement::getParamsCnt(const string& ch) const
 {
 	int cnt = 0, s = ch.size();

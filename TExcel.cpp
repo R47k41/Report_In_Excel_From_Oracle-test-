@@ -30,6 +30,20 @@ string NS_Excel::TExcelParam::getColumnName(int indx) const noexcept(true)
 		return string();
 }
 
+bool NS_Excel::TExcelDate::isEmpty() const noexcept(true)
+{
+	return (year <= 0 and month == 0 and day == 0 and
+		hour == 0 and minute == 0 and sec == 0 and msec == 0);
+}
+
+string NS_Excel::TExcelDate::toStr(const std::string& mask) const noexcept(true)
+{
+	using std::stringstream;
+	if (isEmpty()) return string();
+	stringstream ss;
+	return string();
+}
+
 string NS_Excel::TExcelParam::getExtensionFile(const string& str) noexcept(true)
 {
 	using NS_Const::TConstCtrlSym;
@@ -716,8 +730,17 @@ bool NS_Excel::TExcelBookSheet::copySheetCellsMerge(TExcelBookSheet& src_sh, con
 
 bool NS_Excel::TExcelBookSheet::copySheetCellValue(TExcelBookSheet& src_sh, const TExcelCell& cell, FormatPtr format) noexcept(true)
 {
+	using NS_Excel::TExcelBookFormat;
 	try
 	{
+		//если в €чейке нет данных
+		if (src_sh.isEmptyCell(cell))
+		{
+			//копируем только формат €чейки:
+			TExcelBookFormat frmt(format);
+			setCellFormat(cell, frmt);
+			return true;
+		}
 		TDataType v_type = src_sh.getCellType(cell);
 		switch (v_type)
 		{
@@ -1145,6 +1168,7 @@ bool NS_Excel::TExcelBook::setSheetByTemplate(const string& file, const string& 
 	dst.copySheetColsParam(src);
 	//копирование данных дл€ каждой €чейки:
 	int first_row = src.getFirstRow();
+	//будем учитывать форматы колонок после заголовка
 	int last_row = src.getLastRow();
 	int first_col = src.getFirstCol();
 	int last_col = src.getLastCol();

@@ -247,6 +247,9 @@ NS_Tune::FileParam NS_Tune::TSimpleTune::getFileParamByCode(const Types& code) c
 	case Types::Config:
 		result.second = getFieldValueByCode(TuneField::ConfigFileExt);
 		break;
+	case Types::SubConfig:
+		result.second = getFieldValueByCode(TuneField::SubTuneFileExt);
+		break;
 	case Types::SQL:
 	case Types::DQL:
 	case Types::DML:
@@ -282,6 +285,9 @@ string NS_Tune::TSimpleTune::getPathByCode(const Types& code) const noexcept(tru
 	{
 	case Types::Config:
 		name = getFieldValueByCode(TuneField::ConfigPath);
+		break;
+	case Types::SubConfig:
+		name = getFieldValueByCode(TuneField::SubTunePath);
 		break;
 	case Types::SQL:
 	case Types::DQL:
@@ -451,29 +457,38 @@ void NS_Tune::TSimpleTune::Read_Tune_Val(ifstream& file)
 NS_Tune::TSharedTune::TSharedTune(const string& file, const string& code) :
 	TSimpleTune(), main_code(code)
 {
-	ReadFromFile(file);
+	//инициализация кода отчета:
+	if (main_code.empty()) main_code = getCodeFromtUI();
+	//инициализация файла:
+	TSimpleTune::Initialize(file);
 }
 
 NS_Tune::TSharedTune::TSharedTune(const TFields& v, const string& file, const string& code) :
 	TSimpleTune(v), main_code(code)
 {
-	ReadFromFile(file);
+	//инициализация кода отчета:
+	if (main_code.empty()) main_code = getCodeFromtUI();
+	//инициализация файла:
+	TSimpleTune::Initialize(file);
 }
 
 NS_Tune::TSharedTune::TSharedTune(const TSharedTune& v, const string& file, const string& code) :
 	TSimpleTune(v), main_code(code) 
 {
-	ReadFromFile(file);
+	//инициализация кода отчета:
+	if (main_code.empty()) main_code = getCodeFromtUI();
+	//инициализация файла:
+	TSimpleTune::Initialize(file);
 }
 
 NS_Tune::TUserTune::TUserTune(const string& tunefile) : TSimpleTune()
 {
-	ReadFromFile(tunefile);
+	TSimpleTune::ReadFromFile(tunefile);
 }
 
 NS_Tune::TUserTune::TUserTune(const TSimpleTune& tune, const string& file) : TSimpleTune(tune)
 {
-	ReadFromFile(file);
+	TSimpleTune::ReadFromFile(file);
 }
 
 
@@ -647,7 +662,7 @@ string NS_Tune::TSimpleTune::getFieldValueByCode(const TuneField& code) const no
 	}
 	catch (const NS_Logger::TLog& err)
 	{
-		cerr << "Ошибка получения данных по коду: " << TConstField::asStr(code) << endl;
+		cerr << "По коду: " << TConstField::asStr(code) << " данные не найдены!" << endl;
 		err.toErrBuff();
 	}
 	catch (...)
@@ -691,6 +706,29 @@ bool NS_Tune::TSimpleTune::useFlag(const TuneField& code) const noexcept(true)
 	if (FieldValueAsInt(code, val))
 		return val == 1;
 	return false;
+}
+
+string NS_Tune::TSharedTune::getCodeFromtUI() noexcept(true)
+{
+	using std::cout;
+	using std::endl;
+	using std::cin;
+	using NS_Const::ReportCode;
+	using NS_Const::TConstReportCode;
+	TConstReportCode report(ReportCode::Empty);
+	do
+	{
+		TConstReportCode::show();
+		size_t val = 0;
+		cout << endl << "Укажите код отчета:\t";
+		cin >> val;
+		report = val;
+	} while (report.isEmpty() or !report.isValid(true));
+	while (!cin.get());
+	cout << "Будет сформирован отчет: " << report.getName() << endl;
+	//убираем все из буфера
+	//выходим
+	return report.toStr();
 }
 
 string NS_Tune::TSharedTune::getSectionName() const noexcept(true)
@@ -767,6 +805,39 @@ void NS_Tune::TSharedTune::Read_Section(ifstream& file, const string& code)
 		}
 	}
 	skip_block(file, TConstField::asStr(TuneField::Block_End));
+}
+
+void NS_Tune::TSimpleTune::Initialize(const string& file) noexcept(true)
+{
+	using std::cout;
+	using std::endl;
+	using std::cin;
+	using std::getline;
+	try
+	{
+		string file_name;
+		//если пустое имя файла:
+		if (file.empty())
+		{
+			//получаем имя файла от пользователя
+			do
+			{
+				cout << "Необходимо указать имя файла настроек:" << endl;
+				getline(cin, file_name);
+			} while (file_name.empty());
+		}
+		else
+			file_name = file;
+		ReadFromFile(file_name);
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработнная ошибка при получении настроек из файла: " + file + '\n', "TSharedTune::Initialize").toErrBuff();
+	}
 }
 
 void NS_Tune::TUserTune::Read_StreamData_Val(ifstream& file, const TuneField& stream_title, StrArr& str_arr)
@@ -912,7 +983,7 @@ string NS_Tune::TIndex::getStrValue(const ptree& parent_node, const JsonParams& 
 		if (parent_node.empty())
 			throw TLog("Пустое содержимое в JSon-файле!", "getStrValue");
 		//получение строки в uncode-кодировке:
-		string val = parent_node.get_child(v_tag).get_value<string>();
+		string val = parent_node.get_child(v_tag).get_value<string>("");
 		if (UTF8ToANSI(val)) return val;
 	}
 	catch (TLog& er)
@@ -929,6 +1000,51 @@ string NS_Tune::TIndex::getStrValue(const ptree& parent_node, const JsonParams& 
 	return string();
 }
 
+bool NS_Tune::TIndex::setStrValue(const ptree& parent_node, const JsonParams& tag, const string& val) noexcept(true)
+{
+	using NS_Converter::MByteToUnicode;
+	using NS_Const::TConstJson;
+
+	return false;
+}
+
+NS_Tune::TColor NS_Tune::TIndex::getColorValue(const ptree::value_type& parent_node, const JsonParams& tag) noexcept(true)
+{
+	using NS_Const::TConstJson;
+	using NS_Const::EmptyType;
+	using boost::property_tree::json_parser_error;
+	string v_tag = TConstJson::asStr(tag);
+	try
+	{
+		if (!TConstJson::isTag(tag))
+			throw TLog("Указанный тег не обрабатывается!", "getStrValue");
+		//если данные в корне пустые или тег не обрабатывается:
+		if (parent_node.second.empty())
+			throw TLog("Пустое содержимое в JSon-файле!", "getStrValue");
+		//получение строки в uncode-кодировке:
+		int val = parent_node.second.get_child(v_tag).get_value<int>();
+		if (val == EmptyType)
+			return TColor::COLOR_NONE;
+		else
+			return TColor(val);
+	}
+	catch (const json_parser_error& err)
+	{
+		TLog("Ошибка получения цвета для тега: " + v_tag + '\n' + err.what(), "TIndex::getColorValue").toErrBuff();
+	}
+	catch (TLog& er)
+	{
+		er << "(тег: " << v_tag << ")\n";
+		er.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка получения данных!", "getStrValue");
+		log << "\n(тег: " << v_tag << ")\n";
+		log.toErrBuff();
+	}
+	return TColor::COLOR_NONE;
+}
 
 string NS_Tune::TIndex::getStrValue(const ptree::value_type& parent_node, const JsonParams& tag) noexcept(true)
 {
@@ -1058,6 +1174,18 @@ void NS_Tune::TShareData::setData(const ptree::value_type& parent_node,
 	setArrayByJson<TFilterData>(parent_node, fltr_tag, fltr);
 }
 
+NS_Tune::TShareData::TShareData(ptree& main_node, const string& main_path)
+{
+	using boost::property_tree::ptree;
+	using NS_Const::JsonParams;
+	using NS_Const::TConstJson;
+	string tag = TConstJson::asStr(JsonParams::DstFile);
+	if (tag.empty()) return;
+	const ptree::value_type& sub_node = main_node.find(tag).dereference();
+	setData(sub_node);
+	if (!name.empty())	name = main_path + name;
+}
+
 NS_Tune::TShareData::TShareData(const ptree::value_type& parent_node, const string& main_path)
 {
 	setData(parent_node);
@@ -1146,11 +1274,11 @@ void NS_Tune::TCellData::show(std::ostream& stream) const noexcept(true)
 	}
 }
 
-void NS_Tune::TCellFillType::setFillType(size_t type_code, size_t color_find, size_t color_nfind) noexcept(false)
+void NS_Tune::TCellFillType::setFillType(size_t type_code, const TColor& color_find, const TColor& color_nfind) noexcept(false)
 {
 	code = JsonCellFill(type_code);
-	color_if_found = TColor(color_find);
-	color_not_found = TColor(color_nfind);
+	color_if_found = color_find;
+	color_not_found = color_nfind;
 }
 
 void NS_Tune::TCellFillType::setFillType(const ptree::value_type& node, const JsonParams& code_tag,
@@ -1158,8 +1286,8 @@ void NS_Tune::TCellFillType::setFillType(const ptree::value_type& node, const Js
 {
 	//считывание из json-дерева
 	size_t v_type = TIndex(node, code_tag).get();
-	size_t v_color_found = TIndex(node, color_find_tag).get();
-	size_t v_color_no_found = TIndex(node, color_not_found_tag).get();
+	TColor v_color_found = TIndex::getColorValue(node, color_find_tag);
+	TColor v_color_no_found = TIndex::getColorValue(node, color_not_found_tag);
 	//установка значений
 	setFillType(v_type, v_color_found, v_color_no_found);
 }
@@ -1249,10 +1377,11 @@ void NS_Tune::TCellMethod::setMethod(ptree::value_type& node, const JsonParams& 
 	}
 }
 
-NS_Tune::TCellMethod::TCellMethod(ptree& parent_node, const JsonParams& tag_meth) :
-	code(JSonMeth::Null), fill_type()
+NS_Tune::TCellMethod::TCellMethod(ptree& parent_node, const JsonParams& parent_tag,
+	const JsonParams& tag_meth) : code(JSonMeth::Null), fill_type()
 {
 	using NS_Const::TConstJson;
+	string v_parent_tag = TConstJson::asStr(parent_tag);
 	string v_tag = TConstJson::asStr(tag_meth);
 	if (v_tag.empty()) return;
 	ptree::value_type v_node = parent_node.find(v_tag).dereference();
@@ -1333,22 +1462,12 @@ void NS_Tune::TProcCell::InitByMethod(ptree& node, const TSimpleTune* tune_ref) 
 	using NS_Const::JsonParams;
 	try
 	{
-		switch (meth.getMethod())
-		{
-		case JSonMeth::CompareColor:
-		case JSonMeth::CompareIns:
-		{
+		if (meth.isSrcFileSection())
 			InitSrcFile(node, JsonParams::SrcFile, tune_ref->getFieldValueByCode(TuneField::MainPath));
-			break;
-		}
-		case JSonMeth::GetFromDB:
-		case JSonMeth::SendToDB:
-		case JSonMeth::GetRowIDByDB:
+		else
 		{
 			if (tune_ref == nullptr) throw TLog("Не указана ссылка на родительский файл настроек!", "TProcCell::InitByMethod");
 			InitDBTune(node, tune_ref);
-			break;
-		}
 		}
 		//инициализаци ячеек
 		InitCellData(node);

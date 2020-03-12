@@ -36,6 +36,8 @@ namespace NS_Excel
 	//структура Дата
 	struct TExcelDate
 	{
+	private:
+	public:
 		int year;
 		unsigned int month;
 		unsigned int day;
@@ -43,6 +45,10 @@ namespace NS_Excel
 		unsigned int minute;
 		unsigned int sec;
 		unsigned int msec;
+		//функция проверки на пустоту:
+		bool isEmpty() const noexcept(true);
+		//функция преобразования в строку:
+		std::string toStr(const std::string& mask = "DD.MM.YYYY") const noexcept(true);
 	};
 
 	//структураданных для формирования отчета:

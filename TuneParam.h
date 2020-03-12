@@ -150,7 +150,7 @@ namespace NS_Tune
 	{
 	protected:
 		TFields fields;//поля настроек с их значениями
-		enum class Types { Config, SQL, DQL, DML, Template, OutPath, OutName, OutSheet };
+		enum class Types { Config, SubConfig, SQL, DQL, DML, Template, OutPath, OutName, OutSheet };
 		enum class TRead { Section, TuneVal };
 	private:
 		TSimpleTune& operator=(const TSimpleTune& v);
@@ -203,6 +203,8 @@ namespace NS_Tune
 		string getNameByCode(const Types& code) const noexcept(true);
 		//получение полного имени файла по коду:
 		string getFullFileName(const Types& code, bool only_path = false) const noexcept(true);
+		//инициализация настроек по имени файла:
+		void Initialize(const string& file = string()) noexcept(true);
 	public:
 		TSimpleTune() {}
 		//инициализация другой структурой
@@ -234,6 +236,8 @@ namespace NS_Tune
 	private:
 		string  main_code;//код основной настройки
 		TSharedTune& operator=(const TSharedTune& v);
+		//получение кода отчета от пользователя:
+		static string getCodeFromtUI() noexcept(true);
 		//получение имени секции индивидуальных настроек отчета
 		string getSectionName() const noexcept(true);
 		virtual TuneRange getTuneRange(const TRead& x) const noexcept(true);
@@ -241,7 +245,7 @@ namespace NS_Tune
 		virtual void Read_Section(ifstream& file, const string& code);
 	public:
 		//инициализация
-		TSharedTune(const string& file, const string& code);
+		explicit TSharedTune(const string& file, const string& code = string());
 		TSharedTune(const TFields& v, const string& file, const string& code);
 		TSharedTune(const TSharedTune& v, const string& file, const string& code);
 		~TSharedTune() {}
@@ -253,10 +257,13 @@ namespace NS_Tune
 		bool Empty() const { return TSimpleTune::Empty(); }
 		//получение списка файлов:
 		vector<string> getConfFileLst(bool use_sort = true) const noexcept(false) { return getFileLst(Types::Config, use_sort); }
+		vector<string> getSubConfigFileLst(bool use_sort = true) const noexcept(true) { return getFileLst(Types::SubConfig, use_sort); }
 		vector<string> getSqlFileLst(bool use_sort = true) const noexcept(false) { return getFileLst(Types::DQL, use_sort); }
 		vector<string> getTemplFileLst(bool use_sort = true) const noexcept(false) { return getFileLst(Types::Template, use_sort); }
 		//получение пути к файлу настроек:
 		string getConfigPath() const noexcept(false) { return getFullFileName(Types::Config, true); }
+		//функция получения пути к файлам поднастроек:
+		string getSubConfigPath() const noexcept(true) { return getFullFileName(Types::SubConfig, true); }
 		//получение имени исходящего файла:
 		string getOutPath() const noexcept(false) { return getFullFileName(Types::OutPath, true); }
 		string getOutFile() const noexcept(false) { return getFullFileName(Types::OutName, false); }
@@ -346,6 +353,8 @@ namespace NS_Tune
 		//получение строкового значения из json-файла:
 		static string getStrValue(const ptree::value_type& parent_node, const JsonParams& tag) noexcept(true);
 		static string getStrValue(const ptree& parent_node, const JsonParams& tag) noexcept(true);
+		static bool setStrValue(const ptree& parent_node, const JsonParams& tag, const string& val) noexcept(true);
+		static TColor getColorValue(const ptree::value_type& parent_node, const JsonParams& tag) noexcept(true);
 		TIndex(size_t indx = EmptyIndex) : index(indx) {}
 		TIndex(const TIndex& x) : index(x.index) {}
 		TIndex(const ptree::value_type& parent_node, const string& tagStr) : index(EmptyIndex) { setIndexFromJSon(parent_node, tagStr); }
@@ -457,11 +466,15 @@ namespace NS_Tune
 	public:
 		//инициализация именем файла(для открытия файла excel), номером листа(соответтствует ограничениям excel),
 		//номер строки отсчета(сопостовимо с форматом excel) и массив фильтров значений
-		TShareData(const ptree::value_type& parent_node, const string& main_path = "");
+		//считывание из основного дерева:
+		explicit TShareData(ptree& main_node, const string& main_path = "");
+		//считывание из поддерева:
+		explicit TShareData(const ptree::value_type& parent_node, const string& main_path = "");
 		//деструктор
 		~TShareData() {}
 		//проверка на пустоту:
-		inline bool isEmpty() const noexcept(true) { return name.empty() || sh_params.empty(); }
+		inline bool isEmptyName() const noexcept(true) { return name.empty(); }
+		inline bool isEmpty() const noexcept(true) { return isEmptyName() || sh_params.empty(); }
 		//получение имени файла:
 		inline string getName() const noexcept(true) { return name; }
 		inline void setName(const string& val) noexcept(true) { name = val; }
@@ -520,7 +533,9 @@ namespace NS_Tune
 		bool EmptyInsIndx() const noexcept(true) { return dst_ins_indx.isEmpty(); }
 		bool EmptySrcParam() const noexcept(true) { return src_param_indx.isEmpty(); }
 		bool EmptySrcVal() const noexcept(true) { return src_val_indx.isEmpty(); }
-		bool isEmpty() const noexcept(true) { return EmptyDstIndx(); }
+		bool isEmpty() const noexcept(true) { return EmptyDstIndx() and EmptySrcParam() and EmptyInsIndx(); }
+		//признак выходного параметра:
+		bool isOutParam() const noexcept(true) { return !dst_ins_indx.isEmpty() and !src_param_indx.isEmpty() and dst_indx.isEmpty(); }
 		//вывод данных:
 		inline size_t DstIndex() const noexcept(true) { return dst_indx.get(); }
 		inline size_t InsIndex() const noexcept(true) { return dst_ins_indx.get(); }
@@ -549,23 +564,25 @@ namespace NS_Tune
 		TColor color_if_found;//цвет выделения, если данные совпали
 		TColor color_not_found;//цвет выделения, если данные не совпали
 		//установка значений:
-		void setFillType(size_t code, size_t color_find, size_t color_nfind) noexcept(false);
+		void setFillType(size_t code, const TColor& color_find, const TColor& color_nfind) noexcept(false);
 		void setFillType(const ptree::value_type& node, const JsonParams& code_tag = JsonParams::code,
 			const JsonParams& color_find_tag = JsonParams::color_if_found,
 			const JsonParams& color_not_found_tag = JsonParams::color_not_found);
 	public:
+		//отстутствие цвета
+		static const TColor NoColor = TColor::COLOR_NONE;
 		//инициализация
 		TCellFillType(const JsonCellFill& ftype = JsonCellFill::Null,
-			const TColor& find_color = TColor::COLOR_NONE, const TColor& not_find_color = TColor::COLOR_NONE) :
+			const TColor& find_color = TColor::COLOR_NONE, const TColor& not_find_color = NoColor) :
 			code(ftype), color_if_found(find_color), color_not_found(not_find_color) {}
 		explicit TCellFillType(ptree& parent_node): code(JsonCellFill::Null), 
-			color_if_found(TColor::COLOR_NONE), color_not_found(TColor::COLOR_NONE) { setByJsonNode(parent_node); }
+			color_if_found(NoColor), color_not_found(NoColor) { setByJsonNode(parent_node); }
 		explicit TCellFillType(const ptree::value_type& sub_node) : code(),
-			color_if_found(TColor::COLOR_NONE), color_not_found(TColor::COLOR_NONE)	{ setFillType(sub_node); }
+			color_if_found(NoColor), color_not_found(NoColor)	{ setFillType(sub_node); }
 		//проверка на пустоту
 		bool isEmpty() const noexcept(true) { return code.isEmpty() or code.isValid(true) == false; }
- 		bool isEmptyColorFind() const noexcept(true) { return color_if_found == TColor::COLOR_NONE; }
-		bool isEmptyColorNFind() const noexcept(true) { return color_not_found == TColor::COLOR_NONE; }
+ 		bool isEmptyColorFind() const noexcept(true) { return color_if_found == NoColor; }
+		bool isEmptyColorNFind() const noexcept(true) { return color_not_found == NoColor; }
 		bool isEmptyColor() const noexcept(true) { return isEmptyColorFind() and isEmptyColorNFind(); }
 		//получение значений:
 		JsonCellFill getCellFillType() const noexcept(true) { return code.Value(); }
@@ -598,7 +615,8 @@ namespace NS_Tune
 		TCellMethod(const JSonMeth& meth = JSonMeth::Null, const TCellFillType& ftype = TCellFillType()) :
 			code(meth), fill_type(ftype) {}
 		//инициализация
-		explicit TCellMethod(ptree& parent_node, const JsonParams& tag_meth = JsonParams::Method);
+		explicit TCellMethod(ptree& parent_node, const JsonParams& parent_tag = JsonParams::Cells,
+			const JsonParams& tag_meth = JsonParams::Method);
 		explicit TCellMethod(ptree::value_type& sub_node) : code(JSonMeth::Null), fill_type() { setMethod(sub_node); }
 		~TCellMethod() {}
 		//проверка на пустоту:
@@ -616,6 +634,8 @@ namespace NS_Tune
 		JsonCellFill getFillType() const noexcept(true) { return fill_type.getCellFillType(); }
 		//установка метода:
 		void setMethod(const JSonMeth& val) noexcept(true) { code = val; }
+		//признак наличния секции SrcFile:
+		bool isSrcFileSection() const noexcept(false) { return code.HasSrcFileObj(); }
 		//уставнока вида заливки:
 		void setCellFillType(const TCellFillType& ftype) noexcept(true) { fill_type = ftype; }
 		//вывод данных в поток:

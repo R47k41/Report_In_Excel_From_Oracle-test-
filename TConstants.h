@@ -23,7 +23,7 @@ namespace NS_Const
 		//общие настройки отчетов:
 		AddDateToOutFileName, AddDateToSheetName, AddDateToOutPath,
 		//настроки путей расположения файлов
-		MainPath, ConfigPath, ConfigFileExt, SqlPath, SqlFileExt, TemplatePath, TemplateFileExt,
+		MainPath, ConfigPath, ConfigFileExt, SubTunePath, SubTuneFileExt, SqlPath, SqlFileExt, TemplatePath, TemplateFileExt,
 		OutDirectory, OutFileName, 
 		End_Shared_Index,
 		Start_Unq_Tune,
@@ -55,13 +55,14 @@ namespace NS_Const
 	};
 
 	//методы обработки excel-файлов на основании Json-параметров
-	enum class JSonMeth { Null, CompareColor, CompareIns, GetFromDB, SendToDB, GetRowIDByDB, Last };
+	enum class JSonMeth { Null, CompareRow, CompareCell, GetFromDB, SendToDB, GetRowIDByDB, InsertRowCompare, CompareCellChange, Last };
 
 	//типы закраски ячеек excel для методов json-обработки
+	//используется для суждения об итогах поиска по строке(т.е. найдены ли все ячейки строки или только некоторые)
 	enum class JsonCellFill {Null, CurCell, ID_All_Find, ID_More_One_Find, ID_And_CurCell, Last};
 
 	//Типы данных для параметров в запросах:
-	enum class DataType { ErrorType = 0, String, Integer, Double, Date, Boolean, Last };
+	enum class DataType { ErrorType = 0, String, Integer, Double, Date, Boolean, SQL_String, Last };
 
 	//константы для формата файлов excel
 	enum class TExclBaseTune { Empty = EmptyType, xlt, xls, xlsx, DefExt, DefName, DefSh, PageDelimiter, Last };
@@ -89,8 +90,8 @@ namespace NS_Const
 	//константы для выбора отчета:
 	enum class ReportCode: int
 	{
-		Empty = EmptyType,
-		RIB_DOCS_FOR_PERIOD = 0,//выборка документов из базы РИБ (Фоминых)
+		Empty = 0,
+		RIB_DOCS_FOR_PERIOD,//выборка документов из базы РИБ (Фоминых)
 		DOCS_MF_SF_FOR_PERIOD,//выборка документов для МФ и СФ ОраБанк (Кривошеева)
 		REPAYMENT_FOR_DATE,//гашение крелитов СФ + МФ (Скачкова)
 		POTREB_CRED_BY_FILE,//потребительские крелиты МФ по файлу (Борисова)
@@ -239,11 +240,15 @@ namespace NS_Const
 	public:
 		explicit TConstReportCode(const ReportCode& x) : RC_Const(x) { }
 		explicit TConstReportCode(int x) : RC_Const(x) { }
-		TConstReportCode& operator=(const ReportCode& x) { RC_Const::operator=(x); return *this; }
 		//получение кода отчета:
 		string toStr() const;
 		//получение наименования отчета:
 		string getName() const;
+		//отображение возможных отчетов:
+		static void show() noexcept(true);
+		//операция присвоения:
+		TConstReportCode& operator=(int val) noexcept(true) { RC_Const::setValue(val); return *this; }
+		TConstReportCode& operator=(const ReportCode& val) noexcept(false) { RC_Const::setValue(val); return *this; }
 		//получение идентификатора отчета по коду:
 		static ReportCode getIDByCode(const string& code, const ReportCode& bval, const ReportCode& eval);
 		friend bool operator==(const string& str, const TConstReportCode& val) { return val.operator==(str); }
@@ -365,6 +370,8 @@ namespace NS_Const
 		string toStr() const noexcept(true) { return asStr(JS_Meth::Value()); };
 		TConstJSMeth& operator=(const JSonMeth& x) noexcept(true) { JS_Meth::operator=(x); return *this; }
 		TConstJSMeth& operator=(size_t x) noexcept(true) { JSonMeth val = JSonMeth(x); return operator=(val); }
+		//проверка на наличие объекта SrcFile в json-настройках
+		bool HasSrcFileObj() const noexcept(false);
 		};
 
 	class TConstJSCellFill : public JS_CellFill

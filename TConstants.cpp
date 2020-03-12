@@ -5,6 +5,7 @@
 #include <sstream>
 #include <cstring>
 #include "TConstants.h"
+#include "Logger.h"
 
 using std::string;
 
@@ -122,6 +123,8 @@ string NS_Const::TConstField::asStr(const TuneField& val)
 	case TuneField::AddDateToOutPath: return "AddDateToOutPath";
 	case TuneField::ConfigPath: return "ConfigPath";
 	case TuneField::ConfigFileExt: return "ConfigFileExt";
+	case TuneField::SubTunePath: return "SubTunePath";
+	case TuneField::SubTuneFileExt: return "SubTuneFileExt";
 	case TuneField::SqlPath: return "SqlPath";
 	case TuneField::SqlFileExt: return "SqlFileExt";
 	case TuneField::TemplatePath: return "TemplatePath";
@@ -181,6 +184,7 @@ string NS_Const::TConstType::asStr(const DataType& dt) noexcept(true)
 	case DataType::Double: return "double";
 	case DataType::Date: return "date";
 	case DataType::Boolean: return "boolean";
+	case DataType::SQL_String: return "sql_string";
 	}
 	return string();
 }
@@ -271,6 +275,15 @@ string NS_Const::TConstReportCode::getName() const
 	case ReportCode::EXCEL_SET_DATA_FROM_BASE: return "Excel: Заполнение из БД";
 	}
 	return  string();
+}
+
+void NS_Const::TConstReportCode::show() noexcept(true)
+{
+	using std::cout;
+	using std::endl;
+	TConstReportCode report(ReportCode::Empty);
+	while (report.Next().Value() < ReportCode::Last)
+		cout << report.toInt() << ". " << report.getName() << endl;
 }
 
 NS_Const::ReportCode NS_Const::TConstReportCode::getIDByCode(const string& code, const ReportCode& bval, const ReportCode& eval)
@@ -534,13 +547,35 @@ string NS_Const::TConstJSMeth::asStr(const JSonMeth& val) noexcept(true)
 {
 	switch (val)
 	{
-		case JSonMeth::CompareColor: return "Окрашивание цветом при выполнении условия";
-		case JSonMeth::CompareIns: return "Вставка данных при выполнении условия";
+		case JSonMeth::CompareRow: return "Поиск всех ячеек строки приемника на листе источника";
+		case JSonMeth::CompareCell: return "Поиск каждой ячейки строки приемника на листе источника";
 		case JSonMeth::GetFromDB: return "Получение значений из БД";
 		case JSonMeth::SendToDB: return "Запись значения в БД";
 		case JSonMeth::GetRowIDByDB: return "Формируем массив строк, относящихся к указанной БД";
+		case JSonMeth::CompareCellChange: return "Внесение изменений в ячейку, если были изменения";
+		case JSonMeth::InsertRowCompare: return "Вставка строки в приемник, если совпали данные с источником";
 	}
 	return "Указанный метод не обрабатывается!";
+}
+
+bool NS_Const::TConstJSMeth::HasSrcFileObj() const noexcept(false)
+{
+	switch (Value())
+	{
+		//методы для обработки файлов на основе файлов
+		case JSonMeth::CompareRow:
+		case JSonMeth::CompareCell:
+		case JSonMeth::InsertRowCompare:
+		case JSonMeth::CompareCellChange:
+			return true;
+		case JSonMeth::GetFromDB:
+		case JSonMeth::SendToDB:
+		case JSonMeth::GetRowIDByDB:
+			return false;
+		default:  
+			throw NS_Logger::TLog("Указанный метод: " + toStr() + " не обрабатывается!", "TConstJSMeth::isComareMeth");
+	}
+
 }
 
 string NS_Const::TConstJSCellFill::asStr(const NS_Const::JsonCellFill& val) noexcept(true)

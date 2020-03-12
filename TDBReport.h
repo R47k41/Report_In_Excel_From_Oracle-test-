@@ -35,11 +35,12 @@ namespace NS_ExcelReport
 	using DBUserTuneArr = vector<TUserTune>;
 	using NS_Tune::CellDataArr;
 	using NS_Tune::FilterArr;
-	using TRowFlag = std::pair<size_t, bool>;
+	using TRowFlag = std::pair<size_t, bool>;//строка и признак ее обработки
 	using TRowsFlag = std::vector<TRowFlag>;
 	using TRowsTNS = std::pair<std::string, TRowsFlag>;
 	using TFillFormat = std::pair<size_t, size_t>;
 	using TFillFrmts = std::vector<TFillFormat>;
+	using TConvertType = std::pair<NS_Oracle::TType, size_t>;
 
 
 	//число строк извлекаемое за одно обращение к БД
@@ -63,7 +64,9 @@ namespace NS_ExcelReport
 		bool EqualCellsType(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
 			const NS_Excel::TExcelCell& srcCell) const noexcept(false);
 		//функция проверки соответствия значения в ячйеке:
-		bool checkCellStrVal(const NS_Excel::TExcelCell& cell, const string& val) const noexcept(false);
+		bool checkCellStrVal(const NS_Excel::TExcelCell& cell, const string& val, bool showLog = true) const noexcept(false);
+		//функция добавления новой строки в лист отчета
+		bool InsNewRow(size_t curRow, size_t newRow) noexcept(true);
 	public:
 		//инициализация ссылкой на книгу и ссылкой на страницу данной книги:
 		explicit TBaseSheetReport(TExcelBook& book_ref, NS_Excel::SheetPtr sheet_ref = nullptr) :
@@ -92,7 +95,7 @@ namespace NS_ExcelReport
 	};
 
 	//расширенный класс для взаимодействия с excel-файлами отчетов
-	class TExtendSheetReport: public TBaseSheetReport
+	class TExtendSheetReport : public TBaseSheetReport
 	{
 	private:
 		size_t rowB;//начальная строка отсчета
@@ -106,7 +109,7 @@ namespace NS_ExcelReport
 		virtual size_t getRow(bool first) const noexcept(false) { return first ? rowB : rowE; }
 		//функция сверки данных в указанной ячейке c ячейкой другого листа:
 		bool Compare_Cells(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
-			const NS_Excel::TExcelCell& srcCell) const noexcept(true);
+			const NS_Excel::TExcelCell& srcCell, bool NoSpaceNoCase = true) const noexcept(true);
 	public:
 		//инициализация json-файлом настроек:
 		TExtendSheetReport(TExcelBook& book_ref, const TShareData& file, size_t page);
@@ -114,6 +117,8 @@ namespace NS_ExcelReport
 		virtual ~TExtendSheetReport() { TBaseSheetReport::~TBaseSheetReport(); }
 		//функция проверки наличия Col_ID:
 		virtual bool noColID() const noexcept(true) { return colID == NS_Tune::TIndex::EmptyIndex; }
+		//функция проверки ячейки на пустоту:
+		virtual bool isEmptyCell(const NS_Excel::TExcelCell& cell) const noexcept(false);
 		//функция проверки данных из ColID на пустоту:
 		virtual bool noDataInColID(size_t Row) const noexcept(false);
 		//индекс колонки идентификатора:
@@ -126,9 +131,22 @@ namespace NS_ExcelReport
 		virtual bool isCorrectFilter(size_t curRow) const noexcept(true);
 		//формирование массива отфильтрованных строк для указанных услови фильтрации:
 		TRowsFlag setFiltredRowsArr() const noexcept(true);
-		//функция поиска данных из ячейки другой страницы - возвращает номер строки совпадения:
-		size_t CheckOnSheet(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell, size_t srcCol,
-			TRowsFlag* RowsArr) const noexcept(true);
+		//исключение из массива отфильтрованных строк указанной строки:
+		static bool dropFromFiltredRows(NS_ExcelReport::TRowsFlag& RowsArr, size_t row) noexcept(true);
+		//функция поиска данных о ячейке приемника в текущей строке источника
+		bool CheckInCell(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
+			const NS_Excel::TExcelCell& srcCell, bool NoSpaceNoCase = true) const noexcept(true);
+		bool CheckInCell(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell, 
+			size_t srcRow, size_t srcCol, bool NoSpaceNoCase = true) const noexcept(true);
+		//функция поиска данных в ячейке других страниц - возвращает номер строки совпадения(без массива строк):
+		size_t CheckOnSheet(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
+			size_t srcCol, bool NoSpaceNoCase = true) const noexcept(true);
+		//функция поиска данных из ячейки другой страницы - возвращает номер строки совпадения(с массивом строк):
+		size_t CheckOnSheet(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell, 
+			size_t srcCol, TRowsFlag& RowsArr, bool NoSpaceNoCase = true) const noexcept(true);
+		//функция проверки наличия изменений в ячейках приемника и источника:
+		bool NotEquality(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
+			const NS_Excel::TExcelCell& srcCell, bool NoCaseNoSpace = false) const noexcept(true);
 		//функция вставки данных в ячейку-приемник из ячейки-источника:
 		virtual bool setDstCellBySrcCell(NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell, 
 			const NS_Excel::TExcelCell& srcCell) const noexcept(true);
@@ -141,12 +159,28 @@ namespace NS_ExcelReport
 		string main_path;//директория файлов для формирования отчета
 		TFillFrmts frmt_arr;//массив форматов закраски ячеек
 		const TProcCell& cells_data;//информация по ячейкам
+		NS_Const::JSonMeth meth_code;//метод обработки данных
+		//функция проверки необходимости проверять изменения:
+		bool WithChangeMeth() const noexcept(true) { return meth_code == NS_Const::JSonMeth::CompareCellChange; }
 		//функция установки параметра запроса для ячейки:
-		void setDQLParamByCell(TStatement& query, const NS_Excel::TExcelCell& cell,
-			const TCellData& value) const noexcept(false);
-		//функция извлечения данных из excel-файла источника для строки excel-файла приемника:
-
+		void setDQLParamByCell(TStatement& query, const TCellData& value, size_t curRow) const noexcept(false);
+		//функция поиска указанной ячейки приемника в ячейке источника:
+		bool DstCell_In_SrcCell(const TExtendSheetReport& srcSheet, const NS_Excel::TExcelCell& DstCell,
+			const NS_Excel::TExcelCell& SrcCell, bool NoSpaceNoCase = true) noexcept(true);
+		//функция получения строки источника для ячейки приемника:
+		size_t getSrcRow_By_DstCell(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
+			const NS_Excel::TExcelCell& DstCell, size_t SrcCol, bool NoSpaceNoCase = true) noexcept(true);
+		//функция проверки наличия изменений в ячейках:
+		bool CellHasChanged(const TExtendSheetReport& srcSheet, const NS_Tune::TCellData& param,
+			size_t dstRow, size_t srcRow) const noexcept(true);
+		//функция вставки данных в ячейку файла приемника 
+		bool InsertDstCellBySrcCell(const TExtendSheetReport& srcSheet, const NS_Tune::TCellData& param,
+			size_t dstRow, size_t srcRow) noexcept(true);
 	protected:
+		//функция установки выходного параметра для хранимой процедуры/функции oracle:
+		static void setDMLOutParam(NS_Oracle::TStatement& query, const TCellData& param) noexcept(false);
+		//функция установки параметров для выражения:
+		bool setStatementParam(NS_Oracle::TStatement& query, const NS_Tune::TCellData& value, size_t Row) const noexcept(true);
 		//функция установки параметров формата:
 		virtual size_t crtFillFormat(NS_Excel::TExcelBookFormat& init_format, bool find_flg, bool font_flg) noexcept(false);
 		//функция формирования формата для ячейки
@@ -156,16 +190,23 @@ namespace NS_ExcelReport
 		//функция формирования форматов для закраски ячеек:
 		virtual void crtCellFillFormatArr() noexcept(true);
 		//обработка ячейки строки
-		virtual bool procRowCell(size_t Row, size_t Col, size_t index, bool find_flg) noexcept(true);
-		virtual bool procRowCell(const NS_Excel::TExcelCell& cell, size_t index, bool find_flg) noexcept(true);
-		//функция получения данных на основании excel-строки и запись результата в excel-строку файла
+		virtual bool ColoringRowCell(size_t Row, size_t Col, size_t index, bool find_flg) noexcept(true);
+		virtual bool ColoringRowCell(const NS_Excel::TExcelCell& cell, size_t index, bool find_flg) noexcept(true);
+		//окраска ячейки в зависимости от метода и параметров
+		virtual bool ColoringCellByParam(const NS_Tune::TCellData& param, size_t curRow, size_t frmt_index, 
+			bool fing_flg) noexcept(true);
+		//функция записи выходного параметра в Excel-строку:
+		virtual void WriteOutParamToExcel(NS_Oracle::TBaseSet& bs, const NS_Const::DataType& type_code,
+			const NS_Tune::TCellData& param, size_t OutParamIndex, size_t Row) noexcept(false);
+		//функция получения данных на основании oracle-строки и запись результата в excel-строку файла
 		virtual void writeExcelFromDB(NS_Oracle::TResultSet& rs, size_t curRow) noexcept(false);
 		//функция проверки существования данных в БД(для одной записи):
 		virtual bool checkINDataBase(NS_Oracle::TResultSet& rs, size_t curRow) noexcept(false);
 		//функция записи данных в БД:
 		virtual void insertToDataBase(NS_Oracle::TResultSet& rs, size_t curRow) noexcept(false);
 		//функция выполнения обработки в зависимости от метода:
-		bool ProcessByDataBase(NS_Oracle::TResultSet& rs, size_t curRow) noexcept(false);
+		bool ProcessByResultSet(NS_Oracle::TResultSet& rs, size_t curRow) noexcept(false);
+		void ProcessByStatement(NS_Oracle::TStatement& query, size_t curRow) noexcept(false);
 		//функция выполнения запроса для строки:
 		virtual bool runQuery(NS_Oracle::TStatement& query, size_t curRow) noexcept(true);
 		//функция обработки строки из страницы excel-файла:
@@ -182,29 +223,40 @@ namespace NS_ExcelReport
 		void ProcessSheetDataWithDB() noexcept(false);
 		//функция получения наименования сервера из конфигурационных файлов:
 		std::string getServerNameByTuneIndex(size_t val) const noexcept(true);
-		//функция поиска данных из приемника в источнике:
-		bool Search_DstRow_In_SrcSheet(const TExtendSheetReport& srcSheet, const CellDataArr& cols, size_t curRow) noexcept(true);
-		//функция проверки наличия строк файла-приемника на листе в файле-источнике:
-		bool Search_Dest_Data_In_Src_Sheet(TRowsFlag& DstRows, const TExtendSheetReport& srcSheet) noexcept(true);
+		//функция обработки строки источника и строки приемника:
+		bool procFindRow(const TExtendSheetReport& srcSheet, const CellDataArr& params,
+			size_t dstRow, size_t srcRow) noexcept(true);
+		//функция обработки ячеек приемника и источника:
+		bool procFindCell(const TExtendSheetReport& srcSheet, const NS_Tune::TCellData& param, 
+			size_t dstRow, size_t srcRow) noexcept(true);
+		//функция поиска строки источника на листе приемника:
+		size_t DstRow_In_SrcSheet(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows, 
+			const CellDataArr& params, size_t curRow, bool NoSpaceNoCase = true) noexcept(true);
+		//функция поиска каждой ячейки строки источника на листе приемника:
+		bool DstRowCells_In_SrcSheet(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
+			const CellDataArr& params, size_t curRow, bool NoSpaceNoCase = true) noexcept(true);
+		//функция проверки наличия данных файла-приемника на листе в файле-источнике:
+		bool Search_DestData_In_SrcSheet(TRowsFlag& DstRows, const TExtendSheetReport& srcSheet, 
+			bool NoSpaceNoCase = true) noexcept(true);
 		//функция вставки данных из excel-файла в базу данных:
 
 		//функция вставки данных из другого excel-файла:
-		void Compare_Excel_Sheets() noexcept(false);
-		//функция сравнения Excel-файлов
-
+		void Compare_Excel_Sheets(bool NoSpaceNoCase = true) noexcept(false);
 		//функция получения числа конфигурационных файлов:
 		size_t getTuneFilesCnt() const noexcept(true) { return cells_data.getDBTuneArr().size(); }
 		//функция получения кода метода обработки:
-		NS_Const::JSonMeth getMethCode() const noexcept(true) { return cells_data.getMethodCode(); }
+		NS_Const::JSonMeth getMethCode() const noexcept(true) { return meth_code; }
 	public:
 		//инициализация при помощи объектов из json-файла
 		TJsonReport(TExcelBook& book_ref, const TExcelProcData& json_tune, size_t page);
+		//инициализация отдельными объектами:
+		TJsonReport(TExcelBook& book_ref, const TShareData& DstFile, const TProcCell& cell_arr, size_t page);
 		//деинициализация:
 		virtual ~TJsonReport() {}
 		//функция формирования отчета
 		virtual bool crtSheetReport() noexcept(true);
 		//функция признака предобработки:
-		bool preProcFlg() const noexcept(true) { return cells_data.getMethodCode() == NS_Const::JSonMeth::GetRowIDByDB; }
+		bool preProcFlg() const noexcept(true) { return meth_code == NS_Const::JSonMeth::GetRowIDByDB; }
 
 	};
 
@@ -290,8 +342,8 @@ namespace NS_ExcelReport
 		//выполнение DML запроса(можно выполнять без привязки к отчету):
 		static size_t runDML(TDBConnect& db, const TUserTune& param, bool use_comit = true) noexcept(true);
 		//установка значения поля по типу данных из индекса ячейки sql-данных
-		static void setCellByResultSet(TExcelBook& book, TExcelBookSheet& sheet, 
-			const TResultSet& rs, size_t resultSetCol, const NS_Excel::TExcelCell& cell) noexcept(false);
+		static void setCellByResultSet(TExcelBook& book, TExcelBookSheet& sheet, const NS_Const::DataType& dt,
+			const NS_Oracle::TBaseSet& bs, size_t resultSetCol, const NS_Excel::TExcelCell& cell) noexcept(false);
 		//установка числа итераций для запроса:
 		static bool setMaxIterationCnt(TStatement& query, size_t cnt) noexcept(true);
 		//добавление итерации для запроса:
@@ -343,8 +395,11 @@ namespace NS_ExcelReport
 			std::vector<NS_ExcelReport::TRowsTNS>& Rows) const noexcept(true);
 		//функция сравнения одного excel-файла:
 		bool Json_Report_By_File_Compare(const string& js_file) const noexcept(true);
+		//функция обработки одного файла подконфигурации
+		bool Json_SubTune_File_Run(NS_Excel::TExcelBook& book, const string& js_file) const noexcept(true);
 	public:
 		//инициализация
+		explicit TReport(const string& config_file = string());
 		TReport(const string& conf_file, const string& code) : config(conf_file, code) {}
 		//деструктор
 		virtual ~TReport() {}
@@ -367,6 +422,11 @@ namespace NS_ExcelReport
 		void Json_One_Row_One_DBQuery() const noexcept(false);
 		//формирование отчета на основании сравнения 2х excel-файлов:
 		void Json_Report_By_Files_Compare() const noexcept(true);
+		//формирование отчета в 2 этапа конфигурационных файлов:
+		//на первом этапе формируется отчет на основании файлов в пааке config
+		//на втором этапе обрабатывается указанный отчет на основании файлов в папке SubConfig
+		//функция выполнения 2ого этапа обработки отчета для поднастроек(subconfig):
+		void SubConfig_Stage() const noexcept(true);
 		//вызов функции, формирующей отчет по коду:
 		void Create_Report_By_Code(const NS_Const::ReportCode& code) const;
 		//формирование полного отчета по файлу main_config:

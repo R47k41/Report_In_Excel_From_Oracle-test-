@@ -24,6 +24,7 @@ namespace NS_Oracle
 	using oracle::occi::ResultSet;
 	using oracle::occi::MetaData;
 	using oracle::occi::SQLException;
+	using oracle::occi::OCCIDATE;
 	using EnvironmentPtr = Environment*;
 	using ConnectionPtr = Connection*;
 	using StatementPtr = Statement*;
@@ -143,6 +144,7 @@ namespace NS_Oracle
 		TStatement(EnvironmentPtr env, ConnectionPtr c, const string& sql = "", bool auto_commit = false,
 			UInt prefetch = prefetch_rows, UInt maxIteration = 1);
 	public:
+		static const int max_bytes_size = 250;//максимальное число байт извлекаемое из БД выходным параметром
 		//инициализация строкой и ссылкой на соединение:
 		explicit TStatement(const TDBConnect& dbc, const string& sql = "", UInt prefetch = prefetch_rows, UInt maxIteration = 1);
 		//функция закрытия sql-команды:
@@ -168,11 +170,16 @@ namespace NS_Oracle
 		void setStringVal(UInt paramIndx, const string& value) { statement->setString(paramIndx, value); };
 		void setDateVal(UInt paramIndx, const TDate& date) { statement->setDate(paramIndx, date); };
 		void setDateAsStringVal(UInt paramIndx, const string& date, const string& date_frmt = "DD.MM.YYYY");
+		void setSqlStringVal(UInt paramIndx, const string& str) noexcept(false);
 		void setNullVal(UInt paramIndx, const TType& data_type) noexcept(false) { statement->setNull(paramIndx, data_type); }
+		//функция инициализации даты в формате oracle:
+		TDate initOCCIDate(int yy, UInt mm, UInt dd, UInt hh = 0, UInt mi = 0, UInt sec = 0) const noexcept(true);
 		//функции проверки значений полей/параметров:
 		virtual bool isNullVal(UInt paramIndx) const { return statement->isNull(paramIndx); };
 		//включение/отключение возникновения исключения при пустом значении параметра/колонки
 		void setExceptionOnNull(UInt paramIndx, bool flg = false) { statement->setErrorOnNull(paramIndx, flg); };
+		//функция регистрации выходного параметра:
+		void registerOutParam(UInt paramIndx, const TType& data_type, UInt max_size = 0, const string& sql_type = "") noexcept(false);
 		//Определение собственных функций класса
 		//получение числа параметров запроса:
 		int getParamsCnt(const string& ch) const;
