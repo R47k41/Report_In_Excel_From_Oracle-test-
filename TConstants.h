@@ -45,7 +45,7 @@ namespace NS_Const
 		//блок для данных в объекте Файл
 		FileBegin, name, list_index, col_id, first_row, last_row, filter, FileEnd,
 		//блок для данных в объекте Фильтр
-		FilterBegin, column_index, value, FilterEnd,
+		FilterBegin, column_index, operation, value, FilterEnd,
 		//блок для данных объекта Метод
 		MethodBegin, code, color_if_found, color_not_found, fill_type, MethodEnd,
 		//блок данных для объекта Колонка
@@ -56,7 +56,9 @@ namespace NS_Const
 
 	//методы обработки excel-файлов на основании Json-параметров
 	enum class JSonMeth { Null, CompareRow, CompareCell, GetFromDB, SendToDB, GetRowIDByDB, InsertRowCompare, CompareCellChange, Last };
-
+	//тип операций в объекте фильтра для json-файла
+	enum class JsonFilterOper {Null, Equal, NotEqual, MoreThan, MoreEqualThan, LessThan, LessEqualThan, Like, 
+		LikeNoCase, NotLike, StrEqualNoCase, isEmpty, NotEmpty, Last};
 	//типы закраски ячеек excel для методов json-обработки
 	//используется для суждения об итогах поиска по строке(т.е. найдены ли все ячейки строки или только некоторые)
 	enum class JsonCellFill {Null, CurCell, ID_All_Find, ID_More_One_Find, ID_And_CurCell, Last};
@@ -121,6 +123,24 @@ namespace NS_Const
 	void Trim_Left(string& str);
 	void Trim_Right(string& str);
 	void Trim(string& str);
+	//функция получения текущего разделите целой и дробной части числа:
+	char getNLSNumPoint() noexcept(true);
+	
+	//класс функций работы с датой:
+	namespace DateInteface
+	{
+		//установка формата для вывода даты в потоке:
+		//основано на библиотеки boost\date_time при использовании date_facet
+		//соответствия форматов смотри 
+		//https://www.boost.org/doc/libs/1_49_0/doc/html/date_time/date_time_io.html
+		bool set_stream_date_format(std::ostream& stream, const string& fromat) noexcept(true);
+		//преобразование текущей даты в строку:
+		string cur_date_to_string_by_format(const string& format) noexcept(false);
+		//преобразование года/месяца/дня в строку по формтату
+		string from_date(int yy, size_t mm, size_t dd, const string& format = "%d.&m.%Y") noexcept(true);
+		string from_date(double date_as_dbl, const string& format = "%d.&m.%Y") noexcept(true);
+	};
+
 
 	//базовый интерфейс для константных значений:
 	template <typename T, T min_val, T max_val>
@@ -180,7 +200,7 @@ namespace NS_Const
 	using JS_Const = TConstant<JsonParams, JsonParams::Null, JsonParams::Last>;
 	using JS_Meth = TConstant<JSonMeth, JSonMeth::Null, JSonMeth::Last>;
 	using JS_CellFill = TConstant<JsonCellFill, JsonCellFill::Null, JsonCellFill::Last>;
-
+	using JS_FilterOper = TConstant<JsonFilterOper, JsonFilterOper::Null, JsonFilterOper::Last>;
 
 	//Поля из файла настроек:
 	class TConstField : public TF_Const
@@ -230,6 +250,10 @@ namespace NS_Const
 		TConstExclTune& operator=(const TExclBaseTune& x) { EBT_Const::operator=(x); return*this; }
 		//получение расширения файла:
 		static string getFileExtention(const string& val) noexcept(true);
+		//функция определения является ли файл - шаблонм:
+		static bool isTemplate(const TExclBaseTune& val) noexcept(true);
+		//функция получения кода расширения по его стрококвому представлению:
+		static TExclBaseTune getFileExtCode(const string& ext) noexcept(true);
 		//проверка валидности расширения для excel-файла:
 		static bool isValidExtensions(const string& val) noexcept(true);
 	};
@@ -361,6 +385,7 @@ namespace NS_Const
 		friend string& operator<<(string& str, const JsonParams& param);
 	};
 
+	//класс для описания методов сравнения файлов
 	class TConstJSMeth : public JS_Meth
 	{
 	public:
@@ -374,6 +399,7 @@ namespace NS_Const
 		bool HasSrcFileObj() const noexcept(false);
 		};
 
+	//класс для описания кодов заливки ячеек
 	class TConstJSCellFill : public JS_CellFill
 	{
 	public:
@@ -387,6 +413,41 @@ namespace NS_Const
 		//присвоение
 		TConstJSCellFill& operator=(const JsonCellFill& x) noexcept(true) { JS_CellFill::setValue(x); return *this; }
 		TConstJSCellFill& operator=(size_t x) noexcept(true) { JsonCellFill val = JsonCellFill(x); return operator=(val); }
+	};
+
+	//класс для описания операций фильтрации
+	class TConstJSFilterOper: public JS_FilterOper
+	{
+		protected:
+/*
+			//функция выполнения базовых операций:
+			template <typename Type>
+			static bool runBaseOperation(const Type& val1, const Type& val2,
+				const NS_Const::JsonFilterOper& oper_code) noexcept(true);
+			//функция выполнения операции над двумя значениями:
+			template <typename Type>
+			static bool RunOperation(const Type& val1, const Type& val2,
+				const NS_Const::JsonFilterOper& oper_code) noexcept(true);
+/**/
+		public:
+			//инициализация
+			TConstJSFilterOper(const JsonFilterOper& x = JsonFilterOper::Null) : JS_FilterOper(x) {}
+			explicit TConstJSFilterOper(const int x) : JS_FilterOper(x) {}
+			explicit TConstJSFilterOper(size_t x) : JS_FilterOper(JsonFilterOper(x)) {}
+			//отображение методов
+			static string asStr(const JsonFilterOper& val) noexcept(true);
+			string toStr() const noexcept(true) { return asStr(JS_FilterOper::Value()); }
+			//присвоение
+			TConstJSFilterOper& operator=(const JsonFilterOper& x) noexcept(true) { JS_FilterOper::setValue(x); return *this; }
+			TConstJSFilterOper& operator=(size_t x) noexcept(true) { JsonFilterOper val = JsonFilterOper(x); return operator=(val); }
+			static bool DoubleBaseOperation(double val1, double val2, const NS_Const::JsonFilterOper& oper_code)
+				noexcept(true);
+			static bool BoolBaseOperation(bool val1, bool val2, const NS_Const::JsonFilterOper& oper_code)
+				noexcept(true);
+			static bool IntBaseOperation(int val1, int val2, const NS_Const::JsonFilterOper& oper_code)
+				noexcept(true);
+			static bool StringBaseOperation(const string& val1, const string& val2, 
+				const NS_Const::JsonFilterOper& oper_code) noexcept(true);
 	};
 
 }

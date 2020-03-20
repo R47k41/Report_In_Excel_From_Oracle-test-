@@ -35,6 +35,8 @@ namespace NS_Tune
 	using NS_Const::JsonCellFill;
 	using NS_Const::TConstJSCellFill;
 	using NS_Const::TConstJSMeth;
+	using NS_Const::JsonFilterOper;
+	using NS_Const::TConstJSFilterOper;
 	using boost::property_tree::ptree;
 
 
@@ -163,12 +165,6 @@ namespace NS_Tune
 		FileParam getFileParamByCode(const Types& code) const noexcept(true);
 		//функция получения списка файлов в каталоге из настроек:
 		vector<string> getFileLst(const Types& code, bool use_sort = true) const noexcept(false);
-		//установка формата для вывода даты в потоке:
-		//основано на библиотеки boost\date_time при использовании date_facet
-		//соответствия форматов смотри 
-		//https://www.boost.org/doc/libs/1_49_0/doc/html/date_time/date_time_io.html
-		static bool set_date_format(std::ostream& stream, const string& fromat) noexcept(true);
-		static string cur_date_to_string_by_format(const string& format) noexcept(false);
 		//функция получения имени по коду настроек(использование формата даты)
 		string AddCurDate2Name(const Types& code) const noexcept(false);
 		//функция добавления поля настройки:
@@ -194,10 +190,6 @@ namespace NS_Tune
 		static ValType& getElementByID(const KeyType& par_ID, vector<ValType>& arr)  noexcept(false);
 		template <typename KeyType, typename ValType>
 		static const ValType& getConstElementByID(const KeyType& par_ID, const vector<ValType>& arr)  noexcept(false);
-		/*
-		template <typename KeyType, typename ValType>
-		static const ValType& NS_Tune::TSimpleTune::getValueByID(const KeyType& par_ID, const set<ValType>& arr) noexcept(false);
-		/**/
 		//функция получения значения для параметра:
 		//получение имени исходящего файла/страницы/пути:
 		string getNameByCode(const Types& code) const noexcept(true);
@@ -355,6 +347,8 @@ namespace NS_Tune
 		static string getStrValue(const ptree& parent_node, const JsonParams& tag) noexcept(true);
 		static bool setStrValue(const ptree& parent_node, const JsonParams& tag, const string& val) noexcept(true);
 		static TColor getColorValue(const ptree::value_type& parent_node, const JsonParams& tag) noexcept(true);
+		static JsonFilterOper getOperationCode(const ptree::value_type& parent_node, 
+			const JsonParams& tag) noexcept(true);
 		TIndex(size_t indx = EmptyIndex) : index(indx) {}
 		TIndex(const TIndex& x) : index(x.index) {}
 		TIndex(const ptree::value_type& parent_node, const string& tagStr) : index(EmptyIndex) { setIndexFromJSon(parent_node, tagStr); }
@@ -414,16 +408,27 @@ namespace NS_Tune
 	{
 	private:
 		TIndex col_indx;//индекс колонки, где проверяется условие
+		TConstJSFilterOper operation;//операция при фильтрации
 		string value;//условие/значение фильтрации
+		bool str_flg;//признак, что значение - строка
+		//установка признака значение - строка
+		void setStrFlg() noexcept(true);
 		//установка значений фильмтра из узла json-файла
 		void setData(const ptree::value_type& parent_node,
 			const JsonParams& col_tag = JsonParams::column_index,
+			const JsonParams& oper_tag = JsonParams::operation,
 			const JsonParams& val_tag = JsonParams::value) noexcept(true);
+		//функция проверки является ли данное значение числом:
+		bool isNumberValue(const char separate) const noexcept(true);
 	public:
 		//конструктор
-		TFilterData(std::pair<size_t, string> val) : col_indx(val.first), value(val.second) {}
-		TFilterData(size_t indx, const string& val): col_indx(indx), value(val) {}
-		explicit TFilterData(const ptree::value_type& parent_node) { setData(parent_node); }
+		//TFilterData(std::pair<size_t, string> val) : col_indx(val.first), value(val.second) {}
+		TFilterData(size_t indx, const NS_Const::JsonFilterOper& oper, const string& val): 
+			col_indx(indx), operation(oper), value(val), 
+			str_flg(true) {	setStrFlg(); }
+		explicit TFilterData(const ptree::value_type& parent_node): 
+			col_indx(TIndex::EmptyIndex), operation(NS_Const::JsonFilterOper::Equal), 
+			value(), str_flg(true) { setData(parent_node); }
 		//деструктор
 		~TFilterData() {}
 		//проверка пустого значения
@@ -432,17 +437,30 @@ namespace NS_Tune
 		size_t getColIndx() const noexcept(true) { return col_indx.get(); }
 		//утсановка индекса
 		void setColIndx(size_t val) noexcept(true) { col_indx.set(val); }
+		//получение кода операции:
+		NS_Const::JsonFilterOper getOperationCode() const noexcept(true) { return operation.Value(); }
+		//получение наименования операции:
+		string getOperationName() const noexcept(true) { return operation.toStr(); }
+		//установка кода операции:
+		void setOperationCode(const NS_Const::JsonFilterOper& code) noexcept(false) { operation = code; }
 		//получение значения фильтра строкой
 		inline string getValue() const noexcept(true) { return value; }
+		//получение признака значения, как строки:
+		inline bool ValueIsString() const noexcept(true) { return str_flg; }
 		//установка значения для фильтра
 		inline void setValue(const string& val) noexcept(true) { value = val; }
 		//проверка прохождения фильмтра(возможно не нужна - будем сверять на месте):
-		bool operator==(const string& val) const noexcept(true);
-		bool operator==(const TFilterData& src) const noexcept(true) { return operator==(src.value); }
+		//bool operator==(const string& val) const noexcept(true);
+		//bool operator==(const TFilterData& src) const noexcept(true) { return operator==(src.value); }
 		//получение значений колонка/значение в виде пары:
-		pair<size_t, string> getPair() const noexcept(true) { return std::make_pair(getColIndx(), getValue()); }
+		//pair<size_t, string> getPair() const noexcept(true) { return std::make_pair(getColIndx(), getValue()); }
 		//вывод данных в поток:
 		void show(std::ostream& stream = std::cout) const noexcept(true);
+		//функция сравнения значений:(Не понятно почему, но VS выдает ошибки на шаблоны!!!)
+		bool isFiltredDblValue(const double& val) const noexcept(true);
+		bool isFiltredBoolValue(const bool& val) const noexcept(true);
+		bool isFiltredIntValue(const int& val) const noexcept(true);
+		bool isFiltredStrValue(const string& val) const noexcept(true);
 	};
 
 	using FilterArr = vector<TFilterData>;
@@ -599,6 +617,8 @@ namespace NS_Tune
 		void show(std::ostream& stream = std::cout) const noexcept(true);
 		//получение признака выполнения условия в зависимости от числа элементов, числа ошибок и кода:
 		bool isSuccess(size_t cnt, size_t fail) const noexcept(true);
+		//признак применения цветного шрифта при закраске ячейки:
+		bool useFont() const noexcept(true);
 	};
 
 	//класс Метод обработки ячеек
@@ -641,7 +661,9 @@ namespace NS_Tune
 		//вывод данных в поток:
 		void show(std::ostream& stream = std::cout) const noexcept(true);
 		//функция определения удачного выполнения по коду заливки:
-		bool isSuccess(size_t cnt, size_t fail) const noexcept(true) { return fill_type.isSuccess(cnt, fail); }
+		bool isSuccess(size_t cnt, size_t fail) const noexcept(true);
+		//функция определения признака использования цветного шрифта:
+		bool useFont() const noexcept(true) { return fill_type.useFont(); }
 	};
 
 	using CellDataArr = vector<TCellData>;

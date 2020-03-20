@@ -5,6 +5,7 @@
 //база данных - oracle
 #include <string>
 #include <vector>
+#include <map>
 #include "TExcel.h"
 #include "TuneParam.h"
 #include "TConstants.h"
@@ -36,12 +37,31 @@ namespace NS_ExcelReport
 	using NS_Tune::CellDataArr;
 	using NS_Tune::FilterArr;
 	using TRowFlag = std::pair<size_t, bool>;//строка и признак ее обработки
-	using TRowsFlag = std::vector<TRowFlag>;
+	//был vector
+	using TRowsFlag = std::map<size_t, bool>;//массив строк с признаком обработки
 	using TRowsTNS = std::pair<std::string, TRowsFlag>;
-	using TFillFormat = std::pair<size_t, size_t>;
-	using TFillFrmts = std::vector<TFillFormat>;
-	using TConvertType = std::pair<NS_Oracle::TType, size_t>;
+//	using TFillFormat = std::pair<size_t, size_t>;
+//	using TFillFrmts = std::vector<TFillFormat>;
+//	using TConvertType = std::pair<NS_Oracle::TType, size_t>;
 
+	//структура описывающая взаимодействие индексов форматов листа excel-файла:
+	struct TCellFormatIndex
+	{
+		size_t Current;//индекс текущего формата ячейки в excel-файле
+		size_t NotFound;//формат ячейки если данные не найдены
+		size_t Found;//формат ячейки если данные найдены
+		bool InitFlg;//признак инициализации значений
+		//инициализация:
+		TCellFormatIndex(): Current(), NotFound(), Found(), InitFlg(false) {}
+		explicit TCellFormatIndex(size_t par_Curent);
+		TCellFormatIndex(const TCellFormatIndex& val): Current(val.Current), NotFound(val.NotFound), 
+			Found(val.Found), InitFlg(true) {}
+		TCellFormatIndex(size_t par_Curent, size_t par_NotFound, size_t par_Found);
+		~TCellFormatIndex() {}
+	};
+
+	using TCellFormat = std::pair<size_t, TCellFormatIndex>;//индекс колонки, индекс ее форматов в книге
+	using TCellsFormatArr = std::map<size_t, TCellFormatIndex>;//индекс колонки, индекс ее форматов в книге
 
 	//число строк извлекаемое за одно обращение к БД
 	const int PrefetchRowsCnt = 200;
@@ -52,31 +72,44 @@ namespace NS_ExcelReport
 	protected:
 		TExcelBook& book;//ссылка на excel-файл
 		TExcelBookSheet sheet;//лист excel-книги(НУМЕРАЦИЯ ЛИСТОВ ИДЕТ ОТ 0!!!)
+		TCellsFormatArr cells_format_indexs;//индексы форматов ячеек
+		//функция добавления формата ячейки в массив форматов:
+		virtual bool addCurCellFormat(size_t Row, size_t Col) noexcept(true);
+		//функция инициализации массива форматов для ячеек строки из шаблона:
+		virtual bool initRowFormat() noexcept(true);
+		//функция проверки наличия форматов для книги:
+		bool EmptyCellsIndexFormat() const noexcept(true) { return cells_format_indexs.empty(); }
+		//функция установки формата для ячейки
+		bool setCellFormat(size_t Row, size_t Column, NS_Excel::TExcelBookFormat& format) noexcept(true);
+		//функция получения ссылки на форматы ячейки/колонки:
+		TCellFormatIndex& getFormatIndexByCell(size_t Column) noexcept(false) { return cells_format_indexs[Column]; }
+		//функция получения ссылки на формат для указанной колонки:
+		NS_Excel::FormatPtr getCellFormatPtr(const NS_Excel::TExcelCell& cell) noexcept(true);
+		//функция уставноки формата для ячейки для элемента массива:
+		virtual bool setCellFormatByIndexArr(size_t Row, size_t IndexArr) noexcept(true);
+		//функция выставления форматов ячеек для строки из массива:
+		bool setRowCellsFormat(size_t Row) noexcept(true);
 		//проверка на необходимость создания новой страницы:
 		virtual bool NeedNewPage(size_t item_cnt, bool byRows = true) const noexcept(false);
 		//функция получения первой/последней строки страницы:
 		virtual size_t getRow(bool first) const noexcept(false) = 0;
 		//функция открытия указанной книги на указанной странице:
 		virtual bool OpenBookSheet(const string& srcName, size_t page) noexcept(true);
-		//функция установки формата для ячейки
-		bool setCellFormat(size_t Row, size_t Column, NS_Excel::TExcelBookFormat& format) noexcept(true);
 		//проверка типов данных в ячейках разных листов:
 		bool EqualCellsType(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
 			const NS_Excel::TExcelCell& srcCell) const noexcept(false);
-		//функция проверки соответствия значения в ячйеке:
-		bool checkCellStrVal(const NS_Excel::TExcelCell& cell, const string& val, bool showLog = true) const noexcept(false);
 		//функция добавления новой строки в лист отчета
 		bool InsNewRow(size_t curRow, size_t newRow) noexcept(true);
 	public:
 		//инициализация ссылкой на книгу и ссылкой на страницу данной книги:
 		explicit TBaseSheetReport(TExcelBook& book_ref, NS_Excel::SheetPtr sheet_ref = nullptr) :
-			book(book_ref), sheet(sheet_ref) {}
+			book(book_ref), sheet(sheet_ref), cells_format_indexs() {}
 		TBaseSheetReport(TExcelBook& book_ref, const NS_Excel::TExcelBookSheet& sheet_ref): 
-			book(book_ref), sheet(sheet_ref)	{}
+			book(book_ref), sheet(sheet_ref), cells_format_indexs()	{}
 		//инициализация книги при помощи открытия другой книги:
 		//указанная страница становится активной для обработки:
 		TBaseSheetReport(TExcelBook& book_ref, const string& src_file, size_t page_index);
-		virtual ~TBaseSheetReport() {}
+		virtual ~TBaseSheetReport() { /*if (cells_format_indexs.size() > 0) cells_format_indexs.clear();*/ }
 		//функция получения начальной строки отчета:
 		virtual size_t FirstRow() const noexcept(false) { return getRow(true); }
 		//функция получения последней строки отчета:
@@ -85,6 +118,8 @@ namespace NS_ExcelReport
 		virtual bool inRange(size_t row, size_t col) const noexcept(false);
 		//функция признака пустых данных на excel-странице
 		bool isEmptySheetData() const noexcept(true) { return sheet.getFirstRow() == sheet.getLastRow(); }
+		//признак пустого массива форматов:
+		bool EmptyRowFormat() const noexcept(true) { return cells_format_indexs.empty(); }
 		//функция проверки страницы:
 		bool NoSheet() const noexcept(true) { return !sheet.isValid(); }
 		//функция получения имени страницы:
@@ -109,12 +144,14 @@ namespace NS_ExcelReport
 		virtual size_t getRow(bool first) const noexcept(false) { return first ? rowB : rowE; }
 		//функция сверки данных в указанной ячейке c ячейкой другого листа:
 		bool Compare_Cells(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
-			const NS_Excel::TExcelCell& srcCell, bool NoSpaceNoCase = true) const noexcept(true);
+			const NS_Excel::TExcelCell& srcCell, const NS_Const::JsonFilterOper& operation) const noexcept(true);
+		//функция проверки корректности условия фильтра для ячейки:
+		bool checkByFilter(const NS_Tune::TFilterData& filter, size_t Row) const noexcept(true);
 	public:
 		//инициализация json-файлом настроек:
 		TExtendSheetReport(TExcelBook& book_ref, const TShareData& file, size_t page);
 		//деинициализация
-		virtual ~TExtendSheetReport() { TBaseSheetReport::~TBaseSheetReport(); }
+		virtual ~TExtendSheetReport() { }
 		//функция проверки наличия Col_ID:
 		virtual bool noColID() const noexcept(true) { return colID == NS_Tune::TIndex::EmptyIndex; }
 		//функция проверки ячейки на пустоту:
@@ -131,8 +168,6 @@ namespace NS_ExcelReport
 		virtual bool isCorrectFilter(size_t curRow) const noexcept(true);
 		//формирование массива отфильтрованных строк для указанных услови фильтрации:
 		TRowsFlag setFiltredRowsArr() const noexcept(true);
-		//исключение из массива отфильтрованных строк указанной строки:
-		static bool dropFromFiltredRows(NS_ExcelReport::TRowsFlag& RowsArr, size_t row) noexcept(true);
 		//функция поиска данных о ячейке приемника в текущей строке источника
 		bool CheckInCell(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
 			const NS_Excel::TExcelCell& srcCell, bool NoSpaceNoCase = true) const noexcept(true);
@@ -157,9 +192,10 @@ namespace NS_ExcelReport
 	{
 	private:
 		string main_path;//директория файлов для формирования отчета
-		TFillFrmts frmt_arr;//массив форматов закраски ячеек
 		const TProcCell& cells_data;//информация по ячейкам
 		NS_Const::JSonMeth meth_code;//метод обработки данных
+		//функция проверки принадлежности ячейки к параметрам:
+		bool isParamColumn(size_t Col) const noexcept(true);
 		//функция проверки необходимости проверять изменения:
 		bool WithChangeMeth() const noexcept(true) { return meth_code == NS_Const::JSonMeth::CompareCellChange; }
 		//функция установки параметра запроса для ячейки:
@@ -182,16 +218,23 @@ namespace NS_ExcelReport
 		//функция установки параметров для выражения:
 		bool setStatementParam(NS_Oracle::TStatement& query, const NS_Tune::TCellData& value, size_t Row) const noexcept(true);
 		//функция установки параметров формата:
-		virtual size_t crtFillFormat(NS_Excel::TExcelBookFormat& init_format, bool find_flg, bool font_flg) noexcept(false);
+		virtual bool addFillFormat(size_t init_format_index, bool find_flg, bool font_flg, 
+			size_t& AddedFormatIndex) noexcept(false);
 		//функция формирования формата для ячейки
-		virtual void crtCellFillFormat(size_t Row, size_t Col, bool font_flg) noexcept(false);
-		//функция формирования формата для строки:
-		virtual void crtRowFillFormat(size_t Row, const NS_Const::JsonCellFill& fill_code) noexcept(true);
-		//функция формирования форматов для закраски ячеек:
-		virtual void crtCellFillFormatArr() noexcept(true);
-		//обработка ячейки строки
-		virtual bool ColoringRowCell(size_t Row, size_t Col, size_t index, bool find_flg) noexcept(true);
-		virtual bool ColoringRowCell(const NS_Excel::TExcelCell& cell, size_t index, bool find_flg) noexcept(true);
+		virtual bool addCellFillFormat(size_t Row, size_t Col, bool font_flg) noexcept(true);
+		//функция инициализации формата ячейки:
+		virtual bool addCurCellFormat(size_t Row, size_t Col) noexcept(true);
+		//функция инициализации массива форматов для ячеек строки из шаблона:
+		virtual bool initRowFormat() noexcept(true);
+		//проверка можно ли закрашивать ячейку в зависимости от метода:
+		bool useColoring(bool FndFlg, bool ChngFlg) const noexcept(true);
+		//закраска ячейки строки
+		virtual bool ColoringRowCell(size_t Row, size_t Col, bool find_flg) noexcept(true);
+		//закраска ячейки в зависимости от выполненной обработки найденной ячейки
+		virtual bool ColoringRowCell(const NS_Excel::TExcelCell& cell, bool find_flg, bool procFlg) noexcept(true);
+		//функция закраски строки:
+		virtual bool ColoringRowByFlg(size_t curRow, bool FndFlg, bool ChngFlg) noexcept(true);
+		virtual bool ColoringRowByCnt(size_t curRow, size_t FindCnt, size_t FailCnt) noexcept(true);
 		//окраска ячейки в зависимости от метода и параметров
 		virtual bool ColoringCellByParam(const NS_Tune::TCellData& param, size_t curRow, size_t frmt_index, 
 			bool fing_flg) noexcept(true);
@@ -343,7 +386,8 @@ namespace NS_ExcelReport
 		static size_t runDML(TDBConnect& db, const TUserTune& param, bool use_comit = true) noexcept(true);
 		//установка значения поля по типу данных из индекса ячейки sql-данных
 		static void setCellByResultSet(TExcelBook& book, TExcelBookSheet& sheet, const NS_Const::DataType& dt,
-			const NS_Oracle::TBaseSet& bs, size_t resultSetCol, const NS_Excel::TExcelCell& cell) noexcept(false);
+			const NS_Oracle::TBaseSet& bs, size_t resultSetCol, const NS_Excel::TExcelCell& cell, 
+			const NS_Excel::FormatPtr format) noexcept(false);
 		//установка числа итераций для запроса:
 		static bool setMaxIterationCnt(TStatement& query, size_t cnt) noexcept(true);
 		//добавление итерации для запроса:

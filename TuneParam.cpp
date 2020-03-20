@@ -5,10 +5,9 @@
 #include <algorithm>
 #include <stdlib.h>
 #include <boost/filesystem.hpp>
-#include <boost/date_time/gregorian/gregorian.hpp>
 #include "TuneParam.h"
 #include "Logger.h"
-#include "TConverter.hpp"
+#include "TConverter.h"
 
 
 using std::string;
@@ -16,12 +15,14 @@ using std::vector;
 using std::set;
 using std::size_t;
 using std::streampos;
+using NS_Logger::TLog;
 
 template void NS_Tune::TShareData::setArrayByJson<NS_Tune::TSheetData>(const ptree::value_type& node, const JsonParams& tag,
 	vector<NS_Tune::TSheetData>& arr);
 
 template void NS_Tune::TShareData::setArrayByJson<NS_Tune::TFilterData>(const ptree::value_type& node, const JsonParams& tag,
 	vector<NS_Tune::TFilterData>& arr);
+
 
 namespace NS_Tune
 {
@@ -318,42 +319,10 @@ string NS_Tune::TSimpleTune::getPathByCode(const Types& code) const noexcept(tru
 	return path;
 }
 
-bool NS_Tune::TSimpleTune::set_date_format(std::ostream& stream, const string& format) noexcept(true)
-{
-	using std::locale;
-	using boost::gregorian::date_facet;
-	if (format.empty()) return false;
-	try
-	{
-		locale loc(stream.getloc(), new date_facet(format.c_str()));
-		stream.imbue(loc);
-	}
-	catch (...)
-	{
-		NS_Logger::TLog("Ошибка при установке локали " + format + " потока!", "TSimpleTune::set_date_format");
-		return false;
-	}
-	return true;
-}
-
-string NS_Tune::TSimpleTune::cur_date_to_string_by_format(const string& format) noexcept(false)
-{
-	using boost::gregorian::day_clock;
-	using boost::gregorian::date;
-	using std::stringstream;
-	stringstream ss;
-	if (set_date_format(ss, format))
-	{
-		//получение текущей даты
-		date d = day_clock::local_day();
-		ss << d;
-		return ss.str();
-	}
-	return string();
-}
 
 string NS_Tune::TSimpleTune::AddCurDate2Name(const Types& code) const noexcept(false)
 {
+	using NS_Const::DateInteface::cur_date_to_string_by_format;
 	string format;
 	switch (code)
 	{
@@ -1046,6 +1015,49 @@ NS_Tune::TColor NS_Tune::TIndex::getColorValue(const ptree::value_type& parent_n
 	return TColor::COLOR_NONE;
 }
 
+NS_Const::JsonFilterOper NS_Tune::TIndex::getOperationCode(const ptree::value_type& parent_node, 
+	const NS_Const::JsonParams& tag) noexcept(true)
+{
+	using NS_Const::JsonFilterOper;
+	using NS_Const::TConstJson;
+	using NS_Const::EmptyType;
+	using boost::property_tree::json_parser_error;
+	string v_tag = TConstJson::asStr(tag);
+	try
+	{
+		if (v_tag.empty())
+			throw TLog("Не указано строкового представления для тега!", "TIndex::getOperationCode");
+		//получение тега:
+		if (TConstJson::isTag(tag) == false)
+		{
+			throw TLog("Указанный тег не обрабатывается!");
+		}
+		//если данные в корне пустые или тег не обрабатывается:
+		if (parent_node.second.empty())
+			throw TLog("Пустое содержимое в JSon-файле!", "TIndex::getOperationCode");
+		//получение данных:
+		int val = parent_node.second.get_child(v_tag).get_value<int>();
+		return JsonFilterOper(val);
+
+	}
+	catch (const json_parser_error& err)
+	{
+		TLog log("Ошибка парсинга json-файла: ", "TIndex::getOperationCode");
+		log << err.what() << '\n';
+		log.toErrBuff();
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при получении кода операции из json-файла для тега: " + v_tag, 
+			"TIndex::getOperationCode").toErrBuff();
+	}
+	return JsonFilterOper::Null;
+}
+
 string NS_Tune::TIndex::getStrValue(const ptree::value_type& parent_node, const JsonParams& tag) noexcept(true)
 {
 	return getStrValue(parent_node.second, tag);
@@ -1118,22 +1130,52 @@ void NS_Tune::TSheetData::show(std::ostream& stream) const noexcept(true)
 		last_row.show(stream, "Индекс последней строки: ");
 }
 
-void NS_Tune::TFilterData::setData(const ptree::value_type& parent_node,
-	const JsonParams& col_tag, const JsonParams& val_tag) noexcept(true)
+void NS_Tune::TFilterData::setStrFlg() noexcept(true)
 {
-	col_indx.setByJSon(parent_node, col_tag);
-	value = TIndex::getStrValue(parent_node, val_tag);
+	using NS_Const::getNLSNumPoint;
+	if (isNumberValue(getNLSNumPoint()) == true)
+		str_flg = false;
+	else
+		str_flg = true;
 }
 
-bool NS_Tune::TFilterData::operator==(const string& val) const noexcept(true)
+
+void NS_Tune::TFilterData::setData(const ptree::value_type& parent_node,
+	const JsonParams& col_tag, const JsonParams& oper_tag, const JsonParams& val_tag) noexcept(true)
 {
-	using NS_Const::Trim;
-	using NS_Const::LowerCase;
-	string a = LowerCase(value);
-	string b = LowerCase(val);
-	Trim(a);
-	Trim(b);
-	return a == b;
+	col_indx.setByJSon(parent_node, col_tag);
+	operation = TIndex::getOperationCode(parent_node, oper_tag);
+	value = TIndex::getStrValue(parent_node, val_tag);
+	setStrFlg();
+}
+
+bool NS_Tune::TFilterData::isNumberValue(const char separate) const noexcept(true)
+{
+	//using std::isdigit;
+	try
+	{
+		if (value.empty()) return false;
+		size_t i = 0;
+		//если первый символ не цифра - выход
+		for (const unsigned char& ch: value)
+		{
+			//если хотя бы один символ не цифра - это строка
+			if (isdigit(ch) or ch == separate) continue;
+			return false;
+		}
+		return true;
+	}
+	catch (const std::exception& err)
+	{
+		TLog log("Ошибка определения отношения значения: ", "TFilterData::isNumberValue");
+		log << value << " к числу:\n" << err.what() << '\n';
+		log.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Ошибка определения отношения значения: " + value + " к числу!", "TFilterData::isNumberValue").toErrBuff();
+	}
+	return false;
 }
 
 void NS_Tune::TFilterData::show(std::ostream& stream) const noexcept(true)
@@ -1141,8 +1183,50 @@ void NS_Tune::TFilterData::show(std::ostream& stream) const noexcept(true)
 	if (stream and !isEmpty())
 	{
 		col_indx.show(stream, "Индекс колонки для фильтрации: ");
+		stream << "Операция сравнения: " << getOperationName() << std::endl;
 		stream << "Значение фильтра: " << value << std::endl;
 	}
+}
+
+bool NS_Tune::TFilterData::isFiltredBoolValue(const bool& val) const noexcept(true)
+{
+	using NS_Const::TConstJSFilterOper;
+	//преобразование значение из фильтра в значение из вне:
+	bool tmp = false;
+	if (NS_Converter::toType(value, &tmp) == false)
+		return false;
+	return TConstJSFilterOper::BoolBaseOperation(val, tmp, operation.Value());
+}
+
+bool NS_Tune::TFilterData::isFiltredDblValue(const double& val) const noexcept(true)
+{
+	using NS_Const::TConstJSFilterOper;
+	//преобразование значение из фильтра в значение из вне:
+	double tmp = 0;
+	if (NS_Converter::toType(value, &tmp) == false)
+		return false;
+	return TConstJSFilterOper::DoubleBaseOperation(val, tmp, operation.Value());
+}
+
+bool NS_Tune::TFilterData::isFiltredIntValue(const int& val) const noexcept(true)
+{
+	using NS_Const::TConstJSFilterOper;
+	//преобразование значение из фильтра в значение из вне:
+	double tmp = 0;
+	if (NS_Converter::toType(value, &tmp) == false)
+		return false;
+	return TConstJSFilterOper::IntBaseOperation(val, tmp, operation.Value());
+}
+
+
+bool NS_Tune::TFilterData::isFiltredStrValue(const std::string& val) const noexcept(true)
+{
+	using NS_Const::TConstJSFilterOper;
+	//если стоит признак строкового значения
+	if (str_flg)
+		return TConstJSFilterOper::StringBaseOperation(val, value, operation.Value());
+	else
+		return false;
 }
 
 template <typename Type>
@@ -1347,14 +1431,26 @@ bool NS_Tune::TCellFillType::isSuccess(size_t cnt, size_t fail) const noexcept(t
 	using NS_Const::JsonCellFill;
 	switch (code.Value())
 	{
-	case JsonCellFill::CurCell: 
-	case JsonCellFill::ID_All_Find:
-		return cnt > 0 and fail == 0;
-	case JsonCellFill::ID_More_One_Find:
-	case JsonCellFill::ID_And_CurCell:
-		return cnt > fail;
+		case JsonCellFill::CurCell: 
+		case JsonCellFill::ID_All_Find:
+			return cnt > 0 and fail == 0;
+		case JsonCellFill::ID_More_One_Find:
+		case JsonCellFill::ID_And_CurCell:
+			return cnt > fail;
 	}
 	return true;
+}
+
+bool NS_Tune::TCellFillType::useFont() const noexcept(true)
+{
+	using NS_Const::JsonCellFill;
+	switch (code.Value())
+	{
+		case JsonCellFill::CurCell:
+		case JsonCellFill::ID_And_CurCell:
+			return true;
+	}
+	return false;
 }
 
 void NS_Tune::TCellMethod::setMethod(ptree::value_type& node, const JsonParams& code_tag) noexcept(true)
@@ -1397,6 +1493,21 @@ void NS_Tune::TCellMethod::show(std::ostream& stream) const noexcept(true)
 	else
 		stream << "Метод обработки: " << code.toStr() << endl;
 	fill_type.show(stream);
+}
+
+bool NS_Tune::TCellMethod::isSuccess(size_t cnt, size_t fail) const noexcept(true)
+{ 
+	using NS_Const::JSonMeth;
+	switch (code.Value())
+	{
+		case JSonMeth::CompareCellChange:
+//			return cnt > fail;
+		case JSonMeth::CompareCell:
+		case JSonMeth::CompareRow:
+		case JSonMeth::InsertRowCompare:
+			return fill_type.isSuccess(cnt, fail);
+	}
+	return false;
 }
 
 void NS_Tune::TProcCell::InitSrcFile(ptree& node, const JsonParams& tag, const string& main_path) noexcept(true)

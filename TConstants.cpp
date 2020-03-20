@@ -4,10 +4,45 @@
 #include <algorithm>
 #include <sstream>
 #include <cstring>
+#include <boost/date_time/gregorian/gregorian.hpp>
 #include "TConstants.h"
 #include "Logger.h"
 
 using std::string;
+
+//явное инстанцирование для шаблонов
+//http://www.cyberforum.ru/cpp-beginners/thread1798717.html#post9488987
+template NS_Const::TConstant<NS_Const::TuneField, NS_Const::TuneField::Empty, NS_Const::TuneField::Last>;
+template NS_Const::TConstant<NS_Const::DataType, NS_Const::DataType::ErrorType, NS_Const::DataType::Last>;
+template NS_Const::TConstant<NS_Const::TExclBaseTune, NS_Const::TExclBaseTune::Empty, NS_Const::TExclBaseTune::Last>;
+template NS_Const::TConstant<NS_Const::ReportCode, NS_Const::ReportCode::Empty, NS_Const::ReportCode::Last>;
+template NS_Const::TConstant<NS_Const::TSql, NS_Const::TSql::Empty, NS_Const::TSql::Last>;
+template NS_Const::TConstant<NS_Const::CtrlSym, NS_Const::CtrlSym::Empty, NS_Const::CtrlSym::Last>;
+template NS_Const::TConstant<NS_Const::JsonParams, NS_Const::JsonParams::Null, NS_Const::JsonParams::Last>;
+template NS_Const::TConstant<NS_Const::JSonMeth, NS_Const::JSonMeth::Null, NS_Const::JSonMeth::Last>;
+template NS_Const::TConstant<NS_Const::JsonCellFill, NS_Const::JsonCellFill::Null, NS_Const::JsonCellFill::Last>;
+template NS_Const::TConstant<NS_Const::JsonFilterOper, NS_Const::JsonFilterOper::Null, NS_Const::JsonFilterOper::Last>;
+
+
+//добавление фунцкии в область DateInterface
+namespace NS_Const
+{
+	namespace DateInteface
+	{
+		//преобразование даты в строку:
+		string date_to_string(const boost::gregorian::date& v_date,
+			const string& format = "%d.&m.%Y") noexcept(false);
+	}
+}
+
+//инстанцирование шаблонных функций:
+//template <typename Type>
+//bool NS_Const::TConstJSFilterOper::runBaseOperation(const Type& val1, const Type& val2, 
+//	const NS_Const::JsonFilterOper& oper_code) noexcept(true);
+
+//template <typename Type>
+//bool NS_Const::TConstJSFilterOper::RunOperation(const Type& val1, const Type& val2,
+//	const NS_Const::JsonFilterOper& oper_code) noexcept(true);
 
 //преобразование в нижний регистр:
 string NS_Const::LowerCase(const string& str)
@@ -59,6 +94,71 @@ void NS_Const::Trim(string& str)
 	Trim_Right(str);
 }
 
+char NS_Const::getNLSNumPoint() noexcept(true)
+{
+	using std::locale;
+	//текущая локаль
+	locale loc("");
+	//инициализация фасета числа:
+	const std::numpunct<char>& numsep = std::use_facet<std::numpunct<char> >(loc);
+	return numsep.decimal_point();
+}
+
+bool NS_Const::DateInteface::set_stream_date_format(std::ostream& stream, const string& format) noexcept(true)
+{
+	using std::locale;
+	using boost::gregorian::date_facet;
+	if (format.empty()) return false;
+	try
+	{
+		locale loc(stream.getloc(), new date_facet(format.c_str()));
+		stream.imbue(loc);
+	}
+	catch (...)
+	{
+		NS_Logger::TLog("Ошибка при установке локали " + format + " потока!", "TSimpleTune::set_date_format");
+		return false;
+	}
+	return true;
+}
+
+string NS_Const::DateInteface::date_to_string(const boost::gregorian::date& v_date,	const string& format) noexcept(false)
+{
+	using boost::gregorian::date;
+	using std::stringstream;
+	//если это не дата
+	if (v_date.is_not_a_date()) return string();
+	stringstream ss;
+	//установка формата вывода данных
+	if (set_stream_date_format(ss, format))
+	{
+		ss << v_date;
+		return ss.str();
+	}
+	return string();
+}
+
+
+string NS_Const::DateInteface::cur_date_to_string_by_format(const string& format) noexcept(false)
+{
+	using boost::gregorian::day_clock;
+	return date_to_string(day_clock::local_day(), format);
+}
+
+string NS_Const::DateInteface::from_date(int yy, size_t mm, size_t dd, const string& format) noexcept(true)
+{
+	using boost::gregorian::date;
+	//using boost::date_time::date;
+	date v_date = date(yy, mm, dd);
+	return date_to_string(v_date, format);
+}
+
+string NS_Const::DateInteface::from_date(double date_as_dbl, const string& format) noexcept(true)
+{
+	using boost::gregorian::date;
+	date v_date = date(date_as_dbl);
+	return date_to_string(v_date, format);
+}
 
 template <typename T, T min_val, T max_val>
 bool NS_Const::TConstant<T, min_val, max_val>::isValid(const T& a, const T& b, bool exit_on_err) const noexcept(false)
@@ -224,6 +324,25 @@ bool NS_Const::TConstExclTune::isValidExtensions(const string& val) noexcept(tru
 	if (val == asStr(TExclBaseTune::xls) or val == asStr(TExclBaseTune::xlsx)
 		or val == asStr(TExclBaseTune::xlt))
 		return true;
+	return false;
+}
+
+NS_Const::TExclBaseTune NS_Const::TConstExclTune::getFileExtCode(const string& ext) noexcept(true)
+{
+	if (ext.empty()) return TExclBaseTune::Empty;
+	TConstExclTune val(TExclBaseTune::xlt);
+	for (; val <= TExclBaseTune::xlsx; val.Next())
+		if (val.toStr() == ext) return val.Value();
+	return TExclBaseTune::Empty;
+}
+
+bool NS_Const::TConstExclTune::isTemplate(const TExclBaseTune& val) noexcept(true)
+{
+	switch (val)
+	{
+		case TExclBaseTune::xlt: return true;
+		default: return false;
+	}
 	return false;
 }
 
@@ -491,6 +610,7 @@ string NS_Const::TConstJson::asStr(const JsonParams& val) noexcept(true)
 	case JsonParams::last_row: return "last_row";
 	case JsonParams::filter: return "fltr";
 	case JsonParams::column_index: return "col_indx";
+	case JsonParams::operation: return "operation";
 	case JsonParams::value: return "value";
 	case JsonParams::dst_index: return "dst_indx";
 	case JsonParams::dst_insert_index: return "dst_ins_indx";
@@ -593,14 +713,246 @@ string NS_Const::TConstJSCellFill::asStr(const NS_Const::JsonCellFill& val) noex
 	return string();
 }
 
-//явное инстанцирование для шаблонов
-//http://www.cyberforum.ru/cpp-beginners/thread1798717.html#post9488987
-template NS_Const::TConstant<NS_Const::TuneField, NS_Const::TuneField::Empty, NS_Const::TuneField::Last>;
-template NS_Const::TConstant<NS_Const::DataType, NS_Const::DataType::ErrorType, NS_Const::DataType::Last>;
-template NS_Const::TConstant<NS_Const::TExclBaseTune, NS_Const::TExclBaseTune::Empty, NS_Const::TExclBaseTune::Last>;
-template NS_Const::TConstant<NS_Const::ReportCode, NS_Const::ReportCode::Empty, NS_Const::ReportCode::Last>;
-template NS_Const::TConstant<NS_Const::TSql, NS_Const::TSql::Empty, NS_Const::TSql::Last>;
-template NS_Const::TConstant<NS_Const::CtrlSym, NS_Const::CtrlSym::Empty, NS_Const::CtrlSym::Last>;
-template NS_Const::TConstant<NS_Const::JsonParams, NS_Const::JsonParams::Null, NS_Const::JsonParams::Last>;
-template NS_Const::TConstant<NS_Const::JSonMeth, NS_Const::JSonMeth::Null, NS_Const::JSonMeth::Last>;
-template NS_Const::TConstant<NS_Const::JsonCellFill, NS_Const::JsonCellFill::Null, NS_Const::JsonCellFill::Last>;
+string NS_Const::TConstJSFilterOper::asStr(const NS_Const::JsonFilterOper& val) noexcept(true)
+{
+	using NS_Const::JsonFilterOper;
+	switch (val)
+	{
+		case JsonFilterOper::Equal: return "==";
+		case JsonFilterOper::NotEqual: return "!=";
+		case JsonFilterOper::MoreThan: return ">";
+		case JsonFilterOper::MoreEqualThan: return ">=";
+		case JsonFilterOper::LessThan: return "<";
+		case JsonFilterOper::LessEqualThan: return "<=";
+		case JsonFilterOper::Like: return "like";
+		case JsonFilterOper::LikeNoCase: return "lower(trim(like))";
+		case JsonFilterOper::NotLike: return "!like";
+		case JsonFilterOper::StrEqualNoCase: "lower(trim(==))";
+		case JsonFilterOper::isEmpty: return "is null";
+		case JsonFilterOper::NotEmpty: return "is not null";
+	}
+	return "операция не определена";
+}
+
+/*
+template <typename Type>
+bool NS_Const::TConstJSFilterOper::runBaseOperation(const Type& val1, const Type& val2,
+	const NS_Const::JsonFilterOper& oper_code) noexcept(true)
+{
+	using NS_Logger::TLog;
+	try
+	{
+		//выполнение операции фильрации в зависимости от кода:
+		switch (oper_code)
+		{
+			case JsonFilterOper::Equal: return val1 == val2;
+			case JsonFilterOper::NotEqual: return val1 != val2;
+			case JsonFilterOper::MoreThan: return val1 > val2;
+			case JsonFilterOper::MoreEqualThan: return val1 >= val2;
+			case JsonFilterOper::LessThan: return val1 < val2;
+			case JsonFilterOper::LessEqualThan: return val1 <= val2;
+			default:
+			{
+				TLog log("Указанная операция: ", "TConstJSFilterOper::runBaseOperation");
+				log << asStr(oper_code) << " не относится к списку базовых операций типа: ";
+				const std::type_info& ti = typeid(val1);
+				log << ti.name() << '\n';
+				throw log;
+			}
+		}
+	}
+	catch (const std::exception& err)
+	{
+		TLog(err.what(), "TConstJSFilterOper::runBaseOperation").toErrBuff();
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Ошибка выполнения оперции: ", "TConstJSFilterOper::runBaseOperation");
+		log << asStr(oper_code) << " для значений: " << val1 << " и " << val2 << '\n';
+		log.toErrBuff();
+	}
+	return false;
+}
+
+template <typename Type>
+bool NS_Const::TConstJSFilterOper::RunOperation(const Type& val1, const Type& val2,
+	const NS_Const::JsonFilterOper& oper_code) noexcept(true)
+{
+	return runBaseOperation(val1, val2, oper_code);
+}
+/**/
+
+bool NS_Const::TConstJSFilterOper::DoubleBaseOperation(double val1, double val2, const NS_Const::JsonFilterOper& oper_code)
+noexcept(true)
+{
+	using NS_Logger::TLog;
+	try
+	{
+		//выполнение операции фильрации в зависимости от кода:
+		switch (oper_code)
+		{
+		case JsonFilterOper::Equal: return val1 == val2;
+		case JsonFilterOper::NotEqual: return val1 != val2;
+		case JsonFilterOper::MoreThan: return val1 > val2;
+		case JsonFilterOper::MoreEqualThan: return val1 >= val2;
+		case JsonFilterOper::LessThan: return val1 < val2;
+		case JsonFilterOper::LessEqualThan: return val1 <= val2;
+		default:
+		{
+			TLog log("Указанная операция: ", "TConstJSFilterOper::DoubleBaseOperation");
+			log << asStr(oper_code) << " не относится к списку базовых операций типа double!\n";
+			throw log;
+		}
+		}
+	}
+	catch (const std::exception& err)
+	{
+		TLog(err.what(), "TConstJSFilterOper::DoubleBaseOperation").toErrBuff();
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Ошибка выполнения оперции: ", "TConstJSFilterOper::DoubleBaseOperation");
+		log << asStr(oper_code) << " для значений: " << val1 << " и " << val2 << '\n';
+		log.toErrBuff();
+	}
+	return false;
+}
+
+bool NS_Const::TConstJSFilterOper::BoolBaseOperation(bool val1, bool val2, const NS_Const::JsonFilterOper& oper_code)
+noexcept(true)
+{
+	using NS_Logger::TLog;
+	try
+	{
+		//выполнение операции фильрации в зависимости от кода:
+		switch (oper_code)
+		{
+		case JsonFilterOper::Equal: return val1 == val2;
+		case JsonFilterOper::NotEqual: return val1 != val2;
+		default:
+		{
+			TLog log("Указанная операция: ", "TConstJSFilterOper::BoolBaseOperation");
+			log << asStr(oper_code) << " не относится к списку базовых операций типа bool!\n";
+			throw log;
+		}
+		}
+	}
+	catch (const std::exception& err)
+	{
+		TLog(err.what(), "TConstJSFilterOper::BoolBaseOperation").toErrBuff();
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Ошибка выполнения оперции: ", "TConstJSFilterOper::BoolBaseOperation");
+		log << asStr(oper_code) << " для значений: ";
+		if (val1)
+			log << "true ";
+		else
+			log << "false ";
+		log << " и ";
+		if (val2)
+			log << "true";
+		else
+			log << "false\n";
+		log.toErrBuff();
+	}
+	return false;
+}
+
+bool NS_Const::TConstJSFilterOper::IntBaseOperation(int val1, int val2, const NS_Const::JsonFilterOper& oper_code)
+noexcept(true)
+{
+	using NS_Logger::TLog;
+	try
+	{
+		//выполнение операции фильрации в зависимости от кода:
+		switch (oper_code)
+		{
+		case JsonFilterOper::Equal: return val1 == val2;
+		case JsonFilterOper::NotEqual: return val1 != val2;
+		case JsonFilterOper::MoreThan: return val1 > val2;
+		case JsonFilterOper::MoreEqualThan: return val1 >= val2;
+		case JsonFilterOper::LessThan: return val1 < val2;
+		case JsonFilterOper::LessEqualThan: return val1 <= val2;
+		default:
+		{
+			TLog log("Указанная операция: ", "TConstJSFilterOper::IntBaseOperation");
+			log << asStr(oper_code) << " не относится к списку базовых операций типа int!\n";
+			throw log;
+		}
+		}
+	}
+	catch (const std::exception& err)
+	{
+		TLog(err.what(), "TConstJSFilterOper::IntBaseOperation").toErrBuff();
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Ошибка выполнения оперции: ", "TConstJSFilterOper::IntBaseOperation");
+		log << asStr(oper_code) << " для значений: " << val1 << " и " << val2 << '\n';
+		log.toErrBuff();
+	}
+	return false;
+}
+
+
+bool NS_Const::TConstJSFilterOper::StringBaseOperation(const std::string& val1,
+	const std::string& val2, const NS_Const::JsonFilterOper& oper_code) noexcept(true)
+{
+	using NS_Logger::TLog;
+	//если метод предполагает сравнение с пустое значение:
+	if (oper_code == JsonFilterOper::isEmpty) 
+		return val1.empty();
+	//если метод предполагает проверку на не пустое значение:
+	if (oper_code == JsonFilterOper::NotEmpty)
+		return !val1.empty();
+	//если хоть одна строка пустая - выход
+	if (val1.empty() or val2.empty()) return false;
+	switch (oper_code)
+	{
+	case JsonFilterOper::Equal: return val1 == val2;
+	case JsonFilterOper::NotEqual: return val1 != val2;
+	case JsonFilterOper::MoreThan: return val1 > val2;
+	case JsonFilterOper::MoreEqualThan: return val1 >= val2;
+	case JsonFilterOper::LessThan: return val1 < val2;
+	case JsonFilterOper::LessEqualThan: return val1 <= val2;
+	case JsonFilterOper::LikeNoCase:
+	case JsonFilterOper::StrEqualNoCase:
+		{
+			string v1 = LowerCase(val1);
+			Trim(v1);
+			string v2 = LowerCase(val2);
+			Trim(v2);
+			if (oper_code == JsonFilterOper::LikeNoCase)
+				return v1.find(v2, 0) >= 0;
+			else
+				return v1 == v2;
+		}
+	case JsonFilterOper::Like: return val1.find(val2, 0) >= 0;
+	case JsonFilterOper::NotLike: return val1.find(val2, 0) == string::npos;
+	default:
+	{
+		TLog log("Указанная операция: ", "TConstJSFilterOper::RunOperation");
+		log << asStr(oper_code) << " не обрабатывается!\n";
+		log.toErrBuff();
+	}
+	}
+	return false;
+}
+/**/

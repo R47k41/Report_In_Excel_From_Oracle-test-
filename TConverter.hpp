@@ -1,5 +1,5 @@
 #include <Windows.h>
-#include "TConverter.cpp"
+#include "TConverter.h"
 
 
 using std::string;

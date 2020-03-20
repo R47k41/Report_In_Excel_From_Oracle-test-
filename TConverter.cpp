@@ -1,11 +1,8 @@
-#ifndef TCONVERTER_CPP_
-#define TCONVERTER_CPP_
-#include <iostream>
-#include <sstream>
-#include <typeinfo>
-#include <stdlib.h>
+#pragma once
+//#ifndef TCONVERTER_CPP_
+//#define TCONVERTER_CPP_
+//#include <iostream>
 #include "TConverter.h"
-#include "Logger.h"
 
 using std::stringstream;
 using std::cerr;
@@ -124,19 +121,76 @@ bool NS_Converter::toType(const string& str, T* val) noexcept(true)
 	}
 	return false;
 }
-/*
+
 //double
-template <>
-bool NS_Converter::toType<double>(const string& str, double* val, bool no_except) noexcept(false)
+template <> bool NS_Converter::toType<double>(const std::string& str, double* val) noexcept(true)
 {
-	if (str.empty())
+	using NS_Logger::TLog;
+	using std::stringstream;
+	try
 	{
-		string tmp("Указана пустая строка для преобразования!");
-		if (no_except) return false;
-		else throw tmp;
+		if (str.empty())
+		{
+			throw TLog("Для преобразования указана пустая строка!", "NS_Converter::toType");
+		}
+		stringstream ss;
+		ss << str;
+		ss >> *val;
+		return true;
 	}
-	*val = std::atof(str.c_str());
-	return true;
+	catch (const TLog& er)
+	{
+		er.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка приведения значения " + str + " к типу double!", "NS_Converter::toType").toErrBuff();
+	}
+	return false;
+
 }
-/**/
-#endif TCONVERTER_CPP_
+
+//bool
+template <>
+bool NS_Converter::toType<bool>(const std::string& str, bool* val) noexcept(true)
+{
+	using NS_Logger::TLog;
+	using std::stringstream;
+	using std::string;
+	try
+	{
+		if (str.empty())
+		{
+			throw TLog("Для преобразования указана пустая строка!", "NS_Converter::toType");
+		}
+		stringstream ss;
+		ss << str;
+		if (ss.str().empty()) return false;
+		string tmp = ss.str();//LowerCase(ss.str());
+		if (tmp == "true")
+		{
+			*val = true;
+			return true;
+		}
+		if (tmp == "false")
+		{
+			*val = false;
+			return true;
+		}
+		int x = 0;
+		ss >> x;
+		*val = x;
+		return true;
+	}
+	catch (const TLog& er)
+	{
+		er.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка приведения значения " + str + " к типу double!", "NS_Converter::toType").toErrBuff();
+	}
+	return false;
+}
+
+//#endif TCONVERTER_CPP_
