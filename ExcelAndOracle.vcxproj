@@ -169,7 +169,6 @@
     <ClCompile Include="ExcelAndOracle.cpp" />
     <ClCompile Include="Logger.cpp" />
     <ClCompile Include="TConstants.cpp" />
-    <ClCompile Include="TConverter.cpp" />
     <ClCompile Include="TDBReport.cpp" />
     <ClCompile Include="TExcel.cpp" />
     <ClCompile Include="TOracle.cpp" />

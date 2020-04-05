@@ -1,11 +1,23 @@
 //Реализация шаблонных функций модуля Logger.h
+#pragma once
 #ifndef LOGGER_HPP_
 #define LOGGER_HPP_
 #include <typeinfo>
-#include "TConverter.cpp"
+#include "TConverter.h"
+
+namespace NS_Logger
+{
+	//добавление текста к сообщению:
+	template <class T>
+	TLog& operator+=(TLog& log, T val);
+	template <class T>
+	TLog& operator<<(TLog& log, T val);
+	template <class T>
+	TLog& operator+(TLog& log, T val);
+}
 
 template <class T>
-NS_Logger::TLog& NS_Logger::TLog::operator+=(T val)
+NS_Logger::TLog& NS_Logger::operator+=(TLog& log, T val)
 {
 	using std::cerr;
 	using std::endl;
@@ -13,7 +25,7 @@ NS_Logger::TLog& NS_Logger::TLog::operator+=(T val)
 	try
 	{
 		string tmp = NS_Converter::toStr(val);
-		msg << tmp;
+		log.AddStr(tmp);
 	}
 	catch (const string& er)
 	{
@@ -24,131 +36,21 @@ NS_Logger::TLog& NS_Logger::TLog::operator+=(T val)
 		const std::type_info& ti = typeid(val);
 		cerr << "TLog::operator+=: Ошибка преобразования " << ti.name() << endl;
 	}
-	return *this;
-}
-/*
-template <>
-TLog& TLog::operator+=<unsigned short>(unsigned short val)
-{
-	using std::cerr;
-	using std::endl;
-	try
-	{
-		string tmp = NS_Converter::toStr(val, false);
-		msg << tmp;
-	}
-	catch (const TLog& er)
-	{
-		cerr << er.what() << endl;
-	}
-	catch (...)
-	{
-		cerr << "TLog::operator+=: Ошибка преобразования типа unsigned short!" << endl;
-	}
-	return *this;
+	return log;
 }
 
-template <>
-TLog& TLog::operator+=<const char*>(const char* val)
-{
-	using std::cerr;
-	using std::endl;
-	try
-	{
-		string tmp = NS_Converter::toStr(val, false);
-		msg << tmp;
-	}
-	catch (const TLog& er)
-	{
-		cerr << er.what() << endl;
-	}
-	catch (...)
-	{
-		cerr << "TLog::operator+=: Ошибка преобразования типа const char*!" << endl;
-	}
-	return *this;
+template <class T>
+NS_Logger::TLog& NS_Logger::operator<<(TLog& log, T val)
+{ 
+	operator+=(log, val);
+	return log; 
 }
 
-template <>
-TLog& TLog::operator+=<const string&>(const string& val)
+template <class T>
+NS_Logger::TLog& NS_Logger::operator+(TLog& log, T val)
 {
-	using std::cerr;
-	using std::endl;
-	try
-	{
-		string tmp = NS_Converter::toStr(val, false);
-		msg << tmp;
-	}
-	catch (const TLog& er)
-	{
-		cerr << er.what() << endl;
-	}
-	catch (...)
-	{
-		cerr << "TLog::operator+=: Ошибка преобразования типа const string&!" << endl;
-	}
-	return *this;
+	operator+=(log, val);
+	return log;
 }
 
-template <>
-TLog& TLog::operator+= <const NS_Logger::TLog&>(const NS_Logger::TLog& val)
-{
-	if (!val.isEmpty() and val.isGood())
-		operator+= <const char*>(val.getStr().c_str());
-	return *this;
-}
-
-template <>
-TLog& TLog::operator+= <const NS_Logger::TLog&>(const NS_Logger::TLog& val)
-{
-	if (!val.isEmpty() and val.isGood())
-		operator+=<const char*>(val.getStr().c_str());
-	return *this;
-}
-/**/
-
-/*
-template <>
-TLog& TLog::operator+= <const string&>(const string& val)
-{
-	try
-	{
-		msg << val;
-	}
-	catch (const TLog& er)
-	{
-		cerr << er.what() << endl;
-	}
-	catch (...)
-	{
-		const std::type_info& ti = typeid(val);
-		cerr << "TLog::operator+=: Ошибка преобразования " << ti.name() << " со значением: " << val << endl;
-	}
-	return *this;
-}
-
-template <>
-TLog& TLog::operator<<(unsigned short val)
-{
-	return operator+=<unsigned short>(val);
-}
-/*
-template <>
-TLog& TLog::operator<< <const string&>(const string& val)
-{
-	return operator+= <const string&>(val);
-}
-
-template <>
-TLog& TLog::operator<< <const char*>(const char* val)
-{
-	return operator+= <const char*>(val);
-}
-
-template <>
-TLog& TLog::operator<<(const NS_Logger::TLog& val)
-{
-	return operator+= <const string&>(val.getStr());
-}
-/**/
 #endif LOGGER_HPP_

@@ -6,7 +6,7 @@
 #include <cstring>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include "TConstants.h"
-#include "Logger.h"
+#include "Logger.hpp"
 
 using std::string;
 
@@ -367,6 +367,12 @@ string NS_Const::TConstReportCode::toStr() const
 	case ReportCode::FILE_COMPARE_RIB: return "FILE_COMPARE_RIB";
 	case ReportCode::FILE_COMPARE_RTBK: return "FILE_COMPARE_RTBK";
 	case ReportCode::EXCEL_SET_DATA_FROM_BASE: return "EXCEL_SET_DATA_FROM_BASE";
+	case ReportCode::EXCEL_DOC_LOAD: return "EXCEL_DOC_LOAD";
+	case ReportCode::EXCEL_PAY_LOAD_SF: return "EXCEL_PAY_LOAD_SF";
+	case ReportCode::EXCEL_PAY_LOAD_MF: return "EXCEL_PAY_LOAD_MF";
+	case ReportCode::ACCOUNT_BALANCE: return "ACCOUNT_BALANCE";
+	case ReportCode::ACCOUNT_BALANCE_STREAM: return "ACCOUNT_BALANCE_STREAM";
+	case ReportCode::QUIT_REPORT: return "QUIT_REPORT";
 	}
 	return  string();
 }
@@ -388,10 +394,16 @@ string NS_Const::TConstReportCode::getName() const
 	case ReportCode::NBKI_JP: return "Борисова: НБКИ Юр. лица";
 	case ReportCode::NBKI_APPLY: return "Борисова: НБКИ фиксация изменений";
 	case ReportCode::CLOSE_DAY: return "Закрытие баланса";
-	case ReportCode::LOAD_FROM_FILE: return "Загрузка проводок из файла в OraBank";
+	case ReportCode::LOAD_FROM_FILE: return "Загрузка проводок из файла в OraBank(обычный insert)";
 	case ReportCode::FILE_COMPARE_RIB: return "Фоминых: Заполнение остатков по РИБ из файла со счетами";
 	case ReportCode::FILE_COMPARE_RTBK: return "Борисова: Заполнение остатков по РТБК из файла со счетами";
-	case ReportCode::EXCEL_SET_DATA_FROM_BASE: return "Excel: Заполнение из БД";
+	case ReportCode::EXCEL_SET_DATA_FROM_BASE: return "Excel: Заполнение ячеек файла из БД";
+	case ReportCode::EXCEL_DOC_LOAD: return "Скачкова: Загрузка документов из АСВ";
+	case ReportCode::EXCEL_PAY_LOAD_SF: return "Сафонова: Загрузка выплат из АСВ для СФ";
+	case ReportCode::EXCEL_PAY_LOAD_MF: return "Сафонова: Загрузка выплат из АСВ для МФ";
+	case ReportCode::ACCOUNT_BALANCE: return "Выписка по счету";
+	case ReportCode::ACCOUNT_BALANCE_STREAM: return "Потоковая выписка по списку счетов";
+	case ReportCode::QUIT_REPORT: return "Выход";
 	}
 	return  string();
 }

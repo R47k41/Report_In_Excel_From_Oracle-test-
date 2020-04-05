@@ -1,8 +1,82 @@
+#pragma once
 #include <Windows.h>
-#include "TConverter.h"
+#include "Logger.hpp"
 
 
 using std::string;
+
+//double
+bool NS_Converter::toDblType(const std::string& str, double* val) noexcept(true)
+{
+	using NS_Logger::TLog;
+	using std::stringstream;
+	try
+	{
+		if (str.empty())
+		{
+			throw TLog("Для преобразования указана пустая строка!", "NS_Converter::toDblType");
+		}
+		stringstream ss;
+		ss << str;
+		ss >> *val;
+		return true;
+	}
+	catch (const TLog& er)
+	{
+		er.toErrBuff();
+	}
+	catch (...)
+	{
+		string msg = "Не обработанная ошибка приведения значения " + str + " к типу double!";
+		TLog(msg, "NS_Converter::toDblType").toErrBuff();
+	}
+	return false;
+
+}
+
+//bool
+bool NS_Converter::toBoolType(const std::string& str, bool* val) noexcept(true)
+{
+	using NS_Logger::TLog;
+	using std::stringstream;
+	using std::string;
+	try
+	{
+		if (str.empty())
+		{
+			throw TLog("Для преобразования указана пустая строка!", "NS_Converter::toBoolType");
+		}
+		stringstream ss;
+		ss << str;
+		if (ss.str().empty()) return false;
+		string tmp = ss.str();//LowerCase(ss.str());
+		if (tmp == "true")
+		{
+			*val = true;
+			return true;
+		}
+		if (tmp == "false")
+		{
+			*val = false;
+			return true;
+		}
+		int x = 0;
+		ss >> x;
+		*val = x;
+		return true;
+	}
+	catch (const TLog& er)
+	{
+		er.toErrBuff();
+	}
+	catch (...)
+	{
+		string msg = "Не обработанная ошибка приведения значения " + str + " к типу bool!";
+		TLog(msg, "NS_Converter::toBoolType").toErrBuff();
+	}
+	return false;
+}
+
 
 //конвертация ansi-строки в unicode
 std::wstring NS_Converter::MByteToUnicode(const std::string& str, size_t toCodePage) noexcept(false)
@@ -16,12 +90,12 @@ std::wstring NS_Converter::MByteToUnicode(const std::string& str, size_t toCodeP
 		size_t size;
 		size = MultiByteToWideChar(toCodePage, 0, str.c_str(), -1, NULL, 0);
 		if (size < 0)
-			throw string("Ошибка при определении размера результирующей строки!");
+			throw TLog("Ошибка при определении размера результирующей строки!", "MByteToUnicode");
 		//создаем unicode строку:
 		unicodeStr = new wchar_t[size];
 		//конвертируем в unicode:
 		if (MultiByteToWideChar(toCodePage, 0, str.c_str(), -1, unicodeStr, size) < 0)
-			throw string("Ошибка при конвертации!");
+			throw TLog("Ошибка при конвертации!", "MByteToUnicode");
 		result = std::wstring(unicodeStr);
 	}
 	catch (const std::string& er)
@@ -54,12 +128,12 @@ std::string NS_Converter::UnicodeToMByte(const std::wstring& unicodeStr, size_t 
 		size_t size;
 		size = WideCharToMultiByte(toCodePage, NULL, unicodeStr.c_str(), -1, NULL, 0, NULL, FALSE);
 		if (size < 0)
-			throw string("Ошибка при определении размера результирующей строки!");
+			throw TLog("Ошибка при определении размера результирующей строки!", "MByteToUnicode");
 		//создаем unicode строку:
 		multiByteStr = new char[size];
 		//конвертируем в unicode:
 		if (WideCharToMultiByte(toCodePage, NULL, unicodeStr.c_str(), -1, multiByteStr, size, NULL, FALSE) < 0)
-			throw string("Ошибка при конвертации!");
+			throw TLog("Ошибка при конвертации!", "MByteToUnicode");
 		result = std::string(multiByteStr);
 	}
 	catch (const string& er)

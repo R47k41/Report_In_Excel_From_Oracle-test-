@@ -31,9 +31,6 @@
     <ClCompile Include="TuneParam.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
-    <ClCompile Include="TConverter.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
     <ClCompile Include="TConverter.hpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>

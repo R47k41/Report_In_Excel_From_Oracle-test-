@@ -5,7 +5,7 @@
 #include <iostream>
 #include <set>
 #include "TSQLParser.h"
-#include "Logger.h"
+#include "Logger.hpp"
 
 using std::string;
 using std::vector;

@@ -72,7 +72,7 @@ namespace NS_ExcelReport
 	protected:
 		TExcelBook& book;//ссылка на excel-файл
 		TExcelBookSheet sheet;//лист excel-книги(Ќ”ћ≈–ј÷»я Ћ»—“ќ¬ »ƒ≈“ ќ“ 0!!!)
-		TCellsFormatArr cells_format_indexs;//индексы форматов €чеек
+		TCellsFormatArr cells_format_indexs;//индексы форматов €чеек(хранит индексы €чеек в формате excel - от 0!!!)
 		//функци€ добавлени€ формата €чейки в массив форматов:
 		virtual bool addCurCellFormat(size_t Row, size_t Col) noexcept(true);
 		//функци€ инициализации массива форматов дл€ €чеек строки из шаблона:
@@ -80,12 +80,14 @@ namespace NS_ExcelReport
 		//функци€ проверки наличи€ форматов дл€ книги:
 		bool EmptyCellsIndexFormat() const noexcept(true) { return cells_format_indexs.empty(); }
 		//функци€ установки формата дл€ €чейки
+		bool setCellFormat(const NS_Excel::TExcelCell& cell, NS_Excel::TExcelBookFormat& format) noexcept(true);
 		bool setCellFormat(size_t Row, size_t Column, NS_Excel::TExcelBookFormat& format) noexcept(true);
 		//функци€ получени€ ссылки на форматы €чейки/колонки:
 		TCellFormatIndex& getFormatIndexByCell(size_t Column) noexcept(false) { return cells_format_indexs[Column]; }
 		//функци€ получени€ ссылки на формат дл€ указанной колонки:
 		NS_Excel::FormatPtr getCellFormatPtr(const NS_Excel::TExcelCell& cell) noexcept(true);
 		//функци€ уставноки формата дл€ €чейки дл€ элемента массива:
+		virtual bool setCellFormatByIndexArr(const NS_Excel::TExcelCell& cell) noexcept(true);
 		virtual bool setCellFormatByIndexArr(size_t Row, size_t IndexArr) noexcept(true);
 		//функци€ выставлени€ форматов €чеек дл€ строки из массива:
 		bool setRowCellsFormat(size_t Row) noexcept(true);
@@ -229,7 +231,7 @@ namespace NS_ExcelReport
 		//проверка можно ли закрашивать €чейку в зависимости от метода:
 		bool useColoring(bool FndFlg, bool ChngFlg) const noexcept(true);
 		//закраска €чейки строки
-		virtual bool ColoringRowCell(size_t Row, size_t Col, bool find_flg) noexcept(true);
+		virtual bool ColoringRowCell(size_t Row, size_t Col, bool find_flg, bool proc_flg) noexcept(true);
 		//закраска €чейки в зависимости от выполненной обработки найденной €чейки
 		virtual bool ColoringRowCell(const NS_Excel::TExcelCell& cell, bool find_flg, bool procFlg) noexcept(true);
 		//функци€ закраски строки:
@@ -471,6 +473,8 @@ namespace NS_ExcelReport
 		//на втором этапе обрабатываетс€ указанный отчет на основании файлов в папке SubConfig
 		//функци€ выполнени€ 2ого этапа обработки отчета дл€ поднастроек(subconfig):
 		void SubConfig_Stage() const noexcept(true);
+		//функци€ загрузки данных из excel в базу данных:
+		void load2DBFromExcel() const noexcept(false);
 		//вызов функции, формирующей отчет по коду:
 		void Create_Report_By_Code(const NS_Const::ReportCode& code) const;
 		//формирование полного отчета по файлу main_config:

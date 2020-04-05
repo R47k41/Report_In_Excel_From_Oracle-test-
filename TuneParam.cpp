@@ -6,8 +6,7 @@
 #include <stdlib.h>
 #include <boost/filesystem.hpp>
 #include "TuneParam.h"
-#include "Logger.h"
-#include "TConverter.h"
+#include "Logger.hpp"
 
 
 using std::string;
@@ -693,9 +692,13 @@ string NS_Tune::TSharedTune::getCodeFromtUI() noexcept(true)
 		cin >> val;
 		report = val;
 	} while (report.isEmpty() or !report.isValid(true));
+	//убираем мусор из буфера
 	while (!cin.get());
-	cout << "Будет сформирован отчет: " << report.getName() << endl;
-	//убираем все из буфера
+	//если хотим выйти
+	if (report == ReportCode::QUIT_REPORT)
+		cout << "Выход из программы!" << endl;
+	else
+		cout << "Будет сформирован отчет: " << report.getName() << endl;
 	//выходим
 	return report.toStr();
 }
@@ -1191,9 +1194,11 @@ void NS_Tune::TFilterData::show(std::ostream& stream) const noexcept(true)
 bool NS_Tune::TFilterData::isFiltredBoolValue(const bool& val) const noexcept(true)
 {
 	using NS_Const::TConstJSFilterOper;
+	using NS_Converter::toBoolType;
+
 	//преобразование значение из фильтра в значение из вне:
 	bool tmp = false;
-	if (NS_Converter::toType(value, &tmp) == false)
+	if (NS_Converter::toBoolType(value, &tmp) == false)
 		return false;
 	return TConstJSFilterOper::BoolBaseOperation(val, tmp, operation.Value());
 }
@@ -1201,9 +1206,10 @@ bool NS_Tune::TFilterData::isFiltredBoolValue(const bool& val) const noexcept(tr
 bool NS_Tune::TFilterData::isFiltredDblValue(const double& val) const noexcept(true)
 {
 	using NS_Const::TConstJSFilterOper;
+	using NS_Converter::toDblType;
 	//преобразование значение из фильтра в значение из вне:
 	double tmp = 0;
-	if (NS_Converter::toType(value, &tmp) == false)
+	if (NS_Converter::toDblType(value, &tmp) == false)
 		return false;
 	return TConstJSFilterOper::DoubleBaseOperation(val, tmp, operation.Value());
 }
@@ -1212,7 +1218,7 @@ bool NS_Tune::TFilterData::isFiltredIntValue(const int& val) const noexcept(true
 {
 	using NS_Const::TConstJSFilterOper;
 	//преобразование значение из фильтра в значение из вне:
-	double tmp = 0;
+	int tmp = 0;
 	if (NS_Converter::toType(value, &tmp) == false)
 		return false;
 	return TConstJSFilterOper::IntBaseOperation(val, tmp, operation.Value());

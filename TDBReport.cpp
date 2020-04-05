@@ -3,7 +3,6 @@
 #include <fstream>
 #include "TDBReport.h"
 #include "TSQLParser.h"
-#include "TConverter.h"
 #include "Logger.hpp"
 
 
@@ -60,6 +59,9 @@ bool TBaseSheetReport::addCurCellFormat(size_t Row, size_t Col) noexcept(true)
 	using NS_ExcelReport::TCellFormatIndex;
 	//инициализация ячейки:
 	TExcelCell cell(Row, Col, false);
+	//если ячейка создана не корректоно - выход
+	if (!cell.isValid())
+		return false;
 	try
 	{
 		//получение формата из текущей ячейки:
@@ -104,7 +106,9 @@ bool TBaseSheetReport::initRowFormat() noexcept(true)
 	//если книга является шаблоном - то формат ячеек заполнен в первой пустой строке
 	size_t curRow = LastRow();
 	//проходим по каждому столбцу строки
-	size_t curCol = sheet.getFirstCol();
+	//т.к. ячейка берется в формтае excel - от 0
+	//увеличиваем значение на 1, чтобы создавать ячейки правильно
+	size_t curCol = sheet.getFirstCol() + 1;
 	size_t last_col = sheet.getLastCol();
 	//для каждой ячейки формируем ее текущии формат:
 	size_t err_cnt = 0;
@@ -114,25 +118,36 @@ bool TBaseSheetReport::initRowFormat() noexcept(true)
 	return true;
 }
 
-bool TBaseSheetReport::setCellFormatByIndexArr(size_t Row, size_t ColIndex) noexcept(true)
+bool TBaseSheetReport::setCellFormatByIndexArr(const NS_Excel::TExcelCell& cell) noexcept(true)
 {
 	using NS_Excel::TExcelBookFormat;
-	if (ColIndex >= cells_format_indexs.size()) return false;
-	size_t FormatIndex = cells_format_indexs[ColIndex].Current;
+	if (cell.getCol() >= cells_format_indexs.size()) return false;
+	size_t FormatIndex = cells_format_indexs[cell.getCol()].Current;
 	//получение формата из книги:
 	TExcelBookFormat format = book.getFormatByIndex(FormatIndex);
 	//установка формата:
-	return setCellFormat(Row, ColIndex, format);
+	return setCellFormat(cell, format);
+}
+
+bool TBaseSheetReport::setCellFormatByIndexArr(size_t Row, size_t ColIndex) noexcept(true)
+{
+	using NS_Excel::TExcelCell;
+	TExcelCell cell(Row, ColIndex, false);
+	return setCellFormatByIndexArr(cell);
 }
 
 bool TBaseSheetReport::setRowCellsFormat(size_t Row) noexcept(true)
 {
+	using NS_Excel::TExcelCell;
 	if (cells_format_indexs.empty()) return true;
 	size_t cnt = 0;
 	//проходим по каждой ячейки для которой заполнен формат
-	for (size_t i = 0; i < cells_format_indexs.size(); i++)
+	for (const TCellFormat& i: cells_format_indexs)
 	{
-		if (setCellFormatByIndexArr(Row, i)) cnt++;
+		//т.к. в массиве храниться информация о колонках в формате excel - от 0
+		//надо перевести данный формат в соответствие:
+		TExcelCell cell(Row, i.first + 1, false);
+		if (setCellFormatByIndexArr(cell)) cnt++;
 	}
 	return cnt == cells_format_indexs.size();
 }
@@ -229,14 +244,11 @@ NS_Excel::TDataType TBaseSheetReport::convertDataType(const NS_Const::DataType& 
 	return TDataType::CELLTYPE_ERROR;
 }
 
-bool TBaseSheetReport::setCellFormat(size_t Row, size_t Column, NS_Excel::TExcelBookFormat& format) noexcept(true)
+bool TBaseSheetReport::setCellFormat(const NS_Excel::TExcelCell& cell, NS_Excel::TExcelBookFormat& format) noexcept(true)
 {
-	using NS_Excel::TExcelCell;
-	using NS_Excel::TExcelBookFormat;
 	//если указан недопустимый цвет
 	if (!format.isValid()) return false;
-	TExcelCell cell(Row, Column, false);
-	//если указана пустая ячейка
+	//если указана пустая ячейка - надо ли ставить ей формат???
 	if (cell.isEmpty()) return false;
 	try
 	{
@@ -259,7 +271,17 @@ bool TBaseSheetReport::setCellFormat(size_t Row, size_t Column, NS_Excel::TExcel
 		log << cell.getName() << '\n';
 		log.toErrBuff();
 	}
-	return false;
+return false;
+}
+
+
+bool TBaseSheetReport::setCellFormat(size_t Row, size_t Column, NS_Excel::TExcelBookFormat& format) noexcept(true)
+{
+	using NS_Excel::TExcelCell;
+	using NS_Excel::TExcelBookFormat;
+	//преобразуем индексы строки и столбца к excel-виду
+	TExcelCell cell(Row, Column, false);
+	return setCellFormat(cell, format);
 }
 
 NS_Excel::FormatPtr TBaseSheetReport::getCellFormatPtr(const NS_Excel::TExcelCell& cell) noexcept(true)
@@ -373,14 +395,16 @@ bool TExtendSheetReport::noDataInColID(size_t Row) const noexcept(false)
 
 size_t TExtendSheetReport::FirstRow() const noexcept(true)
 {
+	//берем строки в формате книги - от 1
 	size_t row = getRow(true);
-	return row == NS_Tune::TIndex::EmptyIndex ? sheet.getFirstRow() : row;
+	return row == NS_Tune::TIndex::EmptyIndex ? sheet.getFirstRow() + 1 : row;
 }
 
 size_t TExtendSheetReport::LastRow() const noexcept(true)
 {
+	//берем строки в формате книги - от 1
 	size_t row = getRow(false);
-	return row == NS_Tune::TIndex::EmptyIndex ? sheet.getLastRow() : row;
+	return row == NS_Tune::TIndex::EmptyIndex ? sheet.getLastRow() + 1 : row;
 }
 
 bool TExtendSheetReport::isCorrectFilter(size_t curRow) const noexcept(true)
@@ -748,6 +772,7 @@ bool TJsonReport::isParamColumn(size_t Col) const noexcept(true)
 {
 	using NS_Tune::TCellData;
 	using NS_Tune::CellDataArr;
+	//сверка происходит в формате файла: отсчет от 1
 	if (Col == getColID()) return true;
 	//получение ссылки на массив параметров:
 	CellDataArr arr = cells_data.getCellDataArr();
@@ -1068,7 +1093,7 @@ bool TJsonReport::setExcelRowDataByBD(NS_Oracle::TStatement& query, size_t curRo
 			//выполняем запрос:
 			bool find_flg = runQuery(query, curRow);
 			//окраска ячейки-идентификатора
-			ColoringRowCell(curRow, getColID(), find_flg);
+			ColoringRowCell(curRow, getColID(), find_flg, true);
 			return find_flg;
 		}
 	}
@@ -1200,7 +1225,7 @@ bool TJsonReport::addCellFillFormat(size_t Row, size_t Col, bool font_flg) noexc
 	try
 	{
 		//получение формата данный ячейки из массива форматов:
-		TCellFormatIndex& tmpIndex = TBaseSheetReport::getFormatIndexByCell(Col);
+		TCellFormatIndex& tmpIndex = TBaseSheetReport::getFormatIndexByCell(cell.getCol());
 		if (tmpIndex.InitFlg == false)
 			throw TLog("Форматы для ячейки: " + cell.getName() + " не заданы!\n", "TJsonReport::addCellFillFormat");
 		//формирование новых форматов для текущей ячейки
@@ -1264,20 +1289,21 @@ bool TJsonReport::useColoring(bool FndFlg, bool ChngFlg) const noexcept(true)
 	return true;
 }
 
-bool TJsonReport::ColoringRowCell(size_t Row, size_t Col, bool find_flg) noexcept(true)
+bool TJsonReport::ColoringRowCell(const NS_Excel::TExcelCell& cell, bool find_flg, bool procFlg) noexcept(true)
 {
-	using NS_Excel::TExcelBookFormat;
-	using NS_Excel::TExcelCell;
+	//проверка наличия массива форматов excel-книги
 	if (EmptyCellsIndexFormat()) return false;
+	//если используется метод отслеживания изменений и изменений не было - выход
+	if (useColoring(find_flg, procFlg) == false) return false;
 	try
 	{
 		//получение формата ячейки из списка форматов:
-		TCellFormatIndex& formats = getFormatIndexByCell(Col);
+		TCellFormatIndex& formats = getFormatIndexByCell(cell.getCol());
 		if (formats.InitFlg == false)
-			throw TLog("Форматы для ячейки не заданы!", "TJsonReport::addCellFillFormat");
+			throw TLog("Форматы для ячейки: " + cell.getName() + " не заданы!", "TJsonReport::addCellFillFormat");
 		size_t formatIndex = find_flg ? formats.Found : formats.NotFound;
 		TExcelBookFormat format = book.getFormatByIndex(formatIndex);
-		return TBaseSheetReport::setCellFormat(Row, Col, format);
+		return TBaseSheetReport::setCellFormat(cell, format);
 	}
 	catch (const TLog& err)
 	{
@@ -1285,7 +1311,6 @@ bool TJsonReport::ColoringRowCell(size_t Row, size_t Col, bool find_flg) noexcep
 	}
 	catch (...)
 	{
-		TExcelCell cell(Row, Col, false);
 		TLog log("Не обработанная ошибка при установке формата ячейке: ", "TJsonReport::ColoringRowCell");
 		log << cell.getName() << '\n';
 		log.toErrBuff();
@@ -1293,21 +1318,20 @@ bool TJsonReport::ColoringRowCell(size_t Row, size_t Col, bool find_flg) noexcep
 	return false;
 }
 
-bool TJsonReport::ColoringRowCell(const NS_Excel::TExcelCell& cell, bool find_flg, bool procFlg) noexcept(true)
+bool TJsonReport::ColoringRowCell(size_t Row, size_t Col, bool find_flg, bool procFlg) noexcept(true)
 {
-	//если используется метод отслеживания изменений и изменений не было - выход
-	if (useColoring(find_flg, procFlg) == false) return false;
-	return ColoringRowCell(cell.getRow(false), cell.getCol(false), find_flg);
+	using NS_Excel::TExcelCell;
+	//инициализация ячейки:
+	TExcelCell cell(Row, Col, false);
+	return ColoringRowCell(cell, find_flg, procFlg);
 }
 
 bool TJsonReport::ColoringRowByFlg(size_t curRow, bool FndFlg, bool ChngFlg) noexcept(true)
 {
 	//в данной версии окраска происходит только по ColID
-	//если метод отслеживания изменений и изменений нет - выход
-	if (useColoring(FndFlg, ChngFlg) == false) return false;
 	//если нет ячейки идентификатора - выход
 	if (noColID()) return false;
-	return ColoringRowCell(curRow, getColID(), FndFlg);
+	return ColoringRowCell(curRow, getColID(), FndFlg, ChngFlg);
 }
 
 bool TJsonReport::ColoringRowByCnt(size_t curRow, size_t FindCnt, size_t FailCnt) noexcept(true)
@@ -1329,6 +1353,7 @@ bool TJsonReport::ColoringCellByParam(const NS_Tune::TCellData& param, size_t cu
 	using NS_Tune::TIndex;
 	using NS_Excel::TExcelCell;
 	size_t column = 0;
+	//берем данные о колонке в формате книги - от 1
 	switch (meth_code)
 	{
 		case JSonMeth::CompareCellChange:
@@ -1351,7 +1376,7 @@ bool TJsonReport::ColoringCellByParam(const NS_Tune::TCellData& param, size_t cu
 	}
 	if (column == TIndex::EmptyIndex)
 		return false;
-	return ColoringRowCell(curRow, column, fing_flg);
+	return ColoringRowCell(curRow, column, fing_flg, true);
 }
 
 
@@ -1449,8 +1474,7 @@ bool TJsonReport::procFindRow(const TExtendSheetReport& srcSheet, const CellData
 	//выполняем окраску строки
 	bool flg = (cnt == outArr.size()) ? true : false;
 	//закрашиваем ячейку идентификатор в новой строке
-	//НЕ закрашивается вставленная строка!!!!!
-	ColoringRowCell(dstRow, getColID(), flg);
+	ColoringRowCell(dstRow, getColID(), flg, true);
 	return flg;
 }
 
@@ -1592,7 +1616,7 @@ bool TJsonReport::Search_DestData_In_SrcSheet(TRowsFlag& DstRows,
 		CellDataArr cellArr = cells_data.getCellDataArr();
 		if (cellArr.empty()) 
 			throw TLog("Пустые индексы колонок для сравнения!", "TJsonReport::Search_DestData_In_SrcSheet");
-		//формируем массив строк источника для обработки:
+		//формируем массив строк источника для обработки - нумерация от 1:
 		TRowsFlag srcRows = srcSheet.setFiltredRowsArr();
 		if (srcRows.empty())
 			throw TLog("На странице файла источника нет данных подходящих под условия!",
@@ -1674,6 +1698,7 @@ void TJsonReport::Compare_Excel_Sheets(bool NoSpaceNoCase) noexcept(false)
 	//проверка валидности excel-книги
 	if (!book.isValid()) throw TLog("Книга не инициализирована!", "TJsonReport::Compare_Excel_Sheets");
 	//формируем массив из сравниваемых строк, которые удовлетворяют условиям фильтрации:
+	//нумерация строк идет в формате книги - от 1
 	TRowsFlag DestRows = TExtendSheetReport::setFiltredRowsArr();
 	if (DestRows.empty()) throw TLog("На листе не найдено строк удовлетворяющих фильтру!", "TJsonReport::Compare_Excel_Sheets");
 	//получаем число листов в файле источнике:
@@ -1919,6 +1944,8 @@ void TDataBaseInterface::setSqlParamByTune(NS_Oracle::TStatement& sql, const NS_
 {
 	using NS_Tune::DataType;
 	using NS_Converter::toType;
+	using NS_Converter::toDblType;
+	using NS_Converter::toBoolType;
 	const DataType& data_type = param.DataType();
 	//если значение параметра - пустое:
 	if (param.Value().empty())
@@ -1942,7 +1969,7 @@ void TDataBaseInterface::setSqlParamByTune(NS_Oracle::TStatement& sql, const NS_
 		case DataType::Double:
 		{
 			double val = 0.0;
-			toType(param.Value(), &val);
+			toDblType(param.Value(), &val);
 			sql.setDoubleVal(par_id, val);
 			return;
 		}
@@ -2840,6 +2867,25 @@ void TReport::SubConfig_Stage() const noexcept(true)
 	}
 }
 
+void TReport::load2DBFromExcel() const noexcept(false)
+{
+	using NS_Logger::TLog;
+	using NS_Tune::TExcelProcData;
+	using NS_Excel::TExcelBook;
+	using NS_Tune::StrArr;
+	using NS_ExcelReport::TRowsTNS;
+/*
+	//формируем список файлов настроек из config
+	StrArr js_files = config.getConfFileLst();
+	if (js_files.empty()) throw TLog("Пустая директория с js-файлами настроек!", "Json_One_Row_One_DBQuery");
+	//выполнение прохода по всем файлам:
+	for (const string& js : js_files)
+	{
+		if (js.empty()) continue;
+	}
+/**/
+}
+
 void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
 {
 	using NS_Const::ReportCode;
@@ -2881,7 +2927,9 @@ void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
 	//полный кредитный портфель + манипуляция с excel-файлом
 	case ReportCode::FULL_CRED_REPORT:
 	{
-		//One_Sheet_By_Many_Statement();
+		//формирование данных из БД
+		One_Sheet_By_Many_Statement();
+		//сравнение excel-файлов
 		SubConfig_Stage();
 		break;
 	}
@@ -2892,7 +2940,10 @@ void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
 		break;
 	//загрузка данных в oracle из excel
 	case ReportCode::LOAD_FROM_FILE:
-		throw raise_err(code);
+	case ReportCode::EXCEL_PAY_LOAD_MF:
+	case ReportCode::EXCEL_PAY_LOAD_SF:
+	case ReportCode::EXCEL_DOC_LOAD:
+		load2DBFromExcel();
 		break;
 	//сравнение файлов excel
 	case ReportCode::FILE_COMPARE_RIB:
@@ -2900,6 +2951,8 @@ void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
 		break;
 	case ReportCode::FILE_COMPARE_RTBK:
 		Json_Report_By_Files_Compare();
+		break;
+	case ReportCode::QUIT_REPORT:
 		break;
 	default:
 		throw raise_err(code);

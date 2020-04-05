@@ -14,9 +14,9 @@
 #include <string.h>
 #include <locale.h>
 #include <exception>
-#include "Logger.hpp"
+//#include "Logger.hpp"
 #include "TConstants.h"
-#include "TConverter.h"
+//#include "TConverter.hpp"
 #include "TOracle.h"
 #include "TSQLParser.h"
 #include "TuneParam.h"
@@ -32,7 +32,7 @@
 #include <boost/filesystem.hpp>
 
 using std::string;
-using NS_Logger::TLog;
+//using NS_Logger::TLog;
 
 void excel_example(void);
 void excel_test(void);
@@ -119,7 +119,7 @@ int main()
 /**/
 	return 0;
 }
-
+/*
 void JsonParse(const string& file)
 {
 	using boost::property_tree::ptree;
@@ -192,7 +192,6 @@ void JsonParse(const string& file)
 	{
 		TLog("Не обработанная ошибка!").toErrBuff();
 	}
-/**/		
 	return;
 }
 
@@ -331,7 +330,7 @@ void TOracleTest()
 		std::cout << "Тип " << i << " столбца: " << static_cast<int>(rs.getColumnType(i)) << std::endl;
 	std::cin.get();
 }
-
+/**/
 void CreateReport(const std::string& file_name, const string& code) noexcept(true)
 {
 	using NS_ExcelReport::TReport;

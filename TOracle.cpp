@@ -275,6 +275,7 @@ void NS_Oracle::TStatement::setDateAsStringVal(UInt paramIndx, const string& dat
 void NS_Oracle::TStatement::setSqlStringVal(UInt paramIndx, const string& str) noexcept(false)
 {
 	using std::stringstream;
+	using NS_Logger::TLog;
 	if (isValid())
 	{
 		string tmp_sql = getSQL();
@@ -295,6 +296,7 @@ void NS_Oracle::TStatement::setSqlStringVal(UInt paramIndx, const string& str) n
 
 NS_Oracle::TDate NS_Oracle::TStatement::initOCCIDate(int yy, UInt mm, UInt dd, UInt hh, UInt mi, UInt sec) const noexcept(true)
 {
+	using NS_Logger::TLog;
 	try
 	{
 		TDate dateVal(environment, yy, mm, dd, hh, mi, sec);
