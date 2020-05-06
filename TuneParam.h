@@ -145,6 +145,8 @@ namespace NS_Tune
 	using ParamArr = std::vector<TSubParam>;
 	using TuneRange = std::pair<TuneField, TuneField>;
 	using RangeField = std::set<TConstField>;
+	//результат операции не пустого значения из 2х: 1. результат, 2. по первому параметру - true, иначе false
+	using TNotNullRslt = std::pair<std::string, bool>;
 
 	//Настройки пользователя:
 	//базовый класс
@@ -152,11 +154,13 @@ namespace NS_Tune
 	{
 	protected:
 		TFields fields;//поля настроек с их значениями
-		enum class Types { Config, SubConfig, SQL, DQL, DML, Template, OutPath, OutName, OutSheet };
+		enum class Types { Config, SubConfig, SQL, DQL, DML, ClearSQL, Template, OutPath, OutName, OutSheet };
 		enum class TRead { Section, TuneVal };
 	private:
 		TSimpleTune& operator=(const TSimpleTune& v);
 	protected:
+		//функция получения не пустого значения по указанным кодам:
+		TNotNullRslt CoalesceKeys(const NS_Const::TuneField& key1, const NS_Const::TuneField& key2) const noexcept(true);
 		//функция добавления разделителя к имени:
 		static void AddDelimeter(string& str, const char delim) noexcept(false);
 		//функция получения пути/директории из настроек:
@@ -279,9 +283,20 @@ namespace NS_Tune
 		//функция чтения значений колонок
 		void Read_Col_Val(ifstream& file);
 		TUserTune& operator=(const TUserTune& v);
-		//получение массива sql-команд для выполнения:
+		//получение массива sql-файлов для выполнения:
 		vector<string> getSQLFileLst(const Types& kind, bool use_sort = true) const noexcept(false);
+		//получение списка sql-команд:
+		vector<string> getSQLList(const Types& kind, bool use_sort = true) const noexcept(false);
 		bool isEmptyByCode(const Types& kind) const noexcept(false);
+		//получение текста запроса из строки либо на основании настроек, если строка пуста
+		template <typename T>
+		static string getSqlText(const TNotNullRslt& data) noexcept(false);
+		//проверка заполненных полей по типу:
+		TNotNullRslt checkLines(const Types& type_code) const noexcept(true);
+		//получение текста запроса в зависимости от флага парсинга:
+		string getSqlByParsingFlg(const TNotNullRslt& param, bool parsing) const noexcept(false);
+		//получение строки sql-текста из файла или параметра:
+		string getSqlStr(const Types& type_code) const noexcept(true);
 	public:
 		//список настроек формируется из файла
 		explicit TUserTune(const string& tunefile);
@@ -318,12 +333,24 @@ namespace NS_Tune
 		//получение имени файла запросов/команд:
 		string getDQLFile() const noexcept(false) { return getFullFileName(Types::DQL, false); }
 		string getDMLFile() const noexcept(false) {return getFullFileName(Types::DML, false); }
+		//получение текста DQL-запроса:
+		string getDMLText() const noexcept(true) { return getSqlStr(Types::DML); }
+		//получение текста DML-запроса:
+		string getDQLText() const noexcept(true) { return getSqlStr(Types::DQL); }
+		//получение текста sql-команды по флагам:
+		static string getSqlString(bool parsingFlg, bool byStrFlg, const string& str) noexcept(true);
 		//получение списка файлов sql-запросов:
-		vector<string> getDQLFileLst(bool use_sort = true) const noexcept(false) { return getSQLFileLst(Types::DQL); }
-		vector<string> getDMLFileLst(bool use_sort = true) const noexcept(false) { return getSQLFileLst(Types::DML); }
+		vector<string> getDQLFileLst(bool use_sort = true) const noexcept(false) { return getSQLFileLst(Types::DQL, use_sort); }
+		vector<string> getDMLFileLst(bool use_sort = true) const noexcept(false) { return getSQLFileLst(Types::DML, use_sort); }
+		vector<string> getClearSqlFileLst(bool use_sort = true) const noexcept(false) { return getSQLFileLst(Types::ClearSQL, use_sort); }
+		//получение списка sql-команд для выполнения:
+		vector<string> getDQLList(bool use_sort = true) const noexcept(false) { return getSQLList(Types::DQL, use_sort); }
+		vector<string> getDMLList(bool use_sort = true) const noexcept(false) { return getSQLList(Types::DML, use_sort); }
+		vector<string> getClearList(bool use_sort = true) const noexcept(false) { return getSQLList(Types::ClearSQL, use_sort); }
 		//проверка указания параметров:
 		bool isDQLEmpty() const noexcept(true) { return isEmptyByCode(Types::DQL); }
 		bool isDMLEmpty() const noexcept(true) { return isEmptyByCode(Types::DML); }
+		bool isClearSqlEmpty() const noexcept(true) { return isEmptyByCode(Types::ClearSQL); }
 		//получение имени шаблонного файла:
 		string getTemplateFile() const noexcept(false) { return getFullFileName(Types::Template, false); }
 	};
@@ -745,6 +772,8 @@ namespace NS_Tune
 		JSonMeth MethodCode() const noexcept(true) { return cells ? cells->getMethodCode() : JSonMeth::Null; }
 		//получение ссылки на файл-приемник:
 		TShareData& getDstFile() const noexcept(false) { return *DstFile; }
+		//установка имени файла приемника:
+		bool setDstFileName(const string& name) noexcept(true);
 		//получение ссылки на данные по колонкам:
 		TProcCell& getCellsData() const noexcept(false) { return *cells; }
 		//получение числа обрабатываемых страниц:

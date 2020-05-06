@@ -31,9 +31,6 @@ using NS_ExcelReport::TCellFormatIndex;
 
 const int DEF_TEMPL_SH_INDX = 0;
 
-template string TDataBaseInterface::getSqlText<NS_Sql::TText>(bool by_str, const string& str) noexcept(false);
-template string TDataBaseInterface::getSqlText<NS_Sql::TSimpleSql>(bool by_str, const string& str) noexcept(false);
-
 void raise_app_err(const TLog& log, bool as_raise = true);
 
 void raise_app_err(const TLog& log, bool as_raise)
@@ -978,9 +975,23 @@ bool TJsonReport::checkINDataBase(NS_Oracle::TResultSet& rs, size_t curRow) noex
 	return f;
 }
 
-void TJsonReport::insertToDataBase(NS_Oracle::TResultSet& rs, size_t curRow) noexcept(false)
+void TJsonReport::insertToDataBase(NS_Oracle::TStatement& query, size_t curRow) noexcept(false)
 {
-	throw TLog("Функция вставки данных в БД НЕ реализована!", "TJsonReport::insertToDataBase");
+	//выполнение DML-команды и подсчет обработанных строк:
+	size_t cnt = query.getProcessedCntRows();
+	if (cnt > 0)
+	{
+		TLog log("Строка ", "TJsonReport::insertToDataBase");
+		log << curRow  << " была успешно импортирована!\n";
+		log.toErrBuff();
+		//query.Commit();
+	}
+	else
+	{
+		TLog log("Ошибка импорта ", "TJsonReport::insertToDataBase");
+		log << curRow  << " строки!\n";
+		throw log;
+	}
 }
 
 bool TJsonReport::ProcessByResultSet(NS_Oracle::TResultSet& rs, size_t curRow) noexcept(false)
@@ -997,16 +1008,11 @@ bool TJsonReport::ProcessByResultSet(NS_Oracle::TResultSet& rs, size_t curRow) n
 		{
 			return checkINDataBase(rs, curRow);
 		}
-		case JSonMeth::SendToDB:
-		{
-			insertToDataBase(rs, curRow);
-			return true;
-		}
 	}
 	return false;
 }
 
-void TJsonReport::ProcessByStatement(NS_Oracle::TStatement& query, size_t curRow) noexcept(false)
+void TJsonReport::setOutStatementParam(NS_Oracle::TStatement& query, size_t curRow) noexcept(false)
 {
 	using NS_Excel::TExcelCell;
 	using NS_Const::DataType;
@@ -1022,6 +1028,28 @@ void TJsonReport::ProcessByStatement(NS_Oracle::TStatement& query, size_t curRow
 		//получение типа данных для ячейки:
 		DataType col_type = cd.getOutType();
 		WriteOutParamToExcel(query, col_type, cd, OutParamIndx, curRow);
+	}
+}
+
+void TJsonReport::ProcessByStatement(NS_Oracle::TStatement& query, size_t curRow) noexcept(false)
+{
+	using NS_Const::JSonMeth;
+	//выполняем обработку в зависимости от метода обработки:
+	switch (meth_code)
+	{
+		//добавление данных в базу
+		case JSonMeth::SendToDB:
+		{
+			//на данный момент запрос уже выполнен!
+			insertToDataBase(query, curRow);
+			break;
+		}
+		//по умолчанию считаем, что из базы получаем выходные паарметры
+		default: 
+		{
+			setOutStatementParam(query, curRow);
+			break;
+		}
 	}
 }
 
@@ -1097,12 +1125,15 @@ bool TJsonReport::setExcelRowDataByBD(NS_Oracle::TStatement& query, size_t curRo
 			return find_flg;
 		}
 	}
+	else//если условие фильтрации не выполнено:
+		return true;
 	return false;
 }
 
 void TJsonReport::setExcelDataByDB(NS_Oracle::TStatement& query, size_t& rowFrom) noexcept(false)
 {
 	using NS_Tune::TIndex;
+	using NS_Const::JSonMeth;
 	if (rowFrom <= 0)
 	{
 		TLog log("Не верно указана начальная строка обработки: ", "TJsonReport::setExcelDataByDB");
@@ -1111,33 +1142,101 @@ void TJsonReport::setExcelDataByDB(NS_Oracle::TStatement& query, size_t& rowFrom
 	}
 	//получение номера последней обрабатываемой строки
 	size_t rowTo = LastRow();
+	size_t errCnt = 0;
 	//считывание строк excel-файла
 	for (rowFrom; rowFrom <= rowTo; rowFrom++)
 	{
-		setExcelRowDataByBD(query, rowFrom);
+		bool rslt = setExcelRowDataByBD(query, rowFrom);
+		if (rslt == false) errCnt++;
+	}
+	//если есть ошибки при импорте данных:
+	if (meth_code == JSonMeth::SendToDB)
+		if (errCnt > 0)
+		{
+			TLog log("При обработке запроса: ", "setExcelDataByDB");
+			log << query.getSQL() << " выявлено: " << errCnt << " ошибок! Обработка отменена!\n";
+			throw log;
+		}
+		else
+		{
+			query.Commit();
+			TLog("Все строки успешно импортированы!\n", "setExcelDataByDB").toErrBuff();
+		}
+}
+
+void TJsonReport::SetDBStatementData(NS_Oracle::TDBConnect& db, const NS_Tune::TUserTune& tune, 
+	const string& sql, size_t& rowFrom) noexcept(false)
+{
+	using NS_Oracle::TStatement;
+	//формирование запроса к БД:
+	TStatement query(db, sql, 1);
+	//установка постоянных параметров:
+	TDataBaseInterface::setSqlParamsByTune(query, tune);
+	//выполнение запроса:
+	setExcelDataByDB(query, rowFrom);
+	query.close();
+}
+
+void TJsonReport::runDBStatementLst(TDBConnect& db, const TUserTune& tune, const NS_Tune::StrArr& sqlLst, size_t& rowFrom) noexcept(false)
+{
+	using NS_Tune::StrArr;
+	for (const string& sql : sqlLst)
+	{
+		if (sql.empty()) continue;
+		SetDBStatementData(db, tune, sql, rowFrom);
 	}
 }
 
 void TJsonReport::UpdExcelDataByDB(NS_Oracle::TDBConnect& db, const NS_Tune::TUserTune& tune, size_t& rowFrom) noexcept(false)
 {
 	using NS_Tune::TIndex;
-	using NS_Oracle::TStatement;
+	using NS_Tune::TUserTune;
+	using NS_Tune::StrArr;
 	//если строка от которой идет считывание не установлена - берем ее из настроек
 	if (rowFrom == TIndex::EmptyIndex)
 		rowFrom = FirstRow();
-	//получение текста запроса:
-	string sql = TDataBaseInterface::getSqlByTune(tune);
-	//формирование запроса к БД:
-	TStatement query(db, sql, 1);
-	//установка постоянных параметров:
-	TDataBaseInterface::setSqlParamsByTune(query, tune);
-	setExcelDataByDB(query, rowFrom);
-	query.close();
+	//получение текста запросов:
+	StrArr sqlLst = tune.getDMLList();
+	//обработка запросов
+	runDBStatementLst(db, tune, sqlLst, rowFrom);
+}
+
+bool TJsonReport::ClearImportDBTbl(TDBConnect& db, const TUserTune& tune) const noexcept(true)
+{
+	using NS_Oracle::TStatement;
+	using NS_Tune::TUserTune;
+	using NS_Tune::StrArr;
+	try
+	{
+		//проверяем наличие скрипта для очистки таблицы в БД:
+		StrArr clearLst = tune.getClearList();
+		for (const string& sql : clearLst)
+		{
+			//формирование запроса к БД:
+			TStatement query(db, sql, 1);
+			//установка постоянных параметров:
+			//TDataBaseInterface::setSqlParamsByTune(query, tune);
+			//выполнение запроса:
+			size_t cnt = query.executeDML();
+			query.close();
+		}
+		return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка очистки таблиц импорта!", "ClearImportDBTbl").toErrBuff();
+	}
+	return false;
 }
 
 void TJsonReport::ProcessSheetDataWithDB() noexcept(false)
 {
-	if (!book.isValid()) throw TLog("Книга не инициализирована!", "TJsonReport::SheetDataFromDataBase");
+	if (!book.isValid()) 
+		throw TLog("Книга не инициализирована!", "TJsonReport::SheetDataFromDataBase");
 	//получение первой строки для обработки
 	size_t row = FirstRow();
 	//для каждой настройки подключения выполняем:
@@ -1147,9 +1246,12 @@ void TJsonReport::ProcessSheetDataWithDB() noexcept(false)
 		NS_Oracle::TConnectParam cp = TDataBaseInterface::getConnectParam(config);
 		//создаем подключение к БД:
 		TDBConnect db(cp);
-		if (!db.isValid()) throw TLog("Ошибка подключения к БД: " + cp.tns_name, "TJsonReport::SheetDataFromDataBase");
+		if (!db.isValid()) 
+			throw TLog("Ошибка подключения к БД: " + cp.tns_name, "TJsonReport::SheetDataFromDataBase");
 		try
 		{
+			//если указано - очищаем таблицы импорта:
+			ClearImportDBTbl(db, config);
 			//обновляем данные в excel-файле:
 			UpdExcelDataByDB(db, config, row);
 		}
@@ -1454,7 +1556,7 @@ bool TJsonReport::procFindRow(const TExtendSheetReport& srcSheet, const CellData
 	for (const TCellData& param : params)
 	{
 		if (param.EmptyInsIndx() or param.EmptySrcVal()) continue;
-		TExcelCell tmpCell(srcRow, param.SrcVal());
+		TExcelCell tmpCell(srcRow, param.SrcVal(), false);
 		if (srcSheet.isEmptyCell(tmpCell) == false)
 			outArr.push_back(&param);
 	}
@@ -1629,7 +1731,13 @@ bool TJsonReport::Search_DestData_In_SrcSheet(TRowsFlag& DstRows,
 		{
 			size_t curRow = index.first + new_rows_cnt;
 			TLog log("Идет обработка: ");
-			log << curRow << " сткроки из " << lastRow << " строк";
+			log << index.first << " сткроки из " << lastRow << " строк\n";
+			/*Отладка
+			log << "Вставлено " << new_rows_cnt << " строк!\n";
+			NS_Excel::TExcelCell cell(curRow, 2, false);
+			string s = sheet.ReadAsString(cell);
+			log << "Обработка клиента: " << s << '\n';
+			/**/
 			log.toErrBuff();
 			//не обрабатываем ячейки, которые были обработаны ранее
 			if (index.second == false) continue;
@@ -1651,7 +1759,7 @@ bool TJsonReport::Search_DestData_In_SrcSheet(TRowsFlag& DstRows,
 					size_t srcRow = DstRow_In_SrcSheet(srcSheet, srcRows, cellArr, curRow, NoSpaceNoCase);
 					if (srcRow == TIndex::EmptyIndex) break;
 					//обработка строки:
-					procFindRow(srcSheet, cellArr, curRow, srcRow);
+					if (procFindRow(srcSheet, cellArr, curRow, srcRow) == false) break;
 					//только для метода вставки новой строки для сравнения
 					if (meth_code == JSonMeth::InsertRowCompare)
 					{
@@ -1659,6 +1767,9 @@ bool TJsonReport::Search_DestData_In_SrcSheet(TRowsFlag& DstRows,
 						DstRows[index.first] = false;
 						//нужно убрать следующую строку(т.к. вместо нее теперь новая строка)
 						new_rows_cnt++;
+						TLog("Произведена вставка строки!").toErrBuff();
+						//удалить отладка
+						//book.SaveToFile();
 						/*
 						curRow = index.first + new_rows_cnt;
 						DstRows.erase(index);
@@ -1677,6 +1788,9 @@ bool TJsonReport::Search_DestData_In_SrcSheet(TRowsFlag& DstRows,
 				}
 			}
 		}
+		TLog log("Добавлено ");
+		log << new_rows_cnt << " строк!";
+		log.toErrBuff();
 		return true;
 	}
 	catch (const TLog& err)
@@ -1916,30 +2030,6 @@ TConnectParam TDataBaseInterface::getConnectParam(const NS_Tune::TUserTune& para
 	return result;
 }
 
-template <typename T>
-string TDataBaseInterface::getSqlText(bool by_str, const string& str) noexcept(false)
-{
-	using std::ifstream;
-	//проверяем откуда получаем sql-текст: файл или строка
-	if (by_str)
-	{
-		T sql(str);
-		return NS_Sql::AsString(sql);
-	}
-	else
-	{
-		ifstream sql_txt_file(str, std::ios_base::in);
-		if (!sql_txt_file.is_open())
-		{
-			throw TLog("Ошибка открытия файла: " + str, "TDataBaseSheetReport::getSqlText");
-		}
-		T sql(sql_txt_file);
-		sql_txt_file.close();
-		return NS_Sql::AsString(sql);
-	}
-	return string();
-}
-
 void TDataBaseInterface::setSqlParamByTune(NS_Oracle::TStatement& sql, const NS_Tune::TSubParam& param, bool use_raise) noexcept(false)
 {
 	using NS_Tune::DataType;
@@ -2155,43 +2245,38 @@ bool TDataBaseSheetReport::isDQLFirst() const noexcept(false)
 	return tune.useFlag(TuneField::SqlFirst);
 }
 
+/*
 string TDataBaseInterface::getSqlByTune(bool use_parse, bool by_str, const string& str) noexcept(true)
 {
-	string sql;
-	if (use_parse)
-		sql = getSqlText<NS_Sql::TText>(by_str, str);
-	else
-		sql = getSqlText<NS_Sql::TSimpleSql>(by_str, str);
+	using NS_Tune::TUserTune;
+	string sql = TUserTune::getSqlString(use_parse, by_str, str);
 	return sql;
 }
+/**/
 
-string TDataBaseInterface::getSqlByTune(const NS_Tune::TUserTune& tune) noexcept(true)
+string TDataBaseInterface::getSqlByTune(const NS_Tune::TUserTune& tune, bool asDQL) noexcept(true)
 {
 	using NS_Const::TuneField;
+	using NS_Tune::TSimpleTune;
 	//если настройки пустые - выходим
 	if (tune.Empty()) return string();
 	bool parserFlg = false;
 	bool byFileFlg = false;
 	parserFlg = tune.useFlag(TuneField::UseSqlParser);
-	string str = tune.getFieldValueByCode(TuneField::SqlFile);
-	if (str.empty())
-	{
-		byFileFlg = false;
-		str = tune.getFieldValueByCode(TuneField::SqlText);
-	}
+	string str;
+	if (asDQL)
+		str = tune.getDQLText();
 	else
-	{
-		byFileFlg = true;
-		str = tune.getDQLFile();
-	}
-	return getSqlByTune(parserFlg, !byFileFlg, str);
+		str = tune.getDMLText();
+	return str;
 }
 
 
 void TDataBaseSheetReport::CrtBySqlLine(NS_Oracle::TDBConnect& db, const string& sql_line, int prefetch) noexcept(false)
 {
+	using NS_Tune::TUserTune;
 	bool use_parse = useSqlParse();
-	string sql = getSqlByTune(use_parse, true, sql_line);
+	string sql = TUserTune::getSqlString(use_parse, true, sql_line);
 	//формирование данных для страницы
 	FillSheetBySql(db, sql, prefetch);
 }
@@ -2199,6 +2284,7 @@ void TDataBaseSheetReport::CrtBySqlLine(NS_Oracle::TDBConnect& db, const string&
 void TDataBaseSheetReport::CrtBySqlFiles(NS_Oracle::TDBConnect& db, int prefetch) noexcept(false)
 {
 	using std::vector;
+	using NS_Tune::TUserTune;
 	vector<string> sql_lst = tune.getDQLFileLst();
 	if (sql_lst.size() < 1)
 		throw TLog("Пустой списк sql-запросов в директории!", "TDataBaseSheetReport::CrtBySqlFiles");
@@ -2206,7 +2292,7 @@ void TDataBaseSheetReport::CrtBySqlFiles(NS_Oracle::TDBConnect& db, int prefetch
 	//выполнение каждого запроса из списка:
 	for (const string& sql_file : sql_lst)
 	{
-		string sql = getSqlByTune(use_parse, false, sql_file);
+		string sql = TUserTune::getSqlString(use_parse, false, sql_file);
 		//выполнение DQL-запроса и заполнение данными листа
 		FillSheetBySql(db, sql, prefetch);
 	}
@@ -2237,6 +2323,7 @@ size_t TDataBaseInterface::runDML4Directory(NS_Oracle::TDBConnect& db, const NS_
 	bool use_comit) noexcept(false)
 {
 	using std::vector;
+	using NS_Tune::TUserTune;
 	//получение списка файлов:
 	vector<string> dml_lst = param.getDMLFileLst();
 	if (dml_lst.size() < 1)
@@ -2248,7 +2335,7 @@ size_t TDataBaseInterface::runDML4Directory(NS_Oracle::TDBConnect& db, const NS_
 	{
 		size_t tmp = 0;
 		//получение текста dml-команды
-		string dml_txt = getSqlByTune(false, false, dml);
+		string dml_txt = TUserTune::getSqlString(false, false, dml);
 		//выполнение dml-команды
 		tmp = executeDML(db, param, dml_txt, use_comit);
 		if (tmp == 0)
@@ -2830,7 +2917,7 @@ bool TReport::Json_SubTune_File_Run(NS_Excel::TExcelBook& book, const string& js
 	return false;
 }
 
-void TReport::SubConfig_Stage() const noexcept(true)
+void TReport::SubConfig_Json_UpdOutExlFile() const noexcept(true)
 {
 	using NS_Tune::StrArr;
 	using NS_Excel::TExcelBook;
@@ -2867,6 +2954,77 @@ void TReport::SubConfig_Stage() const noexcept(true)
 	}
 }
 
+void TReport::SubConfig_IniFile_Execute() const noexcept(true)
+{
+	using NS_Tune::StrArr;
+	try
+	{
+		//получение списка ini-файлов:
+		StrArr config_lst;
+	}
+	catch (const TLog)
+	{
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при выполнении ini-файла!", "TReport::SubConfig_IniFile_Execute").toErrBuff();
+	}
+}
+
+bool TReport::loadFromJson(const string& js_file) const noexcept(true)
+{
+	using NS_Excel::TExcelBook;
+	using NS_Tune::TProcCell;
+	using NS_Tune::TExcelProcData;
+	using NS_Tune::TSimpleTune;
+	using NS_Tune::StrArr;
+	try
+	{
+		//инициализация настроек js-файла:
+		TExcelProcData json(js_file, &config);
+		//проверка валидности натроек
+		if (json.isDstFileEmpty())
+			throw TLog("Пустой исходный excel-файл для считывания!", "loadFromJson");
+		if (json.isCellsEmpty())
+			throw TLog("Пустые данные для обработки!", "loadFromJson");
+		//получение директории загружаемых excel-файлов:
+		string directory = json.getDstFile().getName();
+		StrArr filesLst = TSimpleTune::getFileLst(directory);
+		for (const string& name : filesLst)
+		{
+			TLog log("Производим загрузку данных из файла: " + name, "loadFromJson");
+			//инициализация excel-файла:
+			TExcelBook book(name);
+			//установка имени файла т.к. там указана лишь директория:
+			json.setDstFileName(name);
+			//получение числа обрабатываемых страниц:
+			size_t pageCnt = json.getProcPagesCnt();
+			size_t errCnt = 0;//счетчик ошибок
+			//обработка каждой страницы excel-файла:
+			for (size_t i = 0; i < pageCnt; i++)
+			{
+				log << " для " << i << " страницы!\n";
+				log.toErrBuff();
+				//инициализация обработчика excel-файла
+				TJsonReport report(book, json, i);
+				//формирование отчета:
+				if (report.crtSheetReport() == false)
+					errCnt++;
+			}
+		}
+	}
+	catch (const TLog& log)
+	{
+		log.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка при загрузке данных из файла: " + js_file, "loadFromJson");
+		log.toErrBuff();
+	}
+	return false;
+}
+
 void TReport::load2DBFromExcel() const noexcept(false)
 {
 	using NS_Logger::TLog;
@@ -2874,14 +3032,17 @@ void TReport::load2DBFromExcel() const noexcept(false)
 	using NS_Excel::TExcelBook;
 	using NS_Tune::StrArr;
 	using NS_ExcelReport::TRowsTNS;
-/*
-	//формируем список файлов настроек из config
+	//выполнение парсинга json-файлов:
+	//формируем список json-файлов настроек из config
 	StrArr js_files = config.getConfFileLst();
-	if (js_files.empty()) throw TLog("Пустая директория с js-файлами настроек!", "Json_One_Row_One_DBQuery");
-	//выполнение прохода по всем файлам:
+	if (js_files.empty())
+		throw TLog("Пустая директория с js-файлами настроек!", "load2DBFromExcel");
+	//выполнение прохода по каждому файлу:
 	for (const string& js : js_files)
 	{
+		//если файл пустой - пропускаем:
 		if (js.empty()) continue;
+		loadFromJson(js);
 	}
 /**/
 }
@@ -2928,9 +3089,9 @@ void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
 	case ReportCode::FULL_CRED_REPORT:
 	{
 		//формирование данных из БД
-		One_Sheet_By_Many_Statement();
+		//One_Sheet_By_Many_Statement();
 		//сравнение excel-файлов
-		SubConfig_Stage();
+		SubConfig_Json_UpdOutExlFile();
 		break;
 	}
 	//данные о кредитном портфеле для СУА

@@ -32,8 +32,8 @@ namespace NS_Const
 		//отчет
 		SheetName, TemplateName,
 		//запрос
-		SqlFirst, SqlFile, SqlText, DMLFile, DMLText, SqlParam, Column,
-		SqlParamQuane, SqlParamType, SqlParamNote, SqlParamValue, UseSqlParser,
+		SqlFirst, SqlFile, SqlText, DMLFile, DMLText, ClearSLQText, ClearSQLFile, 
+		SqlParam, Column,	SqlParamQuane, SqlParamType, SqlParamNote, SqlParamValue, UseSqlParser,
 		End_Unq_Tune,
 		Last
 	};

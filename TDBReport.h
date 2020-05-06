@@ -248,18 +248,29 @@ namespace NS_ExcelReport
 		//функция проверки существования данных в БД(для одной записи):
 		virtual bool checkINDataBase(NS_Oracle::TResultSet& rs, size_t curRow) noexcept(false);
 		//функция записи данных в БД:
-		virtual void insertToDataBase(NS_Oracle::TResultSet& rs, size_t curRow) noexcept(false);
+		virtual void insertToDataBase(NS_Oracle::TStatement& query, size_t curRow) noexcept(false);
 		//функция выполнения обработки в зависимости от метода:
+		//получение/обработка данных из ResultSet
 		bool ProcessByResultSet(NS_Oracle::TResultSet& rs, size_t curRow) noexcept(false);
+		//получение данных из базы в выходной параметр:
+		void setOutStatementParam(NS_Oracle::TStatement& query, size_t curRow) noexcept(false);
+		//обработка данных из Query/Statement
 		void ProcessByStatement(NS_Oracle::TStatement& query, size_t curRow) noexcept(false);
 		//функция выполнения запроса для строки:
 		virtual bool runQuery(NS_Oracle::TStatement& query, size_t curRow) noexcept(true);
 		//функция обработки строки из страницы excel-файла:
 		virtual bool setExcelRowDataByBD(NS_Oracle::TStatement& query, size_t curRow) noexcept(true);
 		//функция получения данных для вставки/обновления в странице excel-файла для всех строк:
-		virtual void setExcelDataByDB(TStatement& query, size_t& rowFrom) noexcept(false);
-		//функция считывания информации из excel-файла
+		virtual void setExcelDataByDB(NS_Oracle::TStatement& query, size_t& rowFrom) noexcept(false);
+		//функция вставки данных из excel-файла в базу данных:
+		virtual void SetDBStatementData(NS_Oracle::TDBConnect& db, const NS_Tune::TUserTune& tune, 
+			const string& sql, size_t& rowFrom) noexcept(false);
+		//процедура обработки массива запросов для БД:
+		void runDBStatementLst(TDBConnect& db, const TUserTune& tune, const NS_Tune::StrArr& sqlLst, size_t& rowFrom) noexcept(false);
+		//функция считывания информации из excel-файла в базу данных
 		virtual void UpdExcelDataByDB(TDBConnect& db, const TUserTune& tune, size_t& rowFrom) noexcept(false);
+		//функция очистки таблиц для импорта в БД:
+		virtual bool ClearImportDBTbl(TDBConnect& db, const TUserTune& tune) const noexcept(true);
 		//фукнция проверки выполнения условий фильтрации для указанной строки:
 		virtual bool CorrectFilter(size_t cur_row) const noexcept(true);
 		//функция установки параметров в sql-запрос для указанной строки:
@@ -283,8 +294,6 @@ namespace NS_ExcelReport
 		//функция проверки наличия данных файла-приемника на листе в файле-источнике:
 		bool Search_DestData_In_SrcSheet(TRowsFlag& DstRows, const TExtendSheetReport& srcSheet, 
 			bool NoSpaceNoCase = true) noexcept(true);
-		//функция вставки данных из excel-файла в базу данных:
-
 		//функция вставки данных из другого excel-файла:
 		void Compare_Excel_Sheets(bool NoSpaceNoCase = true) noexcept(false);
 		//функция получения числа конфигурационных файлов:
@@ -374,12 +383,9 @@ namespace NS_ExcelReport
 		//установка значений параметров sql-команды по настройкам:
 		static void setSqlParamsByTune(TStatement& sql, const TUserTune& param) noexcept(false);
 		//получение текста sql-запроса с парсингом или без:
-		static string getSqlByTune(bool use_parse, bool by_str, const string& str) noexcept(true);
+		//static string getSqlByTune(bool use_parse, bool by_str, const string& str) noexcept(true);
 		//получение текста sql-запроса из настроек:
-		static string getSqlByTune(const TUserTune& tune) noexcept(true);
-		//получение текста запроса из строки либо на основании настроек, если строка пуста
-		template <typename T>
-		static string getSqlText(bool by_str, const string& str) noexcept(false);
+		static string getSqlByTune(const TUserTune& tune, bool asDQL) noexcept(true);
 		//вызов выполнения указанной dml-команды:
 		static size_t executeDML(TDBConnect& db, const TUserTune& param, const string& dml, bool use_comit = true) noexcept(false);
 		//вызов dml-команды для файлов:
@@ -414,7 +420,7 @@ namespace NS_ExcelReport
 		//при условии, что они оба указаны в одном config-файле
 		bool isDQLFirst() const noexcept(false);
 	protected:
-		//формирование страницы отчета по строfке запроса:
+		//формирование страницы отчета по строке запроса:
 		void CrtBySqlLine(TDBConnect& db, const string& sql_line, int prefetch = 1) noexcept(false);
 		//формирование страницы отчета по файлам sql-запросов:
 		void CrtBySqlFiles(TDBConnect& db, int prefetch = 1) noexcept(false);
@@ -443,6 +449,8 @@ namespace NS_ExcelReport
 		bool Json_Report_By_File_Compare(const string& js_file) const noexcept(true);
 		//функция обработки одного файла подконфигурации
 		bool Json_SubTune_File_Run(NS_Excel::TExcelBook& book, const string& js_file) const noexcept(true);
+		//функция загрузки данных из excel-файла
+		bool loadFromJson(const string& js_file) const noexcept(true);
 	public:
 		//инициализация
 		explicit TReport(const string& config_file = string());
@@ -472,7 +480,9 @@ namespace NS_ExcelReport
 		//на первом этапе формируется отчет на основании файлов в пааке config
 		//на втором этапе обрабатывается указанный отчет на основании файлов в папке SubConfig
 		//функция выполнения 2ого этапа обработки отчета для поднастроек(subconfig):
-		void SubConfig_Stage() const noexcept(true);
+		void SubConfig_Json_UpdOutExlFile() const noexcept(true);
+		//функция выполнения 2ого этапа обработки - обработка ini-файла:
+		void SubConfig_IniFile_Execute() const noexcept(true);
 		//функция загрузки данных из excel в базу данных:
 		void load2DBFromExcel() const noexcept(false);
 		//вызов функции, формирующей отчет по коду:

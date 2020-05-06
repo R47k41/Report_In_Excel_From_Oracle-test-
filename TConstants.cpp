@@ -206,7 +206,14 @@ NS_Const::TConstant<T, min_val, max_val>& NS_Const::TConstant<T, min_val, max_va
 bool NS_Const::TConstField::StrInclude(const string& str) const
 {
 	if (str.empty()) return false;
-	if (str.find(toStr(), 0) != string::npos) return true;
+	string tmp = toStr();
+	if (str.find(tmp, 0) != string::npos)
+	{
+		size_t i = 0;
+		while (!isalnum(str[i])) i++;
+		//если сравниваемая строка совпадает, но короче - считаем совпадением
+		if (str.compare(tmp) >= 0)	return true;
+	}
 	return false;
 }
 
@@ -244,6 +251,8 @@ string NS_Const::TConstField::asStr(const TuneField& val)
 	case TuneField::UseSqlParser: return "UseSqlParser";
 	case TuneField::DMLText: return "DMLText";
 	case TuneField::DMLFile: return "DMLFile";
+	case TuneField::ClearSLQText: return "ClearSQLText"; 
+	case TuneField::ClearSQLFile: return "ClearSQLFile";
 	case TuneField::Columns: return "[COLUMNS]";
 	case TuneField::Column: return "Column";
 	case TuneField::SqlParams: return "[PARAMETERS]";
@@ -739,7 +748,7 @@ string NS_Const::TConstJSFilterOper::asStr(const NS_Const::JsonFilterOper& val) 
 		case JsonFilterOper::Like: return "like";
 		case JsonFilterOper::LikeNoCase: return "lower(trim(like))";
 		case JsonFilterOper::NotLike: return "!like";
-		case JsonFilterOper::StrEqualNoCase: "lower(trim(==))";
+		case JsonFilterOper::StrEqualNoCase: return "lower(trim(==))";
 		case JsonFilterOper::isEmpty: return "is null";
 		case JsonFilterOper::NotEmpty: return "is not null";
 	}
@@ -807,6 +816,7 @@ noexcept(true)
 		//выполнение операции фильрации в зависимости от кода:
 		switch (oper_code)
 		{
+		case JsonFilterOper::StrEqualNoCase:
 		case JsonFilterOper::Equal: return val1 == val2;
 		case JsonFilterOper::NotEqual: return val1 != val2;
 		case JsonFilterOper::MoreThan: return val1 > val2;

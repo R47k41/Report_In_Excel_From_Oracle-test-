@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <boost/filesystem.hpp>
 #include "TuneParam.h"
+#include "TSQLParser.h"
 #include "Logger.hpp"
-
 
 using std::string;
 using std::vector;
@@ -21,6 +21,10 @@ template void NS_Tune::TShareData::setArrayByJson<NS_Tune::TSheetData>(const ptr
 
 template void NS_Tune::TShareData::setArrayByJson<NS_Tune::TFilterData>(const ptree::value_type& node, const JsonParams& tag,
 	vector<NS_Tune::TFilterData>& arr);
+
+template string NS_Tune::TUserTune::getSqlText<NS_Sql::TText>(const NS_Tune::TNotNullRslt& data) noexcept(false);
+
+template string NS_Tune::TUserTune::getSqlText<NS_Sql::TSimpleSql>(const NS_Tune::TNotNullRslt& data) noexcept(false);
 
 
 namespace NS_Tune
@@ -253,6 +257,7 @@ NS_Tune::FileParam NS_Tune::TSimpleTune::getFileParamByCode(const Types& code) c
 	case Types::SQL:
 	case Types::DQL:
 	case Types::DML:
+	case Types::ClearSQL:
 		result.second = getFieldValueByCode(TuneField::SqlFileExt);
 		break;
 
@@ -273,6 +278,34 @@ void NS_Tune::TSimpleTune::AddDelimeter(string& str, const char delim) noexcept(
 {
 	if (!str.empty() && str[str.size() - 1] != delim)
 		str += delim;
+}
+
+NS_Tune::TNotNullRslt NS_Tune::TSimpleTune::CoalesceKeys(const NS_Const::TuneField& key1,
+	const NS_Const::TuneField& key2) const noexcept(true)
+{
+	using NS_Const::TConstField;
+	TNotNullRslt result(string(), true);
+	try
+	{
+		result.first = getFieldValueByCode(key1);
+		if (result.first.empty())
+		{
+			result.first = getFieldValueByCode(key2);
+			result.second = false;
+		}
+		return result;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка получения не пустого значения между ключами: ", "TSimpleTune::CoalesceKeys");
+		log << TConstField::asStr(key1) << " и " << TConstField::asStr(key2) << '\n';
+		log.toErrBuff();
+	}
+	return result;
 }
 
 string NS_Tune::TSimpleTune::getPathByCode(const Types& code) const noexcept(true)
@@ -913,6 +946,153 @@ void NS_Tune::TUserTune::show_params(std::ostream& stream) const
 		par.show();
 }
 
+template <typename T>
+string NS_Tune::TUserTune::getSqlText(const TNotNullRslt& data) noexcept(false)
+{
+	using std::ifstream;
+	//проверяем откуда получаем sql-текст: файл или строка
+	if (!data.second)
+	{
+		T sql(data.first);
+		return NS_Sql::AsString(sql);
+	}
+	else
+	{
+		ifstream sql_txt_file(data.first, std::ios_base::in);
+		if (!sql_txt_file.is_open())
+		{
+			throw TLog("Ошибка открытия файла: " + data.first, "TUserTune::getSqlText");
+		}
+		T sql(sql_txt_file);
+		sql_txt_file.close();
+		return NS_Sql::AsString(sql);
+	}
+	return string();
+}
+
+string NS_Tune::TUserTune::getSqlString(bool parsingFlg, bool byStrFlg, const string& str) noexcept(true)
+{
+	try
+	{
+		if (str.empty()) throw TLog("Пустая строка запроса!", "TUserTune::getSqlString");
+		TNotNullRslt tmp(str, !byStrFlg);
+		if (parsingFlg)
+			return getSqlText<NS_Sql::TText>(tmp);
+		else
+			return getSqlText<NS_Sql::TSimpleSql>(tmp);
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка получения sql-команды из строки: " + str, "TUserTune::getSqlString").toErrBuff();
+	}
+	return string();
+}
+
+NS_Tune::TNotNullRslt NS_Tune::TUserTune::checkLines(const Types& type_code) const noexcept(true)
+{
+	using NS_Const::TuneField;
+	using NS_Tune::TNotNullRslt;
+	TNotNullRslt tmp(string(), true);
+	switch (type_code)
+	{
+	case Types::DQL:
+	{
+		tmp = CoalesceKeys(TuneField::SqlFile, TuneField::SqlText);
+		break;
+	}
+	case Types::DML:
+	{
+		tmp = CoalesceKeys(TuneField::DMLFile, TuneField::DMLText);
+		break;
+	}
+	case Types::ClearSQL:
+	{
+		tmp = CoalesceKeys(TuneField::ClearSQLFile, TuneField::ClearSLQText);
+		break;
+	}
+	default:
+		throw TLog("Указанный код не относится к SQL командам!", "TUserTune::getSqlText");
+	}
+	return tmp;
+}
+
+string NS_Tune::TUserTune::getSqlByParsingFlg(const TNotNullRslt& param, bool parsing) const noexcept(false)
+{
+	if (parsing)
+		return getSqlText<NS_Sql::TText>(param);
+	else
+		return getSqlText<NS_Sql::TSimpleSql>(param);
+}
+
+string NS_Tune::TUserTune::getSqlStr(const Types& type_code) const noexcept(true)
+{
+	using NS_Const::TuneField;
+	using NS_Tune::TNotNullRslt;
+	try
+	{
+		TNotNullRslt tmp = checkLines(type_code);
+		//если заполнено имя файла:
+		if (!tmp.first.empty())
+		{
+			//получение флага парсинга:
+			bool use_parsing = useFlag(TuneField::UseSqlParser);
+			return getSqlByParsingFlg(tmp, use_parsing);
+		}
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка получения sql-команды!", "TUserTune::getSqlText").toErrBuff();
+	}
+	return string();
+}
+
+vector<string> NS_Tune::TUserTune::getSQLList(const Types& kind, bool use_sort) const noexcept(false)
+{
+	StrArr lst;
+	//если данный параметр не заполнен - выход
+	if (isEmptyByCode(kind)) return lst;
+	//проверяем какое из полей заполнено:
+	TNotNullRslt SqlField = checkLines(kind);
+	//если данный тип sql-поля не заполнен - выход
+	if (SqlField.first.empty()) return lst;
+	//получение параметра парсинга:
+	bool use_parsing = useFlag(TuneField::UseSqlParser);
+	//проверяем указан ли путь/файл или строка:
+	if (SqlField.second == false)
+	{
+		//обработка строки:
+		string sql = getSqlByParsingFlg(SqlField, use_parsing);
+		if (sql.empty() == false)
+			//если указана строка:
+			lst.push_back(sql);
+	}
+	else
+	{
+		//получение параметров отбираемых файлов
+		FileParam param = getFileParamByCode(kind);
+		param.first += SqlField.first;
+		//если указан файл/путь - формируем массив файлов:
+		StrArr fileLst = getFileLst(param.first, param.second, use_sort);
+		//проходим по каждому файлу и получаем текст его sql-команды:
+		for (const string& file : fileLst)
+		{
+			SqlField.first = file;
+			string sql = getSqlByParsingFlg(SqlField, use_parsing);
+			if (sql.empty()) continue;
+			lst.push_back(sql);
+		}
+	}
+	return lst;
+}
+
 vector<string> NS_Tune::TUserTune::getSQLFileLst(const Types& code, bool use_sort) const noexcept(false)
 {
 	//получение данных о файлах и путях(если будут меняться расширения файлов - запихнуть в switch):
@@ -926,6 +1106,9 @@ vector<string> NS_Tune::TUserTune::getSQLFileLst(const Types& code, bool use_sor
 	case Types::DML:
 		param.first += getFieldValueByCode(TuneField::DMLFile);
 		break;
+	case Types::ClearSQL:
+		param.first += getFieldValueByCode(TuneField::ClearSQLFile);
+		break;
 	}
 	return getFileLst(param.first, param.second, use_sort);
 }
@@ -938,6 +1121,9 @@ bool NS_Tune::TUserTune::isEmptyByCode(const Types& code) const noexcept(false)
 		return getFieldValueByCode(TuneField::SqlFile).empty() && getFieldValueByCode(TuneField::SqlText).empty();
 	case Types::DML:
 		return getFieldValueByCode(TuneField::DMLFile).empty() && getFieldValueByCode(TuneField::DMLText).empty();
+	case Types::ClearSQL:
+		return getFieldValueByCode(TuneField::ClearSQLFile).empty() && getFieldValueByCode(TuneField::ClearSLQText).empty();
+
 	}
 	return false;
 }
@@ -1206,6 +1392,7 @@ bool NS_Tune::TFilterData::isFiltredBoolValue(const bool& val) const noexcept(tr
 bool NS_Tune::TFilterData::isFiltredDblValue(const double& val) const noexcept(true)
 {
 	using NS_Const::TConstJSFilterOper;
+	using NS_Const::JsonFilterOper;
 	using NS_Converter::toDblType;
 	//преобразование значение из фильтра в значение из вне:
 	double tmp = 0;
@@ -1740,6 +1927,14 @@ NS_Tune::TExcelProcData::~TExcelProcData()
 {
 	DeInitDstFile();
 	DeInitCells();
+}
+
+bool NS_Tune::TExcelProcData::setDstFileName(const string& name) noexcept(true)
+{
+	//проверяем только инициализацию DstFile
+	if (DstFile == nullptr or name.empty()) return false;
+	DstFile->setName(name);
+	return true;
 }
 
 void NS_Tune::TExcelProcData::show(std::ostream& stream) const noexcept(true)
