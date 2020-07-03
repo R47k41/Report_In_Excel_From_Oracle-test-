@@ -20,11 +20,11 @@ namespace NS_Logger
 		stringstream msg;
 		mutable string buf;//выключаем ограничения на изменения для const-функций
 		void new_line(const char ch = NL) { msg << ch; }
-		//сброс буфера и состояний, если надо:
-		void clear(bool clear_state = false);
 	public:
 		explicit TLog(const string& str = "", const string& fnc_name = "");
 		TLog(const TLog& log);
+		//сброс буфера и состояний, если надо:
+		void clear(bool clear_state = false);
 		//проверка на пустоту:
 		bool isEmpty() const { return msg.str().empty(); }
 		//проверка работоспособности:

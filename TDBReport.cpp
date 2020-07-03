@@ -433,11 +433,17 @@ NS_ExcelReport::TRowsFlag TExtendSheetReport::setFiltredRowsArr() const noexcept
 	size_t size = LastRow();
 	bool all_flg = filters.empty();
 	//заносим все строки
+	TLog log("Выполняется проверка условий отбора для ", "TExtendSheetReport::setFiltredRowsArr");
+	log << size << " строк!\n";
+	log.toErrBuff();
 	for (; i <= size; i++) 
 	{
 		if (all_flg or isCorrectFilter(i))
 			rows.insert(TRowFlag(i, true));
 	}
+	log.clear(true);
+	log << "Для обработки выбрано: " << rows.size() << " строк!\n";
+	log.toErrBuff();
 	return rows;
 }
 
@@ -536,7 +542,9 @@ bool TExtendSheetReport::checkByFilter(const NS_Tune::TFilterData& filter, size_
 	{
 		//если в ячейке нет данных - выход
 		if (sheet.isEmptyCell(cell))
-			throw TLog("Пустая ячейка: " + cell.getName(), "TExtendSheetReport::checkCellByFilter");
+			//Отладка:
+			//throw TLog("Пустая ячейка: " + cell.getName(), "TExtendSheetReport::checkCellByFilter");
+			return false;
 		//получаем тип данных в ячейке:
 		TDataType dt = sheet.getCellType(cell);
 		//считываем данные из ячейки:
@@ -1747,7 +1755,7 @@ bool TJsonReport::Search_DestData_In_SrcSheet(TRowsFlag& DstRows,
 				case JSonMeth::CompareCell:
 				case JSonMeth::CompareCellChange:
 				{
-					//исключение строки приемника из списка обработки
+					//исключение строки eприемника из списка обработки
 					if (DstRowCells_In_SrcSheet(srcSheet, srcRows, cellArr, curRow, NoSpaceNoCase) == true)
 						DstRows[index.first] = false;
 					//if (WithChangeMeth() and flg) continue;
@@ -1767,7 +1775,9 @@ bool TJsonReport::Search_DestData_In_SrcSheet(TRowsFlag& DstRows,
 						DstRows[index.first] = false;
 						//нужно убрать следующую строку(т.к. вместо нее теперь новая строка)
 						new_rows_cnt++;
-						TLog("Произведена вставка строки!").toErrBuff();
+						log.clear(true);
+						log << "Произведена вставка строки!\n";
+						log.toErrBuff();
 						//удалить отладка
 						//book.SaveToFile();
 						/*
@@ -3061,55 +3071,54 @@ void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
 	};
 	switch (code)
 	{
-	//отчеты основанные на выполнении одиночного sql-запроса на лист:
+		//отчеты основанные на выполнении одиночного sql-запроса на лист:
 	case ReportCode::BALANCE_LIST:
 	case ReportCode::REPAYMENT_FOR_DATE:
 	case ReportCode::DOCS_MF_SF_FOR_PERIOD:
 		One_Sheet_By_One_Config();
 		break;
-	//case ReportCode::DOCS_MF_SF_FOR_PERIOD:
-	//один файл отчета для одного config-файла
+		//case ReportCode::DOCS_MF_SF_FOR_PERIOD:
+		//один файл отчета для одного config-файла
 	case ReportCode::RIB_DOCS_FOR_PERIOD:
 	case ReportCode::POTREB_CRED_BY_FILE:
 	case ReportCode::CRED_CASE_MF:
 		One_Report_For_Each_Config();
 		break;
-	//отчет основан на записи результатов различных запросов на одну страницу в один файл:
+		//отчет основан на записи результатов различных запросов на одну страницу в один файл:
 	case ReportCode::NBKI_NP:
 	case ReportCode::NBKI_JP:
 	case ReportCode::BALANCE_SUA:
 		One_Sheet_By_Many_Statement();
 		break;
-	//выполнение хранимой процедуры:
+		//выполнение хранимой процедуры:
 	case ReportCode::NBKI_APPLY:
 	case ReportCode::CLOSE_DAY:
 		runDML_By_Tune(true);
 		break;
-	//полный кредитный портфель + манипуляция с excel-файлом
+		//полный кредитный портфель + манипуляция с excel-файлом
 	case ReportCode::FULL_CRED_REPORT:
 	{
 		//формирование данных из БД
-		//One_Sheet_By_Many_Statement();
+		One_Sheet_By_Many_Statement();
 		//сравнение excel-файлов
 		SubConfig_Json_UpdOutExlFile();
 		break;
 	}
-	//данные о кредитном портфеле для СУА
+	//данные о кредитном портфеле для СУА(вставка данных из базы в excel)
+	//не используются
 	case ReportCode::FULL_CRED_REPORT_SUA:
 	case ReportCode::EXCEL_SET_DATA_FROM_BASE:
 		Json_One_Row_One_DBQuery();
 		break;
-	//загрузка данных в oracle из excel
+		//загрузка данных в oracle из excel
 	case ReportCode::LOAD_FROM_FILE:
 	case ReportCode::EXCEL_PAY_LOAD_MF:
 	case ReportCode::EXCEL_PAY_LOAD_SF:
 	case ReportCode::EXCEL_DOC_LOAD:
 		load2DBFromExcel();
 		break;
-	//сравнение файлов excel
+		//сравнение файлов excel
 	case ReportCode::FILE_COMPARE_RIB:
-		Json_Report_By_Files_Compare();
-		break;
 	case ReportCode::FILE_COMPARE_RTBK:
 		Json_Report_By_Files_Compare();
 		break;
@@ -3125,6 +3134,8 @@ bool TReport::Execute() const noexcept(true)
 	using NS_Logger::TLog;
 	using NS_Const::TConstReportCode;
 	using NS_Const::ReportCode;
+	using std::cout;
+	using std::cin;
 	try
 	{
 		//получение идентификатора кода отчета:
@@ -3147,8 +3158,7 @@ TReport::TReport(const string& config_file): config(config_file)
 {
 	try
 	{
-		if (!config.Empty())
-			Execute();
+		if (!config.Empty()) Execute();
 	}
 	catch (const TLog& err)
 	{

@@ -80,6 +80,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>$(CPP_LIB)boost;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
     <LinkIncremental>false</LinkIncremental>
@@ -132,7 +133,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(CPP_LIB)oracle\occi-oracle\sdk\include;$(CPP_LIB)LibXL\libxl-3.8.5.0\include_cpp\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(CPP_LIB)oracle\occi-oracle\sdk\include\;$(CPP_LIB)boost\boost\date_time\;$(CPP_LIB)boost\boost\filesystem\;$(CPP_LIB)boost\boost\property_tree\;$(CPP_LIB)LibXL\libxl\include_cpp\;%(AdditionalIncludeDirectories);$(CPP_LIB)boost\boost\locale\</AdditionalIncludeDirectories>
       <SupportJustMyCode>true</SupportJustMyCode>
       <WholeProgramOptimization>false</WholeProgramOptimization>
     </ClCompile>
@@ -141,8 +142,8 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(CPP_LIB)LibXL\libxl-3.8.5.0\lib;$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc\oraocci10.lib;$(CPP_LIB)LibXL\libxl-3.8.5.0\lib\libxl.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(CPP_LIB)boost\stage\lib;$(CPP_LIB)LibXL\libxl\lib;$(CPP_LIB)boost\libs\filesystem;$(CPP_LIB)boost\libs\date_time;$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc;$(CPP_LIB)boost\libs\property_tree;$(CPP_LIB)boost\libs\locale;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CPP_LIB)oracle\occi-oracle\sdk\lib\msvc\oraocci18.lib;$(CPP_LIB)LibXL\libxl\lib\libxl.lib;$(CPP_LIB)boost\stage\lib\libboost_date_time-vc142-mt-gd-x32-1_70.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
     </Link>
   </ItemDefinitionGroup>

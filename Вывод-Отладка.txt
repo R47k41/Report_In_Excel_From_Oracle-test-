@@ -1,0 +1,80 @@
+﻿"ExcelAndOracle.exe" (Win32). Загружено "D:\Documents\Visual Studio 2019\source\repos\ExcelAndOracle\Release\ExcelAndOracle.exe". Символы загружены.
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\ntdll.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\kernel32.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\KernelBase.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "E:\oracle\product\11.2.0\client_1\BIN\oraocci18.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "E:\oracle\product\11.2.0\client_1\BIN\oci.dll". Сборка модуля выполнена без символов.
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\msvcr120.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\advapi32.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\msvcrt.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\sechost.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\rpcrt4.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\vcruntime140.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-crt-runtime-l1-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\ucrtbase.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-core-timezone-l1-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-core-file-l2-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-core-localization-l1-2-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-core-synch-l1-2-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-core-processthreads-l1-1-1.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-core-file-l1-2-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-crt-heap-l1-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-crt-string-l1-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-crt-stdio-l1-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-crt-convert-l1-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\msvcp140.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-crt-locale-l1-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-crt-filesystem-l1-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-crt-time-l1-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-crt-environment-l1-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-crt-math-l1-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\api-ms-win-crt-utility-l1-1-0.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "D:\Documents\Visual Studio 2019\source\repos\ExcelAndOracle\Release\libxl.dll". Сборка модуля выполнена без символов.
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\gdi32.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\user32.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\lpk.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\usp10.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\shell32.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\shlwapi.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\imm32.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\msctf.dll". 
+Поток 0x1550 завершился с кодом 0 (0x0).
+Вызвано исключение по адресу 0x7598812F в ExcelAndOracle.exe: исключение Microsoft C++: NS_Logger::TLog по адресу памяти 0x0018F2B0.
+Вызвано исключение по адресу 0x7598812F в ExcelAndOracle.exe: исключение Microsoft C++: NS_Logger::TLog по адресу памяти 0x0018F2B0.
+"ExcelAndOracle.exe" (Win32). Загружено "E:\oracle\product\11.2.0\client_1\BIN\oraociei18.dll". Сборка модуля выполнена без символов.
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\ws2_32.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\nsi.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\ole32.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\oleaut32.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\IPHLPAPI.DLL". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\winnsi.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\crypt32.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\msasn1.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\psapi.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\netapi32.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\netutils.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\srvcli.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\wkscli.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\samcli.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\dnsapi.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\secur32.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\sspicli.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\cryptui.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "E:\oracle\product\11.2.0\client_1\BIN\oraons.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\mswsock.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\wship6.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\profapi.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\WSHTCPIP.DLL". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\cscapi.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\cryptbase.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Windows\System32\uxtheme.dll". 
+"ExcelAndOracle.exe" (Win32). Загружено "C:\Program Files\Unlocker\UnlockerHook.dll". Сборка модуля выполнена без символов.
+Вызвано исключение по адресу 0x7598812F в ExcelAndOracle.exe: исключение Microsoft C++: NS_Logger::TLog по адресу памяти 0x0018EA24.
+Вызвано исключение по адресу 0x7598812F в ExcelAndOracle.exe: исключение Microsoft C++: NS_Logger::TLog по адресу памяти 0x0018E3AC.
+Вызвано исключение по адресу 0x7598812F в ExcelAndOracle.exe: исключение Microsoft C++: NS_Logger::TLog по адресу памяти 0x0018E3AC.
+Вызвано исключение по адресу 0x7598812F в ExcelAndOracle.exe: исключение Microsoft C++: NS_Logger::TLog по адресу памяти 0x0018EB9C.
+Вызвано исключение по адресу 0x7598812F в ExcelAndOracle.exe: исключение Microsoft C++: NS_Logger::TLog по адресу памяти 0x0018EA94.
+Поток 0x1f9c завершился с кодом 0 (0x0).
+Поток 0x1fa4 завершился с кодом 0 (0x0).
+Поток 0xc9c завершился с кодом 0 (0x0).
+Программа "[6044] ExcelAndOracle.exe" завершилась с кодом 0 (0x0).

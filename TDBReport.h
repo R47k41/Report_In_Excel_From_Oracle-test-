@@ -187,6 +187,21 @@ namespace NS_ExcelReport
 		//функция вставки данных в ячейку-приемник из ячейки-источника:
 		virtual bool setDstCellBySrcCell(NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell, 
 			const NS_Excel::TExcelCell& srcCell) const noexcept(true);
+/*
+		//группа функций поиска данных одной excel-строки в другой excel-строке(другой страницы/файла)
+		//функция поиска каждой ячейки строки источника на листе приемника:
+		bool DstRowCells_In_SrcSheet(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
+			const CellDataArr& params, size_t curRow, bool NoSpaceNoCase = true) noexcept(true);
+		//функция поиска строки источника на листе приемника:
+		size_t DstRow_In_SrcSheet(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
+			const CellDataArr& params, size_t curRow, bool NoSpaceNoCase = true) noexcept(true);
+		//функция обработки строки источника и строки приемника:
+		bool procFindRow(const TExtendSheetReport& srcSheet, const CellDataArr& params,
+			size_t dstRow, size_t srcRow) noexcept(true);
+		//функция обработки ячеек приемника и источника:
+		bool procFindCell(const TExtendSheetReport& srcSheet, const NS_Tune::TCellData& param,
+			size_t dstRow, size_t srcRow) noexcept(true);
+/**/
 	};
 
 	//класс для обработки excel-файлов на основании json-настроек
@@ -291,6 +306,7 @@ namespace NS_ExcelReport
 		//функция поиска каждой ячейки строки источника на листе приемника:
 		bool DstRowCells_In_SrcSheet(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
 			const CellDataArr& params, size_t curRow, bool NoSpaceNoCase = true) noexcept(true);
+/**/		
 		//функция проверки наличия данных файла-приемника на листе в файле-источнике:
 		bool Search_DestData_In_SrcSheet(TRowsFlag& DstRows, const TExtendSheetReport& srcSheet, 
 			bool NoSpaceNoCase = true) noexcept(true);
@@ -490,5 +506,6 @@ namespace NS_ExcelReport
 		//формирование полного отчета по файлу main_config:
 		bool Execute() const noexcept(true);
 	};
+
 }
 #endif

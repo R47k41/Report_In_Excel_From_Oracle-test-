@@ -334,7 +334,20 @@ void TOracleTest()
 void CreateReport(const std::string& file_name, const string& code) noexcept(true)
 {
 	using NS_ExcelReport::TReport;
-	TReport report(file_name);
+	using std::cout;
+	using std::cin;
+	using std::endl;
+	using std::getline;
+	using NS_Const::LowerCase;
+	using NS_Tune::TSharedTune;
+	char answer;
+	do
+	{
+		TReport report(file_name);
+		cout << "Завершить работу программы?\n";
+		cin >> answer;
+		answer = tolower(answer);
+	} while (answer != 'y');
 }
 
 void excel_test(void)
