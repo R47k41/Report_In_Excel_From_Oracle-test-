@@ -336,6 +336,13 @@ bool NS_Const::TConstExclTune::isValidExtensions(const string& val) noexcept(tru
 	return false;
 }
 
+bool NS_Const::TConstExclTune::isValidFileByExtension(const string& name) noexcept(true)
+{
+	if (name.empty()) return false;
+	string ext = getFileExtention(name);
+	return isValidExtensions(ext);
+}
+
 NS_Const::TExclBaseTune NS_Const::TConstExclTune::getFileExtCode(const string& ext) noexcept(true)
 {
 	if (ext.empty()) return TExclBaseTune::Empty;
@@ -381,6 +388,7 @@ string NS_Const::TConstReportCode::toStr() const
 	case ReportCode::EXCEL_PAY_LOAD_MF: return "EXCEL_PAY_LOAD_MF";
 	case ReportCode::ACCOUNT_BALANCE: return "ACCOUNT_BALANCE";
 	case ReportCode::ACCOUNT_BALANCE_STREAM: return "ACCOUNT_BALANCE_STREAM";
+	case ReportCode::LOTS: return "LOTS";
 	case ReportCode::QUIT_REPORT: return "QUIT_REPORT";
 	}
 	return  string();
@@ -412,6 +420,7 @@ string NS_Const::TConstReportCode::getName() const
 	case ReportCode::EXCEL_PAY_LOAD_MF: return "Сафонова: Загрузка выплат из АСВ для МФ";
 	case ReportCode::ACCOUNT_BALANCE: return "Выписка по счету";
 	case ReportCode::ACCOUNT_BALANCE_STREAM: return "Потоковая выписка по списку счетов";
+	case ReportCode::LOTS: return "Ермакова: Лоты";
 	case ReportCode::QUIT_REPORT: return "Выход";
 	}
 	return  string();
@@ -462,6 +471,8 @@ string NS_Const::TConstCtrlSym::asStr(const CtrlSym& val)
 	case CtrlSym::dies_comment: return "#";
 	case CtrlSym::minus_comment: return "--";
 	case CtrlSym::dash_comment: return "//";
+	case CtrlSym::txt_delimeter: return "¦";
+	case CtrlSym::txt_tbl_range: return "+--";
 	}
 	return string();
 }

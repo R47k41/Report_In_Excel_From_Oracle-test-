@@ -173,12 +173,14 @@
     <ClCompile Include="TDBReport.cpp" />
     <ClCompile Include="TExcel.cpp" />
     <ClCompile Include="TOracle.cpp" />
+    <ClCompile Include="TSMLVCH_IMP.cpp" />
     <ClCompile Include="TSQLParser.cpp" />
     <ClCompile Include="TuneParam.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Logger.h" />
     <ClInclude Include="Logger.hpp" />
+    <ClInclude Include="TSMLVCH_IMP.h" />
     <ClInclude Include="TConstants.h" />
     <ClInclude Include="TConverter.h" />
     <ClCompile Include="TConverter.hpp" />

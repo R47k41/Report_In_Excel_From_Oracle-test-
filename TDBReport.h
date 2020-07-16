@@ -184,24 +184,21 @@ namespace NS_ExcelReport
 		//функция проверки наличия изменений в ячейках приемника и источника:
 		bool NotEquality(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
 			const NS_Excel::TExcelCell& srcCell, bool NoCaseNoSpace = false) const noexcept(true);
+		//функция поиска указанной ячейки приемника в ячейке строки источника:
+		bool getDstCell_In_SrcCell(const TExtendSheetReport& srcSheet, const NS_Excel::TExcelCell& DstCell,
+			const NS_Excel::TExcelCell& SrcCell, bool NoSpaceNoCase = true) const noexcept(true);
+		//функция получения строки источника для ячейки приемника:
+		size_t getSrcRow_By_Cell(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
+			const NS_Excel::TExcelCell& DstCell, size_t SrcCol, bool NoSpaceNoCase = true) const noexcept(true);
+		//функция поиска строки источника по параметрам ячеек строки приемника:
+		size_t getSrcRow_By_Dest_Params(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
+			const NS_Tune::CellDataArr& params, size_t curRow, bool NoSpaceNoCase = true) const noexcept(true);
+		//функция получения строки источника для ячейки приемника по параметрам:
+		size_t getSrcRow_By_Params(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
+			const NS_Tune::CellDataArr& params, size_t curRow, size_t& param_index, bool NoSpaceNoCase = true) const noexcept(true);
 		//функция вставки данных в ячейку-приемник из ячейки-источника:
 		virtual bool setDstCellBySrcCell(NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell, 
 			const NS_Excel::TExcelCell& srcCell) const noexcept(true);
-/*
-		//группа функций поиска данных одной excel-строки в другой excel-строке(другой страницы/файла)
-		//функция поиска каждой ячейки строки источника на листе приемника:
-		bool DstRowCells_In_SrcSheet(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
-			const CellDataArr& params, size_t curRow, bool NoSpaceNoCase = true) noexcept(true);
-		//функция поиска строки источника на листе приемника:
-		size_t DstRow_In_SrcSheet(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
-			const CellDataArr& params, size_t curRow, bool NoSpaceNoCase = true) noexcept(true);
-		//функция обработки строки источника и строки приемника:
-		bool procFindRow(const TExtendSheetReport& srcSheet, const CellDataArr& params,
-			size_t dstRow, size_t srcRow) noexcept(true);
-		//функция обработки ячеек приемника и источника:
-		bool procFindCell(const TExtendSheetReport& srcSheet, const NS_Tune::TCellData& param,
-			size_t dstRow, size_t srcRow) noexcept(true);
-/**/
 	};
 
 	//класс для обработки excel-файлов на основании json-настроек
@@ -217,18 +214,14 @@ namespace NS_ExcelReport
 		bool WithChangeMeth() const noexcept(true) { return meth_code == NS_Const::JSonMeth::CompareCellChange; }
 		//функция установки параметра запроса для ячейки:
 		void setDQLParamByCell(TStatement& query, const TCellData& value, size_t curRow) const noexcept(false);
-		//функция поиска указанной ячейки приемника в ячейке источника:
-		bool DstCell_In_SrcCell(const TExtendSheetReport& srcSheet, const NS_Excel::TExcelCell& DstCell,
-			const NS_Excel::TExcelCell& SrcCell, bool NoSpaceNoCase = true) noexcept(true);
-		//функция получения строки источника для ячейки приемника:
-		size_t getSrcRow_By_DstCell(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
-			const NS_Excel::TExcelCell& DstCell, size_t SrcCol, bool NoSpaceNoCase = true) noexcept(true);
 		//функция проверки наличия изменений в ячейках:
 		bool CellHasChanged(const TExtendSheetReport& srcSheet, const NS_Tune::TCellData& param,
 			size_t dstRow, size_t srcRow) const noexcept(true);
 		//функция вставки данных в ячейку файла приемника 
 		bool InsertDstCellBySrcCell(const TExtendSheetReport& srcSheet, const NS_Tune::TCellData& param,
 			size_t dstRow, size_t srcRow) noexcept(true);
+		//функция инверсии значений параметров источника и приемника:
+		static bool Inverse_Dst2Src_Param(const NS_Tune::CellDataArr& params, NS_Tune::CellDataArr& new_param) noexcept(false);
 	protected:
 		//функция установки выходного параметра для хранимой процедуры/функции oracle:
 		static void setDMLOutParam(NS_Oracle::TStatement& query, const TCellData& param) noexcept(false);
@@ -300,13 +293,19 @@ namespace NS_ExcelReport
 		//функция обработки ячеек приемника и источника:
 		bool procFindCell(const TExtendSheetReport& srcSheet, const NS_Tune::TCellData& param, 
 			size_t dstRow, size_t srcRow) noexcept(true);
-		//функция поиска строки источника на листе приемника:
-		size_t DstRow_In_SrcSheet(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows, 
+		//функция поиска и обработки каждой ячейки строки приемника на листе источника:
+		bool Proc_DstRowCells_In_SrcSheet(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
 			const CellDataArr& params, size_t curRow, bool NoSpaceNoCase = true) noexcept(true);
-		//функция поиска каждой ячейки строки источника на листе приемника:
-		bool DstRowCells_In_SrcSheet(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
-			const CellDataArr& params, size_t curRow, bool NoSpaceNoCase = true) noexcept(true);
-/**/		
+		//функция обработки метода поиска ячейки приемника на странице источника
+		bool Execute_Seek_Dst_Cell_In_Src_Sht(const TExtendSheetReport& srcSheet, TRowsFlag& DstRows,
+			TRowsFlag& SrcRows, const CellDataArr& params, bool NoSpaceNoCase = true) noexcept(true);
+		//функция поиска строи источника по параметрам приемника(применяя поиск в большем меньшего)
+		static size_t get_SrcRow_By_Dst_Params(const TJsonReport& Dst, const TExtendSheetReport& Src,
+			TRowsFlag& DstRows, TRowsFlag& SrcRows, const NS_Tune::CellDataArr& original_params,
+			bool NoSpaceNoCase = true) noexcept(false);
+		//функция обработки метода поиска b обработки строки приемника на странице источника
+		bool Execute_Seek_Dst_Row_In_Src_Sht(const TExtendSheetReport& srcSheet, TRowsFlag& DstRows,
+			TRowsFlag& SrcRows, const CellDataArr& params, bool NoSpaceNoCase = true) noexcept(false);
 		//функция проверки наличия данных файла-приемника на листе в файле-источнике:
 		bool Search_DestData_In_SrcSheet(TRowsFlag& DstRows, const TExtendSheetReport& srcSheet, 
 			bool NoSpaceNoCase = true) noexcept(true);
@@ -505,6 +504,12 @@ namespace NS_ExcelReport
 		void Create_Report_By_Code(const NS_Const::ReportCode& code) const;
 		//формирование полного отчета по файлу main_config:
 		bool Execute() const noexcept(true);
+		//!!!Переделать!!!!
+		//формирование ведомости остатков для Смолевича по OEM-файлу из RS-Bank
+		static void Smolevich_Sld_Report(const string& path, const string& out_file_name);
+		//!!!Переделать!!!
+		//формирование файла с документами на импорт в RS Bank на основании excel-документа
+		static void Smolevich_Imp_Docs(const string& path, const string& out_file) noexcept(true);
 	};
 
 }

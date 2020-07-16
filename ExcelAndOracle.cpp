@@ -30,6 +30,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/filesystem.hpp>
+#include "TSMLVCH_IMP.h"
 
 using std::string;
 //using NS_Logger::TLog;
@@ -61,6 +62,10 @@ void test_Const_Module(void);
 
 void JsonParse(const std::string& filename);
 
+//функционал обработки данных по Смолевичу
+//считываени txt файла
+
+
 int main()
 {
 	using std::cerr;
@@ -69,9 +74,21 @@ int main()
 	using std::string;
 	using std::locale;
 	using std::cout;
+	using NS_SMLVCH_IMP::TImportAccount;
 	//SetRuConsole(1251);
 	setlocale(LC_ALL, "RU");
-//	excel_test();
+	/*
+	//Формирование ведомости остатков Смолевич
+	string path("F:\\Projects\\SomeThing\\TypicalReport\\Смолевич\\Ведомость\\template\\files\\");
+	//imp_data(path, NS_Const::CtrlSym::txt_delimeter)
+	NS_ExcelReport::TReport::Smolevich_Sld_Report(path, "Ведомость Смолевич.xls");
+	return 0;
+	/**/
+	//Формирование документов на импорт для Смолевича
+	string path("F:\\Projects\\SomeThing\\TypicalReport\\Смолевич\\Иморт документов\\template");
+	NS_ExcelReport::TReport::Smolevich_Imp_Docs(path, "imp_docs.txt");
+	return 0;
+	//	excel_test();
 /*
 	NS_Tune::TExcelProcData exl("F:\\Projects\\SomeThing\\TypicalReport\\Полный портфель\\config\\json\\nat_person_tune.json",
 		"F:\\Projects\\SomeThing\\TypicalReport\\Полный портфель\\");

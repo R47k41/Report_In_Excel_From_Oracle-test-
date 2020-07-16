@@ -87,6 +87,8 @@ namespace NS_Const
 		lbkt, rbkt, qlbkt, qrbkt, crwn, quotes, Tab, dash, quane, rangle, langle,
 		//используется для определения комнтариев
 		dies_comment, minus_comment, dash_comment,
+		//использование для разделения столбцов в текстовом файле:
+		txt_delimeter, txt_tbl_range,
 		Last };
 
 	//константы для выбора отчета:
@@ -115,6 +117,7 @@ namespace NS_Const
 		EXCEL_PAY_LOAD_MF,//загрузка выплат из excel-файла(для Сафоновой)		
 		ACCOUNT_BALANCE,//выписка по счету
 		ACCOUNT_BALANCE_STREAM,//потоковая выписка(считываем excel-файл и на его основании формируем выписку по каждому счету)
+		LOTS,//отчет по лотам для Смоленского Банка
 		QUIT_REPORT,//выход из потока вывода отчетов
 		Last
 		};
@@ -262,6 +265,7 @@ namespace NS_Const
 		static TExclBaseTune getFileExtCode(const string& ext) noexcept(true);
 		//проверка валидности расширения для excel-файла:
 		static bool isValidExtensions(const string& val) noexcept(true);
+		static bool isValidFileByExtension(const string& name) noexcept(true);
 	};
 
 	//класс для работы с константными полями:

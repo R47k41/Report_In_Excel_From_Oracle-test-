@@ -44,6 +44,17 @@ namespace NS_Converter
 	//перекодировка unicode в ansi
 	bool UTF8ToANSI(std::string& inStr) noexcept(false);
 
+	//перекодировака текста из OEM 866 в Char
+	string OEM2Char(const string& src, int OEM_BUF_LEN = 256) noexcept(true);
+	//перекодировка текста из OEM в char
+	bool OEM2Char(const string& src, char* buf, int OEM_BUF_LEN = 256) noexcept(true);
+	//перекодировка в unsigned char
+	string OEMChar2UChar(const char* pstr, unsigned int size) noexcept(true);
+	//перекодировка строки из ANSI в OEM кодировку:
+	bool Char2OEM(const string& src, char* buf, int OEM_BUF_LEN = 256) noexcept(true);
+	//перекодировка ANSI-строки в OEM-строку
+	string ANSI2OEMStr(const string& src, int OEM_BUF_SIZE = 256) noexcept(true);
+
 	template <class T>
 	bool toStr(T val, string& str) noexcept(true)
 	{

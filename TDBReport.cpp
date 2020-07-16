@@ -4,6 +4,7 @@
 #include "TDBReport.h"
 #include "TSQLParser.h"
 #include "Logger.hpp"
+#include "TSMLVCH_IMP.h"
 
 
 using std::string;
@@ -658,7 +659,7 @@ size_t TExtendSheetReport::CheckOnSheet(const NS_Excel::TExcelBookSheet& dstShee
 			if (CheckInCell(dstSheet, dstCell, curRow.first, srcCol, NoSpaceNoCase))
 			{
 				//убираем строку из массива просматриваемых строк
-				RowsArr[curRow.first] = false;
+				//RowsArr.erase(curRow.first);//RowsArr[curRow.first] = false;
 				//выходим
 				return curRow.first;
 			}
@@ -1588,9 +1589,9 @@ bool TJsonReport::procFindRow(const TExtendSheetReport& srcSheet, const CellData
 	return flg;
 }
 
-bool TJsonReport::DstCell_In_SrcCell(const TExtendSheetReport& srcSheet, 
+bool TExtendSheetReport::getDstCell_In_SrcCell(const TExtendSheetReport& srcSheet, 
 	const NS_Excel::TExcelCell& DstCell, const NS_Excel::TExcelCell& SrcCell,
-	bool NoSpaceNoCase) noexcept(true)
+	bool NoSpaceNoCase) const noexcept(true)
 {
 	using NS_Excel::TExcelCell;
 	try
@@ -1613,8 +1614,8 @@ bool TJsonReport::DstCell_In_SrcCell(const TExtendSheetReport& srcSheet,
 	return false;
 }
 
-size_t TJsonReport::getSrcRow_By_DstCell(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
-	const NS_Excel::TExcelCell& DstCell, size_t SrcCol, bool NoSpaceNoCase) noexcept(true)
+size_t TExtendSheetReport::getSrcRow_By_Cell(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
+	const NS_Excel::TExcelCell& DstCell, size_t SrcCol, bool NoSpaceNoCase) const noexcept(true)
 {
 	using NS_Excel::TExcelCell;
 	using NS_Tune::TIndex;
@@ -1624,47 +1625,56 @@ size_t TJsonReport::getSrcRow_By_DstCell(const TExtendSheetReport& srcSheet, NS_
 	return srcSheet.CheckOnSheet(sheet, DstCell, SrcCol, srcRows, NoSpaceNoCase);
 }
 
-size_t TJsonReport::DstRow_In_SrcSheet(const TExtendSheetReport& srcSheet, 
-	NS_ExcelReport::TRowsFlag& srcRows, const CellDataArr& params, size_t curRow,
-	bool NoSpaceNoCase) noexcept(true)
+size_t TExtendSheetReport::getSrcRow_By_Params(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
+	const NS_Tune::CellDataArr& params, size_t curRow, size_t& param_index, bool NoSpaceNoCase) const noexcept(true)
+{
+	using NS_Tune::TCellData;
+	using NS_Excel::TExcelCell;
+	using NS_Tune::TIndex;
+	//проходим по параметрам и выполняем поиск строки(используем для отсечения пустых параметров):
+	for (; param_index < params.size(); param_index++)
+	{
+		//если нет данных по колонкам из строки приемника/источника - переходим к следующей строке
+		if (params[param_index].EmptyDstIndx() and params[param_index].EmptySrcParam()) continue;
+		//инициализация ячейки приемника:
+		TExcelCell DstCell(curRow, params[param_index].DstIndex(), false);
+		//выполняем поиск строки в источнике для ячейки приемника:
+		return getSrcRow_By_Cell(srcSheet, srcRows, DstCell, params[param_index].SrcParam(), NoSpaceNoCase);
+	}
+	return TIndex::EmptyIndex;
+}
+
+size_t TExtendSheetReport::getSrcRow_By_Dest_Params(const TExtendSheetReport& srcSheet,
+	NS_ExcelReport::TRowsFlag& srcRows, const NS_Tune::CellDataArr& params, size_t curRow,
+	bool NoSpaceNoCase) const noexcept(true)
 {
 	using NS_Tune::CellDataArr;
 	using NS_Tune::TCellData;
 	using NS_Excel::TExcelCell;
 	using NS_Tune::TIndex;
 	using NS_ExcelReport::TRowsFlag;
-	size_t srcRow = TIndex::EmptyIndex;
-	size_t cntFail = 0;
-	for (const TCellData& param : params)
+	//индекс первого параметра для поиска
+	size_t param_index = 0;
+	//выполняем поиск строки источника по первой ячейки приемника
+	size_t srcRow = getSrcRow_By_Params(srcSheet, srcRows, params, curRow, param_index, NoSpaceNoCase);
+	//выходим если ничего не найдено
+	if (srcRow == TIndex::EmptyIndex) return TIndex::EmptyIndex;
+	//если строка найдена - продолжаем сверку для ячеек строки приемника с ячейками строки источника
+	for (++param_index; param_index < params.size(); param_index++)
 	{
-		//если нет данных по колонкам из строки приемника/источника - переходим к следующей строке
-		if (param.EmptyDstIndx() and param.EmptySrcParam()) continue;
-		//формирование ячейки приемника:
-		size_t tmpCol = param.DstIndex();
-		TExcelCell DstCell(curRow, tmpCol, false);
-		tmpCol = param.SrcParam();
-		//если это первый попавшийся параметр
-		if (srcRow == TIndex::EmptyIndex)
-		{
-			//выполняем поиск на совпадение для первого параметра/колонки приемника:
-			srcRow = getSrcRow_By_DstCell(srcSheet, srcRows, DstCell, tmpCol, NoSpaceNoCase);
-			//если для указанной ячейки не нашлось строки источника - данные не найдены
-			if (srcRow == TIndex::EmptyIndex) return TIndex::EmptyIndex;
-		}
-		else
-		{
-			//формирование ячейки источника для указанной строки
-			TExcelCell SrcCell(srcRow, tmpCol, false);
+			//инициализируем ячейку приемника
+			TExcelCell DstCell(curRow, params[param_index].DstIndex(), false);
+			//инициализация ячейки источника
+			TExcelCell SrcCell(srcRow, params[param_index].SrcParam(), false);
 			//если не найдена хоть одна ячейка строки: строка приемника - не найдена
-			if (DstCell_In_SrcCell(srcSheet, DstCell, SrcCell, NoSpaceNoCase) == false)
+			if (getDstCell_In_SrcCell(srcSheet, DstCell, SrcCell, NoSpaceNoCase) == false)
 				return TIndex::EmptyIndex;
-		}
 	}
 	return srcRow;
 }
 
-bool TJsonReport::DstRowCells_In_SrcSheet(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
-	const NS_Tune::CellDataArr& params, size_t curRow, bool NoSpaceNoCase) noexcept(true)
+bool TJsonReport::Proc_DstRowCells_In_SrcSheet(const TExtendSheetReport& srcSheet, NS_ExcelReport::TRowsFlag& srcRows,
+	const CellDataArr& params, size_t curRow, bool NoSpaceNoCase) noexcept(true)
 {
 	using NS_Tune::CellDataArr;
 	using NS_Tune::TCellData;
@@ -1696,6 +1706,8 @@ bool TJsonReport::DstRowCells_In_SrcSheet(const TExtendSheetReport& srcSheet, NS
 		}
 		else
 		{
+			//удаление найденной строки из массива строк источника:
+			srcRows[srcRow] = false;//srcRows.erase(srcRow);
 			//обрабатываем найденные данные в  ячейках:
 			bool procFlg = procFindCell(srcSheet, param, curRow, srcRow);
 			//если обрабатываются данные которые изменялись
@@ -1712,95 +1724,221 @@ bool TJsonReport::DstRowCells_In_SrcSheet(const TExtendSheetReport& srcSheet, NS
 	return FindFlg;
 }
 
+bool TJsonReport::Execute_Seek_Dst_Cell_In_Src_Sht(const TExtendSheetReport& srcSheet, TRowsFlag& DstRows,
+	TRowsFlag& SrcRows, const CellDataArr& params, bool NoSpaceNoCase) noexcept(true)
+{
+	using NS_ExcelReport::TRowFlag;
+	using NS_Excel::TExcelCell;
+	using NS_ExcelReport::TCellData;
+	size_t lastRow = DstRows.rbegin()->first;
+	//проходим по каждой строке листа-приемника:
+	for (const TRowFlag& index : DstRows)
+	{
+		//не обрабатываем ячейки, которые были обработаны ранее
+		if (index.second == false) continue;
+		//текущая строка приемника в обработке
+		TLog log("Идет обработка: ");
+		log << index.first << " сткроки из " << lastRow << " строк";
+		if (Proc_DstRowCells_In_SrcSheet(srcSheet, SrcRows, params, index.first, NoSpaceNoCase) == true)
+			DstRows[index.first] = false;//это делается на случай, если несколько листов у файла источника
+	}
+	TLog("Обработка завершена!").toErrBuff();
+	return true;
+}
+
+bool TJsonReport::Inverse_Dst2Src_Param(const NS_Tune::CellDataArr& old_params, NS_Tune::CellDataArr& new_param) 
+	noexcept(false)
+{
+	using NS_Tune::TCellData;
+	if (old_params.empty()) return false;
+	try
+	{
+		for (const TCellData& param : old_params)
+		{
+			//пропуск пустых параметров
+			if (param.isEmpty()) continue;
+			//инициализация параметра
+			new_param.push_back(param.Inverse_Src2Dst());
+		}
+		if (new_param.size() > 0) return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при инверсии параметров!", "Inverse_Dst2Src_Param").toErrBuff();
+	}
+	return false;
+}
+
+size_t TJsonReport::get_SrcRow_By_Dst_Params(const TJsonReport& Dst, const TExtendSheetReport& Src,
+	TRowsFlag& DstRows, TRowsFlag& SrcRows, const NS_Tune::CellDataArr& original_params,
+	bool NoSpaceNoCase) noexcept(false)
+{
+	using NS_ExcelReport::TRowsFlag;
+	using NS_ExcelReport::TRowFlag;
+	using NS_Tune::TIndex;
+	using NS_Tune::CellDataArr;
+	//переменная определяющая инверсию Источника и Приемника
+	//если число строк в источнике меньше, чем в приемнике - меняем их местами
+	bool ReverseFlg = SrcRows.size() < DstRows.size();
+	//далее работаем со ссылками на источник и приемник
+	const TExtendSheetReport* DstPtr = ReverseFlg ? &Src : &Dst;
+	const TExtendSheetReport* SrcPtr = ReverseFlg ? &Dst : &Src;
+	//определяем массивы строк для источника и приемника:
+	TRowsFlag* srcRowsPtr = ReverseFlg ? &DstRows : &SrcRows;
+	TRowsFlag* dstRowsPrt = ReverseFlg ? &SrcRows : &DstRows;
+	//выполняем инверсию параметров поиска данных для источника и приемника:
+	CellDataArr params;
+	if (ReverseFlg)
+		Inverse_Dst2Src_Param(original_params, params);
+	else
+		params = original_params;
+	//выполнение поиска данных
+	//счетчик новых строк в приемнике:
+	size_t count = 0;
+	//определение числа строк, требующих обрботки(строки удовлетворяющие фильтру):
+	size_t lastRow = dstRowsPrt->rbegin()->first;
+	//выполняем проход по каждой строке меньшего массива:
+	for (const TRowFlag& index : *dstRowsPrt)
+	{
+		//пропуск ранее обработанных строк
+		if (index.first == false) continue;
+		//текущая строка с учетом добавленных строк в приемник:
+		size_t curRow = index.first + count;
+		TLog log("Идет обработка:");
+		log << curRow << " строки из " << lastRow << " строк";
+		//выполнение поиска строки приемника в источнике:
+		size_t srcRow = DstPtr->getSrcRow_By_Dest_Params(*SrcPtr, *srcRowsPtr, params, curRow, NoSpaceNoCase);
+		if (srcRow == TIndex::EmptyIndex) continue;
+		//если строка найдена ее необходимо обработать:
+
+		return srcRow;
+	}
+	return TIndex::EmptyIndex;
+}
+
+
+bool TJsonReport::Execute_Seek_Dst_Row_In_Src_Sht(const TExtendSheetReport& srcSheet, TRowsFlag& DstRows,
+	TRowsFlag& SrcRows, const CellDataArr& params, bool NoSpaceNoCase) noexcept(false)
+{
+	using NS_Const::JSonMeth;
+	using NS_ExcelReport::TRowsFlag;
+	using NS_ExcelReport::TRowFlag;
+	using NS_Tune::TIndex;
+	using NS_Tune::CellDataArr;
+	//переменная определяющая инверсию Источника и Приемника
+	//если число строк в источнике меньше, чем в приемнике - меняем их местами
+	bool ReverseFlg = SrcRows.size() < DstRows.size();
+	//далее работаем со ссылками на источник и приемник
+	const TExtendSheetReport* DstPtr = ReverseFlg ? &srcSheet : this;
+	const TExtendSheetReport* SrcPtr = ReverseFlg ? this : &srcSheet;
+	//определяем массивы строк для источника и приемника:
+	TRowsFlag* dstRowsPrt = ReverseFlg ? &SrcRows : &DstRows;
+	TRowsFlag* srcRowsPtr = ReverseFlg ? &DstRows : &SrcRows;
+	//выполняем инверсию параметров поиска данных для источника и приемника:
+	CellDataArr tmp_params;
+	if (ReverseFlg)
+		Inverse_Dst2Src_Param(params, tmp_params);
+	else
+		tmp_params = params;
+	//выполнение поиска данных
+	//счетчик новых строк в приемнике:
+	size_t count = 0;
+	size_t line = 0;
+	//определение числа строк, требующих обрботки(строки удовлетворяющие фильтру):
+	size_t lastRow = dstRowsPrt->rbegin()->first;
+	//выполняем проход по каждой строке меньшего массива:
+	for (const TRowFlag& index : *dstRowsPrt)
+	{
+		//пропуск ранее обработанных строк
+		if (index.first == false) continue;
+		line++;
+		//текущая строка с учетом добавленных строк в приемник:
+		size_t curRow = index.first;
+		//если инверсии не было - обрабатываем файл в который вставляем данные
+		//соответственно увеличиваем счетчик на число вставленных строк
+		if (!ReverseFlg) curRow += count;
+		TLog log("Идет обработка: ");
+		log << line << " строки (" << curRow << '\\' << lastRow << ")";
+		log.toErrBuff();
+		//выполнение поиска строки приемника в источнике:
+		size_t srcRow = DstPtr->getSrcRow_By_Dest_Params(*SrcPtr, *srcRowsPtr, tmp_params, curRow, NoSpaceNoCase);
+		if (srcRow == TIndex::EmptyIndex)
+		{
+			TLog log("Строка ");
+			log << curRow << " не найдена в файле источника!";
+			log.toErrBuff();
+			continue;
+		}
+		else
+		{
+			//если строка найдена ее необходимо обработать:
+			//в зависимости от флага инверсии приемника и источника:
+			//инициализируем найденную и текущую строку для приемника и источника
+			size_t DstCurRow = ReverseFlg ? srcRow : curRow;
+			size_t SrcCurRow = ReverseFlg ? curRow : srcRow;
+			//убираем строку источника из дальнейшего поиска:
+			SrcRows[SrcCurRow] = false;
+			//убираем строку приемника из обработки:
+			DstRows[DstCurRow] = false;
+			//выполняем обработку строки приемника - здесь уже идет вставка строки:
+			if (procFindRow(srcSheet, params, DstCurRow, SrcCurRow))
+				//увеличиваем счетчик обработанных строк
+				count++;
+			else
+			{
+				TLog log("При обработке ");
+				log << DstCurRow << " строки приемника для " << SrcCurRow << " строки источника произошла ошибка!";
+				log.toErrBuff();
+			}
+		}
+	}
+	return true;
+}
+
 bool TJsonReport::Search_DestData_In_SrcSheet(TRowsFlag& DstRows, 
 	const TExtendSheetReport& srcSheet, bool NoSpaceNoCase) noexcept(true)
 {
-	using NS_Excel::TExcelCell;
-	using NS_ExcelReport::TRowFlag;
+	using NS_ExcelReport::TRowsFlag;
 	using NS_Const::JSonMeth;
 	using NS_Const::TConstJSMeth;
-	using NS_Tune::TIndex;
 	try
 	{
 		//получаем список сравниваемых аттрибутов:
 		CellDataArr cellArr = cells_data.getCellDataArr();
-		if (cellArr.empty()) 
+		if (cellArr.empty())
 			throw TLog("Пустые индексы колонок для сравнения!", "TJsonReport::Search_DestData_In_SrcSheet");
 		//формируем массив строк источника для обработки - нумерация от 1:
 		TRowsFlag srcRows = srcSheet.setFiltredRowsArr();
 		if (srcRows.empty())
 			throw TLog("На странице файла источника нет данных подходящих под условия!",
 				"TJsonReport::Search_DestData_In_SrcSheet");
-		//число новых строк
-		size_t new_rows_cnt = 0;
-		size_t lastRow = DstRows.rbegin()->first;
-		//проходим по каждой строке листа-приемника:
-		for (const TRowFlag& index: DstRows)
+		//в зависимости от метода вызываем нужный метод поиска:
+		switch (meth_code)
 		{
-			size_t curRow = index.first + new_rows_cnt;
-			TLog log("Идет обработка: ");
-			log << index.first << " сткроки из " << lastRow << " строк\n";
-			/*Отладка
-			log << "Вставлено " << new_rows_cnt << " строк!\n";
-			NS_Excel::TExcelCell cell(curRow, 2, false);
-			string s = sheet.ReadAsString(cell);
-			log << "Обработка клиента: " << s << '\n';
-			/**/
-			log.toErrBuff();
-			//не обрабатываем ячейки, которые были обработаны ранее
-			if (index.second == false) continue;
-			//выполняем проверку наличия ячеек строки файла-приемника в каждой строке файла-источника
-			switch (meth_code)
-			{
-				case JSonMeth::CompareCell:
-				case JSonMeth::CompareCellChange:
-				{
-					//исключение строки eприемника из списка обработки
-					if (DstRowCells_In_SrcSheet(srcSheet, srcRows, cellArr, curRow, NoSpaceNoCase) == true)
-						DstRows[index.first] = false;
-					//if (WithChangeMeth() and flg) continue;
-					break;
-				}
-				case JSonMeth::CompareRow:
-				case JSonMeth::InsertRowCompare:
-				{
-					size_t srcRow = DstRow_In_SrcSheet(srcSheet, srcRows, cellArr, curRow, NoSpaceNoCase);
-					if (srcRow == TIndex::EmptyIndex) break;
-					//обработка строки:
-					if (procFindRow(srcSheet, cellArr, curRow, srcRow) == false) break;
-					//только для метода вставки новой строки для сравнения
-					if (meth_code == JSonMeth::InsertRowCompare)
-					{
-						//убираем текущую строку из фильтрации
-						DstRows[index.first] = false;
-						//нужно убрать следующую строку(т.к. вместо нее теперь новая строка)
-						new_rows_cnt++;
-						log.clear(true);
-						log << "Произведена вставка строки!\n";
-						log.toErrBuff();
-						//удалить отладка
-						//book.SaveToFile();
-						/*
-						curRow = index.first + new_rows_cnt;
-						DstRows.erase(index);
-						//и добавить новую строку в конец(т.е. прибавить к последней строке единицу, т.к. все строки сместились)
-						size_t lastRow = DstRows.size() + 1;
-						DstRows.insert(TRowFlag(lastRow, true));
-						/**/
-					}
-					break;
-				}
-				default:
-				{
-					TLog log("Указанный метод(", "Search_DestRow_In_SrcSheet");
-					log << TConstJSMeth::asStr(meth_code) << ") не обрабатывается!";
-					throw log;
-				}
-			}
+		case JSonMeth::CompareCell:
+		case JSonMeth::CompareCellChange:
+		{
+			//вызов метода обработки ячейки приемника на странице файла источника
+			Execute_Seek_Dst_Cell_In_Src_Sht(srcSheet, DstRows, srcRows, cellArr, NoSpaceNoCase);
+			break;
 		}
-		TLog log("Добавлено ");
-		log << new_rows_cnt << " строк!";
-		log.toErrBuff();
+		case JSonMeth::CompareRow:
+		case JSonMeth::InsertRowCompare:
+		{
+			Execute_Seek_Dst_Row_In_Src_Sht(srcSheet, DstRows, srcRows, cellArr, NoSpaceNoCase);
+			break;
+		}
+		default:
+		{
+			TLog log("Указанный метод(", "Search_DestRow_In_SrcSheet");
+			log << TConstJSMeth::asStr(meth_code) << ") не обрабатывается!";
+			throw log;
+		}
+		}
 		return true;
 	}
 	catch (const TLog& err)
@@ -1809,7 +1947,7 @@ bool TJsonReport::Search_DestData_In_SrcSheet(TRowsFlag& DstRows,
 	}
 	catch (...)
 	{
-		TLog("Не обработанная ошибка поиска данных из страницы-приемника в странице-источнике!", 
+		TLog("Не обработанная ошибка поиска данных из страницы-приемника в странице-источнике!",
 			"TJsonReport::Search_DestRow_In_SrcSheet").toErrBuff();
 	}
 	return false;
@@ -3075,6 +3213,7 @@ void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
 	case ReportCode::BALANCE_LIST:
 	case ReportCode::REPAYMENT_FOR_DATE:
 	case ReportCode::DOCS_MF_SF_FOR_PERIOD:
+	case ReportCode::LOTS:
 		One_Sheet_By_One_Config();
 		break;
 		//case ReportCode::DOCS_MF_SF_FOR_PERIOD:
@@ -3099,7 +3238,7 @@ void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
 	case ReportCode::FULL_CRED_REPORT:
 	{
 		//формирование данных из БД
-		One_Sheet_By_Many_Statement();
+		//One_Sheet_By_Many_Statement();
 		//сравнение excel-файлов
 		SubConfig_Json_UpdOutExlFile();
 		break;
@@ -3169,4 +3308,205 @@ TReport::TReport(const string& config_file): config(config_file)
 		TLog("Не обработанная ошибка при формаировании отчета " + config.getMainCode() +
 			" для файла настроек: " + config_file, "TReport::TReport");
 	}
+}
+
+
+void TReport::Smolevich_Sld_Report(const string& path, const string& out_file_name)
+{
+	using NS_SMLVCH_IMP::TAccount;
+	using NS_SMLVCH_IMP::TImportAccount;
+	using NS_SMLVCH_IMP::TAccounts;
+	using NS_Tune::TSimpleTune;
+	using NS_Tune::StrArr;
+	using NS_Excel::TExcelCell;
+	const string tmpl_name = "F:\\Projects\\SomeThing\\TypicalReport\\Смолевич\\Ведомость\\template\\template.xlt";
+	//чтение фалов в директории:
+	StrArr files = TSimpleTune::getFileLst(path);
+	if (files.empty())
+	{
+		TLog log("Отчет не сформирован! По указанному пути: ", "Smolevich_Sld_Report");
+		log << path << " файлов не обнаружено!\n";
+		log.toErrBuff();
+		return;
+	}
+	//создаем excel-файл
+	TExcelBook book(out_file_name);
+	//обработка каждого файла:
+	for (const string& name : files)
+	{
+		TImportAccount accs(name);
+		//загружаем шаблон для страницы из книги:
+		if (book.setSheetByTemplate(tmpl_name, accs.getName(), DEF_TEMPL_SH_INDX, true))
+		{
+			//инициализация страницы
+			TExcelBookSheet sheet = book.getActiveSheet();
+				/*
+				//разбиваем на активные и пассивные счета
+				TAccounts act_acc;//массив активных счетов
+				TAccounts pas_acc;//массив пассивных счетов
+				for (size_t i = 0; i < accs.Count(); i++)
+				{
+					if (accs[i].isActive())
+						act_acc.push_back(accs[i]);
+					else
+						pas_acc.push_back(accs[i]);
+				}
+				/**/
+				//запись счетов в файл:
+				size_t row = 1;
+				double sum_sld = 0;
+				//колонка "Актив"
+				sheet.WriteAsString(TExcelCell(row++, 0), "Актив");
+				for (size_t i = 0; i < accs.Count(); i++)
+				{
+					//запись в файл активных счетов
+					if (accs[i].isActive() == false) continue;
+					size_t col = 0;
+					sheet.WriteAsString(TExcelCell(row, col++), accs[i].Account());
+					sheet.WriteAsString(TExcelCell(row, col++), accs[i].Name());
+					double sld = 0;
+					NS_Converter::toDblType(accs[i].SldRub(), &sld);
+					sum_sld += sld;
+					sheet.WriteAsNumber(TExcelCell(row, col++), sld);
+					if (accs[i].Account().substr(5, 3) != "810")
+						sheet.WriteAsNumber(TExcelCell(row, col++), 0);
+					else
+						sheet.WriteAsNumber(TExcelCell(row, col++), sld);
+					sheet.WriteAsString(TExcelCell(row, col++), accs[i].LastOperDate());
+					row++;
+				}
+				//Запись итогов по счетам:
+				sheet.WriteAsString(TExcelCell(row, 0), "Итого по активным счетам: ");
+				sheet.WriteAsNumber(TExcelCell(row, 2), sum_sld);
+				sheet.WriteAsNumber(TExcelCell(row, 3), sum_sld);
+				book.SaveToFile();
+				//запись пассивных счетов:
+				row++;
+				sum_sld = 0;
+				//колонка "Пассив"
+				sheet.WriteAsString(TExcelCell(row++, 0), "Пассив");
+				for (size_t i = 0; i < accs.Count(); i++)
+				{
+					//запись в файл пассивных счетов
+					if (accs[i].isActive()) continue;
+					size_t col = 0;
+					sheet.WriteAsString(TExcelCell(row, col++), accs[i].Account());
+					sheet.WriteAsString(TExcelCell(row, col++), accs[i].Name());
+					double sld = 0;
+					NS_Converter::toDblType(accs[i].SldRub(), &sld);
+					sheet.WriteAsNumber(TExcelCell(row, col++), sld);
+					sum_sld += sld;
+					if (accs[i].Account().substr(5, 3) != "810")
+						sheet.WriteAsNumber(TExcelCell(row, col++), 0);
+					else
+						sheet.WriteAsNumber(TExcelCell(row, col++), sld);
+					sheet.WriteAsString(TExcelCell(row, col++), accs[i].LastOperDate());
+					row++;
+				}
+				//Запись итогов по счетам:
+				sheet.WriteAsString(TExcelCell(row, 0), "Итого по пассивным счетам: ");
+				sheet.WriteAsNumber(TExcelCell(row, 2), sum_sld);
+				sheet.WriteAsNumber(TExcelCell(row, 3), sum_sld);
+				book.SaveToFile();
+		}
+	}
+}
+
+void NS_ExcelReport::TReport::Smolevich_Imp_Docs(const string& path, const string& out_file) noexcept(true)
+{
+	using NS_SMLVCH_IMP::TRSBankDoc;
+	using NS_SMLVCH_IMP::TRSBankDocs;
+	using NS_SMLVCH_IMP::TRSBankImp;
+	using NS_Tune::TSimpleTune;
+	using NS_Tune::StrArr;
+	using NS_Excel::TExcelBook;
+	using NS_Excel::TExcelBookSheet;
+	using NS_Excel::TExcelBookFormat;
+	using NS_Excel::TExcelCell;
+	using NS_Const::TConstExclTune;
+	TLog log("", "Smolevich_Imp_Docs");
+	//расположение файла шаблона импорта:
+	string imp_template = "F:\\Projects\\SomeThing\\TypicalReport\\Смолевич\\Иморт документов\\template\\template.txt";
+	//проверка путей файлов
+	if (path.empty())
+		log << "Не указан путь к файлу для считывания\n";
+	if (out_file.empty())
+		log << "Не указано имя выходного файла!\n";
+	if (!log.isEmpty())
+	{
+		log.toErrBuff();
+		return;
+	}
+	//получение excel-файлов для считывания информации:
+	//чтение фалов в директории:
+	StrArr files = TSimpleTune::getFileLst(path);
+	if (files.empty())
+	{
+		log << "Отчет не сформирован! По указанному пути: " << path << " файлов не обнаружено!";
+		log.toErrBuff();
+		return;
+	}
+	//инициализация атрибутов документов для импорта:
+	TRSBankImp docs(imp_template);
+	//установка разделителя, если он не установлен:
+	if (docs.NoDelimeter()) docs.setDelimiter('^');
+	//обработка каждого excel-файла:
+	for (const string& name : files)
+	{
+		//проверяем расширение файлов - обработка только excel:
+		if (!TConstExclTune::isValidFileByExtension(name))
+		{
+			log << "Расширение файла " << name << " не обрабатывается!";
+			log.toErrBuff();
+			log.clear();
+			continue;
+		}
+		//инициализация excel-файла
+		TExcelBook book(name);
+		book.load(name);
+		//получение числа страниц в файле:
+		size_t pages = book.SheetCount();
+		//обработка каждой страницы файла:
+		for (size_t i = 0; i < pages; i++)
+		{
+			//инициализация страницы книги:
+			TExcelBookSheet sheet = book.getSheetByIndex(i);
+			//если на странице нет данных - обрабатываем следующую страницу
+			if (sheet.hasNoData()) continue;
+			//!!!Допущение что считывание будет идти со 2ой строки:
+			size_t curRow = 2;
+			size_t lastRow = sheet.getLastRow();
+			//формирование реквизитов документа:
+			for (; curRow <= lastRow; curRow++)
+			{
+				//!!!Допущение считывание атрибутов начинается со 2ой ячейки
+				size_t curCell = 1;
+				//size_t lastCell = 8;
+				TRSBankDoc doc;
+				//считывание ячеек стороки:
+				//формирование ячейки для считывания:
+				TExcelCell cell(curRow, curCell, false);
+				doc.UsrCode = sheet.ReadAsString(cell, book);
+				cell.getNextColCell();
+				//дата документа
+				doc.Date = sheet.ReadAsString(cell, book);
+				cell.getNextColCell();
+				//его можно рандомить!!!! если не заполено
+				doc.Num = sheet.ReadAsString(cell, book);
+				cell.getNextColCell();
+				doc.payer.AccNum = sheet.ReadAsString(cell, book);
+				doc.payer.Account = doc.payer.AccNum;
+				cell.getNextColCell();
+				doc.recipient.AccNum = sheet.ReadAsString(cell, book);
+				doc.recipient.Account = doc.recipient.AccNum;
+				cell.getNextColCell();
+				doc.Summa = sheet.ReadAsString(cell, book);
+				cell.getNextColCell();
+				doc.Note = sheet.ReadAsString(cell, book);
+				//добавление документа в массив
+				docs.AddDoc(doc);
+			}
+		}
+	}
+	docs.CreateFile4Import(out_file);
 }

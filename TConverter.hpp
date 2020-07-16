@@ -1,5 +1,6 @@
 #pragma once
 #include <Windows.h>
+#include <errhandlingapi.h>
 #include "Logger.hpp"
 
 
@@ -164,4 +165,78 @@ bool NS_Converter::UTF8ToANSI(std::string& inStr) noexcept(false)
 	inStr = UnicodeToMByte(wStr.c_str(), CP_ACP);
 	return true;
 }
+
+std::string NS_Converter::OEMChar2UChar(const char* pstr, unsigned int size) noexcept(true)
+{
+	//отбрасываем пустые строки
+	if (size == 0 or *pstr == '\0') return string();
+	string str;
+	for (; size > 0; size--)
+		str += (unsigned char)(*pstr++);
+	pstr -= size;
+	return str;
+}
+
+std::string NS_Converter::OEM2Char(const string& src, int OEM_BUF_LEN) noexcept(true)
+{
+	//инициализация буфера для строки:
+	char* buf = new char[src.size()+1];
+	string str;
+	//конвертация
+	if (OEM2Char(src, buf, OEM_BUF_LEN))
+		str = OEMChar2UChar(buf, src.size());
+	delete[] buf;
+	return str;
+}
+
+bool NS_Converter::OEM2Char(const string& src, char* buf, int OEM_BUF_LEN) noexcept(true)
+{
+	if (src.empty()) return false;
+	try
+	{
+		OemToChar(src.c_str(), buf);
+		return true;
+	}
+	catch (const std::exception& err)
+	{
+		TLog(err.what(), "NS_Converter::OEM2Char").toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при конвертации строки!", "NS_Converter::OEM2Char").toErrBuff();
+	}
+	return false;
+}
+
+bool NS_Converter::Char2OEM(const string& src, char* buf, int OEM_BUF_LEN) noexcept(true)
+{
+	if (src.empty()) return false;
+	try
+	{
+		CharToOem(src.c_str(), buf);
+		return true;
+	}
+	catch (const std::exception& err)
+	{
+		TLog(err.what(), "NS_Converter::Char2OEM").toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при конвертации строки!", "NS_Converter::Char2OEM").toErrBuff();
+	}
+	return false;
+}
+
+string NS_Converter::ANSI2OEMStr(const string& src, int OEM_BUF_SIZE) noexcept(true)
+{
+	if (src.empty()) return string();
+	//инициализация буфера:
+	char* buf = new char[src.size()+ 1];
+	string str;
+	if (Char2OEM(src, buf, OEM_BUF_SIZE))
+		str = string(buf, src.size());
+	delete[] buf;
+	return str;
+}
+
 /**/

@@ -373,10 +373,15 @@ namespace NS_Excel
 		int getFirstCol() const { return sheet->firstCol(); }
 		//номер последнего использующегос€ столбца:
 		int getLastCol() const { return sheet->lastCol(); }
+		//функци€ проверки наличи€ данных на странице:
+		bool hasNoData() const { return getFirstCol() == getLastCol() and getFirstRow() == getLastRow(); }
 		//запись строки в €чейку с указанием формата и типа данных:
 		bool WriteAsString(const TExcelCell& cell, const string& val, FormatPtr format = nullptr, const TDataType& type = TDataType::CELLTYPE_STRING);
 		//чтение строки из €чейки, формат не считываетс€:
 		std::string ReadAsString(const TExcelCell& cell, FormatPtr format = nullptr) const noexcept(false);
+		//считывание данных из €чейки в строковом формате:
+		std::string ReadAsString(const TExcelCell& cell, NS_Excel::TExcelBook& book, 
+			const std::string& DateFormat = "%d.%m.%Y") const noexcept(true);
 		//чтение числа:
 		double ReadAsNumber(const TExcelCell& cell, const FormatPtr format = nullptr) const;
 		//запись числа в €чейку:

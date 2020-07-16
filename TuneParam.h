@@ -376,6 +376,7 @@ namespace NS_Tune
 		static TColor getColorValue(const ptree::value_type& parent_node, const JsonParams& tag) noexcept(true);
 		static JsonFilterOper getOperationCode(const ptree::value_type& parent_node, 
 			const JsonParams& tag) noexcept(true);
+		//инициализация
 		TIndex(size_t indx = EmptyIndex) : index(indx) {}
 		TIndex(const TIndex& x) : index(x.index) {}
 		TIndex(const ptree::value_type& parent_node, const string& tagStr) : index(EmptyIndex) { setIndexFromJSon(parent_node, tagStr); }
@@ -571,6 +572,10 @@ namespace NS_Tune
 	public:
 		//инициализация из ссылки на json-объект
 		explicit TCellData(const ptree::value_type& parent_node) { setData(parent_node); }
+		//копирование объекта TCellData:
+		TCellData(const TCellData& val) : dst_indx(val.dst_indx), dst_ins_indx(val.dst_ins_indx),
+			src_param_indx(val.src_param_indx), src_val_indx(val.src_val_indx), in_data_type(val.in_data_type),
+			out_data_type(val.out_data_type) {}
 		//деструктор ни чего не делает
 		~TCellData() {}
 		//проверка на пустоту индексов
@@ -599,6 +604,8 @@ namespace NS_Tune
 		TCellData& operator=(const TCellData& cd) noexcept(true);
 		//отображение:
 		void show(std::ostream& stream = std::cout) const noexcept(true);
+		//инверсия параметров источника и приемника:
+		TCellData Inverse_Src2Dst(void) const  noexcept(true);
 	};
 
 	//класс Тип заливки:

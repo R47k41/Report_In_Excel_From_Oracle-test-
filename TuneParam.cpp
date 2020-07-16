@@ -1551,6 +1551,11 @@ void NS_Tune::TCellData::show(std::ostream& stream) const noexcept(true)
 	}
 }
 
+NS_Tune::TCellData NS_Tune::TCellData::Inverse_Src2Dst(void) const noexcept(true)
+{
+	return TCellData(SrcParam(), SrcVal(), DstIndex(), InsIndex(), getOutType(), getInType());
+}
+
 void NS_Tune::TCellFillType::setFillType(size_t type_code, const TColor& color_find, const TColor& color_nfind) noexcept(false)
 {
 	code = JsonCellFill(type_code);

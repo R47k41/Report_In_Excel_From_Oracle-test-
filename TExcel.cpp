@@ -408,6 +408,16 @@ std::string NS_Excel::TExcelBookSheet::ReadAsString(const TExcelCell& cell, Form
 	{
 		if (isEmptyCell(cell)) return string();
 		FormatPtr* format_ref = format ? &format : 0;
+		/*
+		FormatPtr* format_ref = 0;
+		if (format)
+			format_ref = &format;
+		else
+		{
+			FormatPtr tmp = getCellFormatPtr(cell);
+			format_ref = &tmp;
+		}
+		/**/
 		const char* val = sheet->readStr(cell.getRow(), cell.getCol(), format_ref);
 		if (val) return string(val);
 		TLog log("ѕустое занчение считываемой €чейки: ", "TExcelBookSheet::ReadAsString");
@@ -514,6 +524,66 @@ bool NS_Excel::TExcelBookSheet::WirteFormulaStrAsDef(const TExcelCell& cell, con
 		return sheet->writeFormulaBool(cell.getRow(), cell.getCol(), formula.c_str(), def_val.c_str(), format);
 	}
 	return false;
+}
+
+string NS_Excel::TExcelBookSheet::ReadAsString(const NS_Excel::TExcelCell& cell, NS_Excel::TExcelBook& book,
+	const std::string& DateFormat) const noexcept(true)
+{
+	using std::stringstream;
+	try
+	{
+		//если данные в €чейке источнике - пустые:
+		if (isBlank(cell)) return string();
+		//получение типа данных в €чейке источнике:
+		TDataType DataType = getCellType(cell);
+		switch (DataType)
+		{
+		case TDataType::CELLTYPE_BOOLEAN:
+		{
+			bool srcVal = ReadAsBool(cell);
+			return srcVal ? "1" : "0";
+		}
+		case TDataType::CELLTYPE_NUMBER:
+		{
+			double srcVal = ReadAsNumber(cell);
+			if (isDate(cell))
+			{
+				TExcelDate exl_date;
+				if (book.Double2Date(srcVal, exl_date))
+					return exl_date.toStr(DateFormat);
+				throw TLog("ќшибка преобразовани€ даты!", "TExcelBookSheet::ReadAsString");
+			}
+			stringstream ss;
+			ss << srcVal;
+			return ss.str();
+		}
+		case TDataType::CELLTYPE_STRING:
+		{
+			string srcVal = ReadAsString(cell);
+			return srcVal;
+		}
+		default:
+		{
+			TLog log("”казанный тип данных: ", "TExcelBookSheet::ReadAsString");
+			log << DataType << " не обрабатываетс€\n";
+			throw log;
+		}
+		}
+		return string();
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		string tmp = book.getError();
+		TLog log("Ќе обработанна€ ошибка получени€ данных из €чейки: ", "TExcelBookSheet::ReadAsString");
+		log << cell.getName() << " листа: " << getName() << " в строковом формате!";
+		if (!tmp.empty()) log << '\n' << tmp << '\n';
+		log.toErrBuff();
+	}
+	return string();
 }
 
 string NS_Excel::TExcelBookSheet::getComment(const TExcelCell& cell) const noexcept(false)
