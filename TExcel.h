@@ -347,6 +347,8 @@ namespace NS_Excel
 		bool copySheetCellsMerge(TExcelBookSheet& src_sh, const TExcelCell& cell) noexcept (true);
 		//копирование значени€ €чейки из листа-источника:
 		bool copySheetCellValue(TExcelBookSheet& src_sh, const TExcelCell& cell, FormatPtr format) noexcept(true);
+		//функици€ определени€ €вл€етс€ ли формат €чейки форматом double-значени€:
+		bool isDoubleValInCell(const TExcelCell& cell) const noexcept(true);
 	public:
 		//конструктор:
 		TExcelBookSheet(BookPtr book, const string& name, bool active_flg = true);
@@ -376,19 +378,24 @@ namespace NS_Excel
 		//функци€ проверки наличи€ данных на странице:
 		bool hasNoData() const { return getFirstCol() == getLastCol() and getFirstRow() == getLastRow(); }
 		//запись строки в €чейку с указанием формата и типа данных:
+		bool WriteAsString(size_t Row, size_t Col, const string& val, FormatPtr format = nullptr, const TDataType& type = TDataType::CELLTYPE_STRING) noexcept(true);
 		bool WriteAsString(const TExcelCell& cell, const string& val, FormatPtr format = nullptr, const TDataType& type = TDataType::CELLTYPE_STRING);
 		//чтение строки из €чейки, формат не считываетс€:
+		std::string ReadAsString(size_t Row, size_t Col, FormatPtr format) const noexcept(false);
 		std::string ReadAsString(const TExcelCell& cell, FormatPtr format = nullptr) const noexcept(false);
 		//считывание данных из €чейки в строковом формате:
 		std::string ReadAsString(const TExcelCell& cell, NS_Excel::TExcelBook& book, 
 			const std::string& DateFormat = "%d.%m.%Y") const noexcept(true);
 		//чтение числа:
+		double ReadAsNumber(size_t Row, size_t Col, const FormatPtr format = nullptr) const;
 		double ReadAsNumber(const TExcelCell& cell, const FormatPtr format = nullptr) const;
 		//запись числа в €чейку:
+		bool WriteAsNumber(size_t Row, size_t Col, double val, FormatPtr format = nullptr);
 		bool WriteAsNumber(const TExcelCell& cell, double val, FormatPtr format = nullptr);
 		//чтение bool:
 		bool ReadAsBool(const TExcelCell& cell, const FormatPtr format = nullptr) const;
 		//запись bool:
+		bool WriteAsBool(size_t Row, size_t Col, bool val, FormatPtr format = nullptr) const;
 		bool WriteAsBool(const TExcelCell& cell, bool val, FormatPtr format = nullptr) const;
 		//считываем формат пустой €чейки, если она пуста€
 		bool isBlank(const TExcelCell& cell) const { FormatPtr tmp = nullptr; return ReadBlankFormat(cell, &tmp); }
@@ -479,6 +486,8 @@ namespace NS_Excel
 		TExcelBookFormat getCellFormat(const TExcelCell& cell) const noexcept(false);
 		//установка формата €чейки:
 		bool setCellFormat(const TExcelCell& cell, TExcelBookFormat& format) noexcept(false);
+		//выделение текста в €чейке жирным шрифтом:
+		//bool setCellTextAsBold(TExcelBook& book, const TExcelCell& cell) noexcept(true);
 		//установка цвета дл€ формата в указанной €чейке!!!!
 		bool setCellColor(const TExcelCell& cell, const TColor& color) noexcept(true);
 		//утсновка цвета дл€ формата в диапазоне:
@@ -529,6 +538,8 @@ namespace NS_Excel
 		//шрифт
 		TExcelBookFont getFont() const noexcept(false);
 		bool setFont(TExcelBookFont& par_fnt) noexcept(false);
+		//проверка формата значени€ в виде double-числа: %d.dd
+		bool isDoubleVal() const noexcept(true);
 		//числовой формат:
 		int getNumFormat() const;
 		void setNumFormat(TNumFormat val);

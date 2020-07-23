@@ -6,6 +6,7 @@
 #include <vector>
 #include <iostream>
 #include "TConstants.h"
+#include "TuneParam.h"
 
 namespace NS_SMLVCH_IMP
 {
@@ -15,99 +16,112 @@ namespace NS_SMLVCH_IMP
 	using std::vector;
 	using std::istream;
 	using std::ostream;
+	using StrArr = vector<string>;
 
-	//класс описания полей импорта:
-	class TImpField
-	{
-		private:
-			string value;//строковое значение из файла
-			NS_Const::TConstType dt;//тип данных
-		public:
-			//инициализация
-			TImpField(const string& val, const NS_Const::DataType& val_type) : value(val), dt(val_type) {}
-			TImpField(const TImpField& val) : value(val.value), dt(val.dt) {}
-			//установка значения
-			void setValue(const string& str) { value = str; }
-			//получение значений:
-			string ValueStr() const { return value; }
-			//получение типа записи:
-			NS_Const::DataType getType() const { return dt.Value(); }
-			string getTypeStr() const { return dt.toStr(); }
-			bool isEmpty() const { return value.empty(); }
-	};
+	//структура индексов
+
 	//класс для описания счетов:
 	class TAccount
 	{
+	public:
 	private:
-		TImpField acc;//номер счета
-		TImpField name;//наименование счета
-		TImpField sld_rub;//остаток в рублях
-		TImpField last_op_date;//дата последнего движения
+		//массив индексов полей в строковом массиве:
+		enum FieldIndexs { Account, Name, Saldo_Active, Saldo_Passive, Last_Op_Date };
+		string acc;//номер счета
+		string name;//наименование счета
+		double sld_rub;//остаток в рублях
+		string last_op_date;//дата последнего движения
 		bool active_flg;//признак активного счета
+		//функция установки поля объекта в зависимости от индекса:
+		void setFieldByIndex(const StrArr& arr, size_t index) noexcept(true);
 	public:
 		//инициализация стандартная
-		TAccount(const string& acc_num, const string& acc_name, const string& sld_rur, const string& last_date, bool isActive) :
-			acc(acc_num, NS_Const::DataType::String), name(acc_name, NS_Const::DataType::String), 
-			sld_rub(sld_rur, NS_Const::DataType::Double), last_op_date(last_date, NS_Const::DataType::Date), 
-			active_flg(isActive) {}
+		TAccount(const string& acc_num, const string& acc_name, double sld_rur, const string& last_date, 
+			bool isActive) :	acc(acc_num), name(acc_name), sld_rub(sld_rur), last_op_date(last_date), active_flg(isActive) {}
+		//инициализация объектом:
 		TAccount(const TAccount& x): acc(x.acc), name(x.name), sld_rub(x.sld_rub), last_op_date(x.last_op_date),
 			active_flg(x.active_flg) {}
+		//инициализация массивом строк и параметрами из настроек
+		TAccount(const StrArr& fields, const NS_Tune::CellDataArr& params);
 		//функции для редактирования:
-		void setAcc(const string& val) { acc.setValue(val); }
+		void setAcc(const string& val) { acc = val; }
 		void setName(const string& val);
-		void setSldRub(const string& val) { sld_rub.setValue(val); }
-		void setOpDate(const string& val) { last_op_date.setValue(val); }
+		void setSldRub(double val) { sld_rub = val; }
+		void setOpDate(const string& val) { last_op_date = val; }
 		void setActive(bool val) { active_flg = val; }
 		//функция добавления данных к имени:
 		void addName(const string& val, const NS_Const::CtrlSym& delimeter = NS_Const::CtrlSym::Space);
 		//функции для просмотра:
-		string Account(void) const { return acc.ValueStr(); }
-		string Name(void) const { return name.ValueStr(); }
-		string SldRub(void) const { return sld_rub.ValueStr(); }
-		string LastOperDate(void) const { return last_op_date.ValueStr(); }
+		string getAccount(void) const { return acc; }
+		string getName(void) const { return name; }
+		double getSldRub(void) const { return sld_rub; }
+		string getLastOperDate(void) const { return last_op_date; }
 		bool isActive(void) const { return active_flg; }
 		//функция отображения данных о счете:
 		void show(std::ostream& stream) const;
 		//проверка пустоты:
-		bool isEmpty() const { return acc.isEmpty(); }
-		//TAccount operator=(const TAccount& x) { *this = x; return *this; }
+		bool isEmpty() const { return acc.empty() || sld_rub <= 0; }
+		//функция получения кода валюты:
+		string getCurrencyCode() const noexcept(true) { return acc.substr(5, 3); }
+		//функция проверки валидности списка строковых значений:
+		static bool isValidStrArr(const StrArr& arr) noexcept(true);
+		//функция получения имени счета из массива:
+		static string getNameByArr(const StrArr& arr) noexcept(true) { return arr[FieldIndexs::Name]; }
+		//функция получения индекса поля приемника в файле настроек для идентификации в параметрах отчета:
+		static constexpr size_t AccountIndex() noexcept(true) { return FieldIndexs::Account; }
+		static constexpr size_t NametIndex() noexcept(true) { return FieldIndexs::Name; }
+		static constexpr size_t SldRubIndex() noexcept(true) { return FieldIndexs::Saldo_Active; }
+		static constexpr size_t DateIndex() noexcept(true) { return FieldIndexs::Last_Op_Date; }
+
 	};
 	
 	using TAccounts = vector<TAccount>;
-	using StrArr = vector<string>;
 
 	//класс для импорта данных о счетах:
-	class TImportAccount
+	class TImportBalance
 	{
 		private:
-			using TConditionStr = std::pair<string, std::pair<string, string> >;
-			enum OEM{ MAX_LEN = 256};
+			enum Fields { COND_NAME_INDX = 0, OEM_MAX_LEN = 256};
+			enum Delimiters {Internal = 0, External = 1};
 			string name;//наименование группы счетов
-			TAccounts accs;//массив счетов
+			TAccounts active;//массив активных счетов
+			TAccounts passive;//массив пассивных счетов
 			//функция разбиения строки на колонки(для счетов)
-			static string divide_str(const string& str, char delimeter, size_t& pos);
+			static string divide_str(const string& str, char delimeter, size_t& pos) noexcept(false);
+			//функция разбиение строки на массив строковых значений:
+			static StrArr divide_by_cols(const string& str, char delimeter) noexcept(true);
 			//фукнция конвертирования OEM-файла:
-			static StrArr ConvertOEM2Arr(const string& file) noexcept(true);
-			static bool ConvertOEM2File(const string& file, const NS_Const::CtrlSym& delimeter) noexcept(true);
-			void LoadFromOEMFile(const string& file, const NS_Const::CtrlSym& delimeter = NS_Const::CtrlSym::txt_delimeter,
-				const NS_Const::CtrlSym& last_line = NS_Const::CtrlSym::txt_tbl_range);
-			void setNameByArr(const StrArr& Rows, size_t indx_row, const TConditionStr& condition);
+			static StrArr ConvertOEM2ANSI(const string& file) noexcept(true);
+			//конверстирование OEM-файла в ANSI файл
+			static bool ConvertOEM2File(const string& file, const NS_Tune::TConditionValue& condition, 
+				const NS_Const::CtrlSym& delimeter) noexcept(true);
+			//установка имени группы счетов по массиву строк файла
+			static string getNameByArr(const StrArr& Rows, const NS_Tune::TConditionValue& condition) noexcept(true);
+			//функция инициализации массива счетов:
+			void InitAccountsByParams(const StrArr& Rows, const NS_Tune::CellDataArr& params, char delimeter) noexcept(true);
+			//функция инициализации данных объекта из настроек:
+			void InitByTune(const string& file, const NS_Tune::TBalanceTune& tune) noexcept(true);
 	public:
-			//импорт данных из текстового файла
-		TImportAccount(const string& txt_file, const NS_Const::CtrlSym& delimeter = NS_Const::CtrlSym::txt_delimeter,
-			const NS_Const::CtrlSym& last_line = NS_Const::CtrlSym::txt_tbl_range);
-			//функция отображения числа счетов:
-			int Count() const { return accs.size(); }
-			//функция отображения массива счетов:
-			void show(std::ostream& stream) const;
-			//функция проверки на пустоту:
-			bool isEmpty() const { return accs.empty(); }
-			//имя массива
-			string getName() const { return name; }
-			//получение массива счетов:
-			const TAccounts& getAccounts() const { return accs; }
-			//получение счета из массива по индексу:
-			const TAccount& operator[](int x) const { return accs[x]; }
+		//импорт данных из текстового файла
+		TImportBalance(const string& file, const NS_Tune::TBalanceTune& tune);
+		//функция отображения числа активных счетов
+		size_t AciveCount() const noexcept(true) { return active.size(); }
+		//функция отображения числа пассивных счетов:
+		size_t PassiveCount() const noexcept(true) { return passive.size(); }
+		//функция отображения числа счетов:
+		size_t Count() const { return AciveCount() + PassiveCount(); }
+		//функция отображения массива счетов:
+		void show(std::ostream& stream) const;
+		//функция проверки массива счетов на пустоту:
+		bool isEmpty(bool ActiveFlg) const noexcept(true) { return ActiveFlg ? active.empty() : passive.empty(); }
+		//функция проверки на пустоту:
+		bool isEmpty() const { return isEmpty(true) and isEmpty(false); }
+		//имя массива
+		string getName() const { return name; }
+		//получение массива счетов:
+		const TAccounts& getAccounts(bool activeFlg) const { return activeFlg ? active: passive; }
+		//получение счета из массива по индексу:
+		//const TAccount& operator[](int x) const { return accs[x]; }
 	};
 
 	//Структура реквизитов Плательщик/Получаетль:
@@ -133,6 +147,7 @@ namespace NS_SMLVCH_IMP
 		//функция получения строковых данных в OEM-кодировке
 		static string getOEMStr(const string& str, char delimeter) noexcept(true);
 	};
+	
 	//структура документа для импорта в RS-Bank
 	struct TRSBankDoc
 	{

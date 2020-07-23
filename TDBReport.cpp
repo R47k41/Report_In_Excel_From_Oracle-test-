@@ -4,7 +4,6 @@
 #include "TDBReport.h"
 #include "TSQLParser.h"
 #include "Logger.hpp"
-#include "TSMLVCH_IMP.h"
 
 
 using std::string;
@@ -29,8 +28,6 @@ using NS_ExcelReport::TDataBaseSheetReport;
 using NS_ExcelReport::TReport;
 using NS_ExcelReport::TRowsFlag;
 using NS_ExcelReport::TCellFormatIndex;
-
-const int DEF_TEMPL_SH_INDX = 0;
 
 void raise_app_err(const TLog& log, bool as_raise = true);
 
@@ -133,6 +130,57 @@ bool TBaseSheetReport::setCellFormatByIndexArr(size_t Row, size_t ColIndex) noex
 	TExcelCell cell(Row, ColIndex, false);
 	return setCellFormatByIndexArr(cell);
 }
+
+bool TBaseSheetReport::addFillFormat(size_t init_format_index, const NS_Excel::TColor& color, 
+	bool font_flg, size_t& AddedFormatIndex) noexcept(true)
+{
+	using NS_Excel::TExcelBookFormat;
+	using NS_Excel::TExcelBookFont;
+	using NS_Excel::TColor;
+	try
+	{
+		//если цвет не задан
+		if (color == TColor::COLOR_NONE) return false;
+		//инициализация формата по индексу:
+		TExcelBookFormat tmpFormat = book.getFormatByIndex(init_format_index);
+		//если формат не валиден - выходим
+		if (tmpFormat.isValid())
+		{
+			//создаем новый формат на основании формата текущей ячейки:
+			TExcelBookFormat result = book.AddFormat(tmpFormat, false);
+			//обработка шрифтов
+			if (font_flg)
+			{
+				//меняем цвет шрифта
+				TExcelBookFont font = result.getFont();
+				font.setColor(color);
+				result.setFont(font);
+			}
+			else
+			{
+				//меняем цвет ячейки
+				result.setPatternFill(TExcelBookFormat::TFill::FILLPATTERN_SOLID);
+				result.setBorderColor(color, TExcelBookFormat::TBorderSide::Foreground);
+			}
+			//получение индекса нового формата для возврата
+			AddedFormatIndex = book.FormatCount() - 1;
+			return true;
+		}
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка при установке цвета для ячейки!", "TBaseSheetReport::addFillFormat");
+		string err_exl = book.getError();
+		if (!err_exl.empty()) log << '\n' << err_exl;
+		log.toErrBuff();
+	}
+	return false;
+}
+
 
 bool TBaseSheetReport::setRowCellsFormat(size_t Row) noexcept(true)
 {
@@ -272,7 +320,6 @@ bool TBaseSheetReport::setCellFormat(const NS_Excel::TExcelCell& cell, NS_Excel:
 return false;
 }
 
-
 bool TBaseSheetReport::setCellFormat(size_t Row, size_t Column, NS_Excel::TExcelBookFormat& format) noexcept(true)
 {
 	using NS_Excel::TExcelCell;
@@ -282,13 +329,54 @@ bool TBaseSheetReport::setCellFormat(size_t Row, size_t Column, NS_Excel::TExcel
 	return setCellFormat(cell, format);
 }
 
+bool NS_ExcelReport::TBaseSheetReport::setCellColorByFormatIndxArr(const NS_Excel::TExcelCell& cell, bool foundFlg) noexcept(true)
+{
+	//получение ссылки на форматы для указанной ячейки
+	const TCellFormatIndex& format = getFormatIndexByColl(cell.getCol());
+	if (format.InitFlg == false) return false;
+	size_t formatIndex = foundFlg ? format.Found : format.NotFound;
+	TExcelBookFormat cell_format = book.getFormatByIndex(formatIndex);
+	return setCellFormat(cell, cell_format);
+}
+
+bool NS_ExcelReport::TBaseSheetReport::InitSheetByTemplate(const string& tmpl_name, const string& sh_name,
+	bool set_as_active, size_t tmpl_sh_index) noexcept(true)
+{
+	try
+	{
+		//инициализация страницы книги по шаблону
+		if (book.setSheetByTemplate(tmpl_name, sh_name, tmpl_sh_index, set_as_active))
+		{
+			//инициализация страницы книги последней активной страницей:
+			sheet = book.getActiveSheet();
+			//выставляем даннй книги признак шаблона:
+			book.setAsTemplate(true);
+			//инициализация форматов ячеек шаблона:
+			initRowFormat();
+			return sheet.isValid();
+		}
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка инициализации шаблона:", "InitSheetByTemplate");
+		log << tmpl_name;
+		log.toErrBuff();
+	}
+	return false;
+}
+
+
 NS_Excel::FormatPtr TBaseSheetReport::getCellFormatPtr(const NS_Excel::TExcelCell& cell) noexcept(true)
 {
 	using NS_Excel::FormatPtr;
 	try
 	{
 		//получение индекса формата ячейки из массива форматов:
-		TCellFormatIndex format = getFormatIndexByCell(cell.getCol());
+		TCellFormatIndex format = getFormatIndexByColl(cell.getCol());
 		//функция получения ссылки на формат в книге по индексу
 		FormatPtr pformat = book.getFormatPrtByIndex(format.Current);
 		return pformat;
@@ -1280,69 +1368,32 @@ void TJsonReport::ProcessSheetDataWithDB() noexcept(false)
 	}
 }
 
-bool TJsonReport::addFillFormat(size_t init_format_index, bool find_flg, bool font_flg, 
-	size_t& AddedFormatIndex) noexcept(false)
-{
-	using NS_Excel::TExcelBookFormat;
-	using NS_Excel::TExcelBookFont;
-	using NS_Excel::TColor;
-	using NS_Tune::TCellMethod;
-	//инициализация формата по индексу:
-	TExcelBookFormat tmpFormat = book.getFormatByIndex(init_format_index);
-	//если формат не валидет - выходим
-	if (tmpFormat.isValid())
-	{
-		TColor color = TColor::COLOR_NONE;
-		//получение цвета заливки из настроек:
-		const TCellMethod& meth = cells_data.getMethod();
-		if (find_flg)
-			color = meth.getIncludeColor();
-		else
-			color = meth.getExcludeColor();
-		//если цвет пустой - выходим
-		if (color == TColor::COLOR_NONE) return false;
-		//добавление формата в книгу:
-		TExcelBookFormat result = book.AddFormat(tmpFormat, false);
-		if (result.isValid())
-		{
-			if (font_flg)
-			{
-				//меняем цвет шрифта
-				TExcelBookFont font = result.getFont();
-				font.setColor(color);
-				result.setFont(font);
-			}
-			else
-			{
-				//меняем цвет ячейки
-				result.setPatternFill(TExcelBookFormat::TFill::FILLPATTERN_SOLID);
-				result.setBorderColor(color, TExcelBookFormat::TBorderSide::Foreground);
-			}
-			//получение индекса нового формата
-			AddedFormatIndex = book.FormatCount() - 1;
-			return true;
-		}
-	}
-	return false;
-}
-
 bool TJsonReport::addCellFillFormat(size_t Row, size_t Col, bool font_flg) noexcept(true)
 {
 	using NS_Excel::TExcelCell;
 	using NS_Excel::TExcelBookFormat;
+	using NS_Excel::TColor;
+	using NS_Tune::TCellMethod;
 	using std::exception;
 	//инициализация ячейки:
 	TExcelCell cell(Row, Col, false);
 	try
 	{
 		//получение формата данный ячейки из массива форматов:
-		TCellFormatIndex& tmpIndex = TBaseSheetReport::getFormatIndexByCell(cell.getCol());
+		TCellFormatIndex& tmpIndex = TBaseSheetReport::getFormatIndexByColl(cell.getCol());
 		if (tmpIndex.InitFlg == false)
 			throw TLog("Форматы для ячейки: " + cell.getName() + " не заданы!\n", "TJsonReport::addCellFillFormat");
-		//формирование новых форматов для текущей ячейки
-		bool fnd_flg = addFillFormat(tmpIndex.Current, true, font_flg, tmpIndex.Found);
-		bool not_fnd_flg = addFillFormat(tmpIndex.Current, false, font_flg, tmpIndex.NotFound);
-		return fnd_flg && not_fnd_flg;
+		//формирование новых форматов для текущей ячейки:
+		//определяем цвет относительно флага:
+		TColor color = TColor::COLOR_NONE;
+		//получение цвета заливки из настроек:
+		const TCellMethod& meth = cells_data.getMethod();
+		//установка цвета для найденных данных:
+		color = meth.getIncludeColor();
+		addFillFormat(tmpIndex.Current, color, font_flg, tmpIndex.Found);
+		//установка цвета для ненайденных данных:
+		color = meth.getExcludeColor();
+		addFillFormat(tmpIndex.Current, color, font_flg, tmpIndex.NotFound);
 		return true;
 	}
 	catch (const exception& err)
@@ -1408,13 +1459,9 @@ bool TJsonReport::ColoringRowCell(const NS_Excel::TExcelCell& cell, bool find_fl
 	if (useColoring(find_flg, procFlg) == false) return false;
 	try
 	{
-		//получение формата ячейки из списка форматов:
-		TCellFormatIndex& formats = getFormatIndexByCell(cell.getCol());
-		if (formats.InitFlg == false)
+		if (setCellColorByFormatIndxArr(cell, find_flg) == false)
 			throw TLog("Форматы для ячейки: " + cell.getName() + " не заданы!", "TJsonReport::addCellFillFormat");
-		size_t formatIndex = find_flg ? formats.Found : formats.NotFound;
-		TExcelBookFormat format = book.getFormatByIndex(formatIndex);
-		return TBaseSheetReport::setCellFormat(cell, format);
+		return true;
 	}
 	catch (const TLog& err)
 	{
@@ -2131,23 +2178,12 @@ bool TSheetTuneReport::SetSheetByTune(const string& name) noexcept(true)
 		TStrArr head = tune.getColumns();
 		book.setHeaderByStrArr(head, false, sh_name);
 		sheet = book.getActiveSheet();
+		return sheet.isValid();
 	}
-	//если шаблон указан - грузим его
 	else
-	{
-		if (book.setSheetByTemplate(tmp_val, sh_name, DEF_TEMPL_SH_INDX, active_sheet))
-		{
-			//инициализация страницы книги:
-			sheet = book.getActiveSheet();
-			//инициализация форматов ячеек строки листа шаблона:
-			book.setAsTemplate(true);
-			//инициализация форматов ячеек шаблона:
-			initRowFormat();
-		}
-	}
-	if (!sheet.isValid())
-		return false;
-	return true;
+		//инициализация страницы - страницей шаблона
+		return InitSheetByTemplate(tmp_val, sh_name, active_sheet);
+	return false;
 }
 
 bool TSheetTuneReport::CreateNewPage(size_t cur_val, bool byRows)
@@ -2700,6 +2736,325 @@ bool TDataBaseInterface::addQueryIteration(TStatement& query) noexcept(true)
 		TLog log("Не обработанная ошибка добавления итерации для запроса: " + query.getSQL() + "\n",
 			"TDataBaseInterface::addQueryIteration");
 		log.toErrBuff();
+	}
+	return false;
+}
+
+bool NS_ExcelReport::TSmlvchReport::InitSheet(const string& sh_name, bool set_as_active) noexcept(true)
+{
+	using NS_Tune::StrArr;
+	//получение имени шаблона из настроек:
+	StrArr files = config.getTemplFileLst();
+	//не обрабатываем более одного шаблона:
+	if (files.size() != 1)
+	{
+		TLog("Не реализована обработка более одного шаблона на страницу отчета!", "TSmlvchReport::InitSheet").toErrBuff();
+		return false;
+	}
+	string name = files[0];
+	//формируем новую страницу книги из шаблона для файла:
+	return InitSheetByTemplate(name, sh_name, set_as_active);
+}
+
+bool NS_ExcelReport::TSmlvchBalance::setTotalFields(size_t curRow, bool active_flg, double sld_rub, 
+	double sld_val, const NS_Tune::CellDataArr& params) noexcept(true)
+{
+	using NS_Excel::TExcelCell;
+	using NS_SMLVCH_IMP::TAccount;
+	//установка форматов ячеек строки
+	setRowCellsFormat(curRow);
+	//формирование текста:
+	string str = "Итого по ";
+	str += active_flg ? "активным " : " пассивным ";
+	str += "счетам:";
+	//запись заголовка
+	sheet.WriteAsString(TExcelCell(curRow, sheet.getFirstCol(), false), str);
+	//поиск колонок для вставки данных в параметрах:
+	for (const NS_Tune::TCellData& param : params)
+	{
+		//если не указано поле вставки - пропускаем
+		if (param.EmptyInsIndx() || param.SrcParam(false) != TAccount::SldRubIndex()) continue;
+		//инициализация ячейки
+		TExcelCell cell(curRow, param.InsIndex(), false);
+		//если удалось записать рублевый итог - записываем валютный
+		if (sheet.WriteAsNumber(cell, sld_rub))
+			return sheet.WriteAsNumber(cell.getRow(), cell.getCol() - 1, sld_val);
+		else
+			return false;
+	}
+	return true;
+}
+
+bool NS_ExcelReport::TSmlvchBalance::setAccount2Row(size_t Row, const NS_SMLVCH_IMP::TAccount& acc, 
+	const NS_Tune::CellDataArr& params, const NS_Excel::TColor& color, double rate) noexcept(true)
+{
+	using NS_Excel::TExcelCell;
+	using NS_SMLVCH_IMP::TAccount;
+	if (params.empty()) return false;
+	try
+	{
+		//установка форматов ячеек строки:
+		setRowCellsFormat(Row);
+		//проходим по параметрам списка:
+		for (const NS_Tune::TCellData& param : params)
+		{
+			//если не указан параметр колонки в которую записывается инфа - переходим к следующему
+			if (param.EmptyInsIndx()) continue;
+			//инициализация ячейки под запись:
+			size_t Col = param.InsIndex();
+			TExcelCell cell(Row, Col, false);
+			//т.к. параметры берутся от 1 - вычиаем 1 из значения параметра
+			size_t index = param.SrcParam(false);
+			switch (index)
+			{
+			case TAccount::AccountIndex():
+			{
+				//если это валютный счет - закрасим его
+				if (rate != 1) setCellColorByFormatIndxArr(cell, true);
+				sheet.WriteAsString(cell, acc.getAccount());
+				break;
+			}
+			case TAccount::NametIndex():
+				sheet.WriteAsString(cell, acc.getName());
+				break;
+			case TAccount::SldRubIndex():
+			{
+				//запись остатка в рублях:
+				if (sheet.WriteAsNumber(cell, acc.getSldRub()))
+				{
+					double sld_val = acc.getSldRub();
+					//если курс не 0 и не 1 - вычисляем остаток
+					if (rate > 0 and rate != 1)	sld_val /= rate;
+					//запись остатка в валюте счета - на ячейку меньше:
+					sheet.WriteAsNumber(cell.getRow(), cell.getCol() - 1, sld_val);
+				}
+				break;
+			}
+			case TAccount::DateIndex():
+				sheet.WriteAsString(cell, acc.getLastOperDate());
+				break;
+			default:
+			{
+				TLog log("Указанный SrcParamIdex: ", "setAccount2Row");
+				log << index << " не обрабатывается!";
+				throw log;
+			}
+			}
+		}
+		return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка при записи счета: ", "setAccount2Row");
+		log << acc.getAccount();
+		log.toErrBuff();
+	}
+	return false;
+}
+
+bool NS_ExcelReport::TSmlvchBalance::setAccounts2Sheet(size_t& curRow, const NS_SMLVCH_IMP::TAccounts& arr, 
+	const NS_Tune::CellDataArr& params, const NS_Tune::TCurrencyBlock& rates, SubHeaderRows& headers, 
+	const string& row_name_grp, bool last_row_as_sum) noexcept(true)
+{
+	using NS_Excel::TExcelCell;
+	using NS_SMLVCH_IMP::TAccount;
+	//если счета не заполнены - выход:
+	if (arr.empty()) throw TLog("Массив счетов - пуст!", "setAccounts2Sheet");
+	try
+	{
+		//если указана строка заголовок - вставояем ее в 1ю ячейку:
+		if (row_name_grp.empty() == false)
+		{
+			//получение первого свободного столбца листа
+			size_t curCol = sheet.getFirstCol();
+			if (sheet.WriteAsString(TExcelCell(curRow, curCol, false), row_name_grp))
+				headers.push_back(curRow++);
+		}
+		//инициализация переменных для вывода итогов:
+		double sum_rur = 0, sum_val = 0;
+		//проходим по каждому счету и заносим его в строку excel-страницы
+		for (const TAccount& acc : arr)
+		{
+			//пустой счет пропускаем
+			if (acc.isEmpty()) continue;
+			//получение курса для кода валюты:
+			double rate = rates.getCurRateByCode(acc.getCurrencyCode());
+			//запись данных в строку excel:
+			bool flg = setAccount2Row(curRow, acc, params, rates.getColor(), rate);
+			//увеличиваем данные по суммарным остаткам:
+			if (last_row_as_sum and flg)
+			{
+				sum_rur += acc.getSldRub();
+				sum_val += rate == 0 ? acc.getSldRub() : acc.getSldRub() / rate;
+			}
+			curRow++;
+		}
+		//запись итоговой ячейки:
+		if (setTotalFields(curRow, arr[0].isActive(), sum_rur, sum_val, params))
+			headers.push_back(curRow);
+		return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при обрпботке массива счетов!", "setAccounts2Sheet").toErrBuff();
+	}
+	return false;
+}
+
+bool NS_ExcelReport::TSmlvchBalance::UpdFormatArrByColor(const NS_Excel::TColor& color, bool fnd_flg, 
+	bool font_flg) noexcept(true)
+{
+	//проходим по всем форматам листа:
+	for (size_t i = 0; i < cells_format_indexs.size(); i++)
+	{
+		//size_t init_indx = cells_format_indexs[i].Current;
+		size_t& format_indx = fnd_flg ? cells_format_indexs[i].Found : cells_format_indexs[i].NotFound;
+		//добавляем новый формат на лист:
+		addFillFormat(cells_format_indexs[i].Current, color, font_flg, format_indx);
+	}
+	return true;
+}
+
+bool NS_ExcelReport::TSmlvchBalance::setSubHeadersFont(const SubHeaderRows& rows) noexcept(true)
+{
+	using NS_Excel::TExcelCell;
+	using NS_Excel::TExcelBookFormat;
+	using NS_Excel::TExcelBookFont;
+	if (rows.empty()) return false;
+	try
+	{
+		size_t i = 0;
+		size_t Col = sheet.getFirstCol() + 1;
+		TExcelCell cell(rows[i++], Col, false);
+		//получаем формат ячейки:
+		TExcelBookFormat cell_frmt = sheet.getCellFormat(cell);
+		TExcelBookFormat frmt = book.AddFormat(cell_frmt, false);
+		TExcelBookFont fnt = frmt.getFont();
+		fnt.setBold();
+		//установка формата для всех ячеек
+		sheet.setCellFormat(cell, frmt);
+		for (; i < rows.size(); i++)
+		{
+			TExcelCell tmp(rows[i], Col, false);
+			sheet.setCellFormat(tmp, frmt);
+		}
+		return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при установке подзаголовка для массива ячеек!", "setSubHeadersFont").toErrBuff();
+	}
+	return false;
+}
+
+bool NS_ExcelReport::TSmlvchBalance::crtSheet(const string& imp_file, const NS_Tune::TBalanceTune& tune) noexcept(true)
+{
+	using NS_SMLVCH_IMP::TImportBalance;
+	try
+	{
+		//инициализация объекта Баланс дляуказанного файла:
+		TImportBalance balance(imp_file, tune);
+		//если данные по счетам не загрузились - выход
+		if (balance.isEmpty())
+			throw TLog("Пустые данные по счетам для файла: " + imp_file, "TSmlvchBalance::crtSheet");
+		//инициализация страницы для записи данных файла:
+		InitSheet(balance.getName());
+		//обновление форматов ячеек:
+		UpdFormatArrByColor(tune.getColor(), true, false);
+		//запись данных массива счетов на страницу:
+		const NS_Tune::CellDataArr& params = tune.getParams();
+		const NS_Tune::TCurrencyBlock& rates = tune.getCurrencyBlock();
+		//инициализируем массив заголовков:
+		SubHeaderRows sub_head;
+		//получение строки для записи:
+		size_t curRow = getRow(false);
+		//запись активных счетов:
+		setAccounts2Sheet(curRow, balance.getAccounts(true), params, rates, sub_head, "Актив");
+		curRow++;
+		//запись пассивных счетов:
+		setAccounts2Sheet(curRow, balance.getAccounts(false), params, rates, sub_head, "Пассив");
+		setSubHeadersFont(sub_head);
+		return true;
+	}
+	catch (const TLog& err)
+	{
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка формирования страницы отчета для файла: " + imp_file, "TSmlvchBalance::crtSheet").toErrBuff();
+	}
+	return false;
+}
+
+NS_Tune::TBalanceTune NS_ExcelReport::TSmlvchBalance::getBalanceTune() const noexcept(true)
+{
+	using NS_Tune::StrArr;
+	using NS_Tune::TBalanceTune;
+	try
+	{
+		//инициализация настроек отчета по балансу:
+		StrArr files = config.getConfFileLst();
+		if (files.size() != 1)
+			throw TLog("Не реализована обработка нескольких файлов-настроек для данного отчета!", "TSmlvchBalance::getBalanceTune");
+		TBalanceTune tune(files[0]);
+		if (tune.isEmpty())
+		{
+			TLog log("Не удалось инициализировать настройки отчета по файлу: ", "TSmlvchBalance::getBalanceTune");
+			log << files[0];
+			throw log;
+		}
+		return tune;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при получении настроек отчета!", "TSmlvchBalance::getBalanceTune").toErrBuff();
+	}
+	return NS_Tune::TBalanceTune();
+}
+
+bool NS_ExcelReport::TSmlvchBalance::crtReport() noexcept(true)
+{
+	using NS_Tune::StrArr;
+	using NS_Tune::TBalanceTune;
+	try
+	{
+		//получение настроек для формирования отчета по Балансу:
+		TBalanceTune tune = getBalanceTune();
+		//получение списка файлов для импорта:
+		StrArr files = tune.getImportFiles(config.getMainPathVal());
+		//выполняем обработку каждого файла:
+		for (const string& file : files)
+		{
+			//формирование страницы отчета под каждый файл импорта
+			if (crtSheet(file, tune) == false)
+				//если страница не загрузилась:
+				throw TLog("Ошибка импорта файла: " + file, "crtReport");
+		}
+		return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при формировании отчета!", "TSmlvchBalance::crtReport").toErrBuff();
 	}
 	return false;
 }
@@ -3261,6 +3616,9 @@ void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
 	case ReportCode::FILE_COMPARE_RTBK:
 		Json_Report_By_Files_Compare();
 		break;
+	case ReportCode::SMLVCH_BALANCE:
+		Smolevich_Balance_Report();
+		break;
 	case ReportCode::QUIT_REPORT:
 		break;
 	default:
@@ -3310,106 +3668,18 @@ TReport::TReport(const string& config_file): config(config_file)
 	}
 }
 
-
-void TReport::Smolevich_Sld_Report(const string& path, const string& out_file_name)
+void TReport::Smolevich_Balance_Report() const noexcept(true)
 {
-	using NS_SMLVCH_IMP::TAccount;
-	using NS_SMLVCH_IMP::TImportAccount;
-	using NS_SMLVCH_IMP::TAccounts;
-	using NS_Tune::TSimpleTune;
 	using NS_Tune::StrArr;
-	using NS_Excel::TExcelCell;
-	const string tmpl_name = "F:\\Projects\\SomeThing\\TypicalReport\\Смолевич\\Ведомость\\template\\template.xlt";
-	//чтение фалов в директории:
-	StrArr files = TSimpleTune::getFileLst(path);
-	if (files.empty())
-	{
-		TLog log("Отчет не сформирован! По указанному пути: ", "Smolevich_Sld_Report");
-		log << path << " файлов не обнаружено!\n";
-		log.toErrBuff();
-		return;
-	}
-	//создаем excel-файл
-	TExcelBook book(out_file_name);
-	//обработка каждого файла:
-	for (const string& name : files)
-	{
-		TImportAccount accs(name);
-		//загружаем шаблон для страницы из книги:
-		if (book.setSheetByTemplate(tmpl_name, accs.getName(), DEF_TEMPL_SH_INDX, true))
-		{
-			//инициализация страницы
-			TExcelBookSheet sheet = book.getActiveSheet();
-				/*
-				//разбиваем на активные и пассивные счета
-				TAccounts act_acc;//массив активных счетов
-				TAccounts pas_acc;//массив пассивных счетов
-				for (size_t i = 0; i < accs.Count(); i++)
-				{
-					if (accs[i].isActive())
-						act_acc.push_back(accs[i]);
-					else
-						pas_acc.push_back(accs[i]);
-				}
-				/**/
-				//запись счетов в файл:
-				size_t row = 1;
-				double sum_sld = 0;
-				//колонка "Актив"
-				sheet.WriteAsString(TExcelCell(row++, 0), "Актив");
-				for (size_t i = 0; i < accs.Count(); i++)
-				{
-					//запись в файл активных счетов
-					if (accs[i].isActive() == false) continue;
-					size_t col = 0;
-					sheet.WriteAsString(TExcelCell(row, col++), accs[i].Account());
-					sheet.WriteAsString(TExcelCell(row, col++), accs[i].Name());
-					double sld = 0;
-					NS_Converter::toDblType(accs[i].SldRub(), &sld);
-					sum_sld += sld;
-					sheet.WriteAsNumber(TExcelCell(row, col++), sld);
-					if (accs[i].Account().substr(5, 3) != "810")
-						sheet.WriteAsNumber(TExcelCell(row, col++), 0);
-					else
-						sheet.WriteAsNumber(TExcelCell(row, col++), sld);
-					sheet.WriteAsString(TExcelCell(row, col++), accs[i].LastOperDate());
-					row++;
-				}
-				//Запись итогов по счетам:
-				sheet.WriteAsString(TExcelCell(row, 0), "Итого по активным счетам: ");
-				sheet.WriteAsNumber(TExcelCell(row, 2), sum_sld);
-				sheet.WriteAsNumber(TExcelCell(row, 3), sum_sld);
-				book.SaveToFile();
-				//запись пассивных счетов:
-				row++;
-				sum_sld = 0;
-				//колонка "Пассив"
-				sheet.WriteAsString(TExcelCell(row++, 0), "Пассив");
-				for (size_t i = 0; i < accs.Count(); i++)
-				{
-					//запись в файл пассивных счетов
-					if (accs[i].isActive()) continue;
-					size_t col = 0;
-					sheet.WriteAsString(TExcelCell(row, col++), accs[i].Account());
-					sheet.WriteAsString(TExcelCell(row, col++), accs[i].Name());
-					double sld = 0;
-					NS_Converter::toDblType(accs[i].SldRub(), &sld);
-					sheet.WriteAsNumber(TExcelCell(row, col++), sld);
-					sum_sld += sld;
-					if (accs[i].Account().substr(5, 3) != "810")
-						sheet.WriteAsNumber(TExcelCell(row, col++), 0);
-					else
-						sheet.WriteAsNumber(TExcelCell(row, col++), sld);
-					sheet.WriteAsString(TExcelCell(row, col++), accs[i].LastOperDate());
-					row++;
-				}
-				//Запись итогов по счетам:
-				sheet.WriteAsString(TExcelCell(row, 0), "Итого по пассивным счетам: ");
-				sheet.WriteAsNumber(TExcelCell(row, 2), sum_sld);
-				sheet.WriteAsNumber(TExcelCell(row, 3), sum_sld);
-				book.SaveToFile();
-		}
-	}
+	using NS_Excel::TExcelBook;
+	//получение имени выходного файла:
+	string name = config.getOutFile();
+	//инициализация шаблона excel-книги
+	TExcelBook book(name);
+	//инициализация отчета по Балансу:
+	TSmlvchBalance balance(book, config);
+	balance.crtReport();
+	saveReport(book);
 }
 
 void NS_ExcelReport::TReport::Smolevich_Imp_Docs(const string& path, const string& out_file) noexcept(true)

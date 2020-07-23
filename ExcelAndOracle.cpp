@@ -74,16 +74,19 @@ int main()
 	using std::string;
 	using std::locale;
 	using std::cout;
-	using NS_SMLVCH_IMP::TImportAccount;
 	//SetRuConsole(1251);
 	setlocale(LC_ALL, "RU");
+/*
+	string file = "F:\\Projects\\SomeThing\\TypicalReport\\Смолевич\\Ведомость\\config\\config.json";
+	JsonParse(file);
+	return 0;
 	/*
 	//Формирование ведомости остатков Смолевич
 	string path("F:\\Projects\\SomeThing\\TypicalReport\\Смолевич\\Ведомость\\template\\files\\");
 	//imp_data(path, NS_Const::CtrlSym::txt_delimeter)
 	NS_ExcelReport::TReport::Smolevich_Sld_Report(path, "Ведомость Смолевич.xls");
 	return 0;
-	/**/
+	/*
 	//Формирование документов на импорт для Смолевича
 	string path("F:\\Projects\\SomeThing\\TypicalReport\\Смолевич\\Иморт документов\\template");
 	NS_ExcelReport::TReport::Smolevich_Imp_Docs(path, "imp_docs.txt");
@@ -136,24 +139,31 @@ int main()
 /**/
 	return 0;
 }
-/*
+/**/
 void JsonParse(const string& file)
 {
 	using boost::property_tree::ptree;
 	using boost::property_tree::file_parser_error;
 	using boost::property_tree::json_parser_error;
 	using boost::property_tree::json_parser::read_json;
+	using std::cout;
+	using std::endl;
 	using std::string;
 	using NS_Const::JsonParams;
 	using NS_Const::TConstJson;
 	using filter_data = std::pair<size_t, string>;
 	using filters = std::vector<filter_data>;
+	using NS_Tune::TBalanceTune;
 	const size_t EmptyVal = 0;
 	try
 	{
 		ptree json;
 		read_json(file, json);
-		if (json.empty()) throw TLog("Пустой файл: " + file, "JsonParse");
+		if (json.empty()) throw string("Пустой файл: " + file);
+		TBalanceTune cur(json);
+		cur.show();
+		cout << cur.getResultVal(0, "                                                   Глава  3 Внеб. счета") << endl;
+		/*
 		filters fltr;
 		size_t ilist = EmptyVal;
 		size_t istart = EmptyVal;
@@ -192,26 +202,23 @@ void JsonParse(const string& file)
 		{
 			std::cout << "col index: " << v.first << '\t' << "col_val: " << v.second << std::endl;
 		}
+		/**/
 	}
 	catch (const json_parser_error& err)
 	{
-		TLog(err.what()).toErrBuff();
+		cout << err.what() << endl;
 	}
 	catch (const std::exception& err)
 	{
-		TLog(err.what()).toErrBuff();
-	}
-	catch (const TLog& er)
-	{
-		er.toErrBuff();
+		cout << err.what() << endl;
 	}
 	catch (...)
 	{
-		TLog("Не обработанная ошибка!").toErrBuff();
+		cout << "Не обработанная ошибка!" << endl;
 	}
 	return;
 }
-
+/*
 void test_Const_Module(void)
 {
 	using namespace NS_Const;

@@ -8,15 +8,74 @@
 using NS_Logger::TLog;
 using std::string;
 
+void NS_SMLVCH_IMP::TAccount::setFieldByIndex(const StrArr& arr, size_t index) noexcept(true)
+{
+	using NS_Converter::toDblType;
+	switch (index)
+	{
+	case FieldIndexs::Account:
+		acc = arr[index];
+		break;
+	case FieldIndexs::Name:
+		name = arr[index];
+		break;
+	//остатки на счете:
+	case FieldIndexs::Saldo_Active:
+	{
+		//если остаток не установлен - то это активный счет
+		if (sld_rub == 0)
+		{
+			toDblType(arr[index], &sld_rub);
+			active_flg = true;
+		}
+		break;
+	}
+	case FieldIndexs::Saldo_Passive:
+	{
+		//если остаток не установлен - пассивный счет
+		if (sld_rub == 0)
+		{
+			toDblType(arr[index], &sld_rub);
+			active_flg = false;
+		}
+		break;
+	}
+	case FieldIndexs::Last_Op_Date:
+		last_op_date = arr[index];
+		break;
+	default:
+		{
+			TLog log("Индекс ", "TAccount::setBFieldByIndex");
+			log << index << " не обрабатывается!";
+			log.toErrBuff();
+		}
+	}
+}
+
+NS_SMLVCH_IMP::TAccount::TAccount(const StrArr& fields, const NS_Tune::CellDataArr& params): sld_rub(0)
+{
+	using NS_Tune::TCellData;
+	//если не заполнены данные по параметрам или полям - выход
+	if (fields.empty() || params.empty()) return;
+	//проходим по всем параметрам и выставляем данные из колонок основываясь на параметрах:
+	for (const TCellData& param : params)
+	{
+		//индекс параметра массива должен быть заполнен
+		if (param.EmptySrcParam()) continue;
+		//т.к. индексы параметров нумеруются от 1 - вычитаем 1
+		setFieldByIndex(fields, param.SrcParam(false));
+	}
+}
+
 void NS_SMLVCH_IMP::TAccount::show(std::ostream& stream) const
 {
 	using std::endl;
 	if (stream)
 	{
-		stream << "Счет: " << Account() << endl
-			<< "Наименование счета:" << Name() << endl
-			<< "Остаток в рублях: " << SldRub() << endl
-			<< "Дата последней операции: " << LastOperDate() << endl
+		stream << "Счет: " << getAccount() << endl
+			<< "Наименование счета:" << getName() << endl
+			<< "Остаток в рублях: " << getSldRub() << endl
+			<< "Дата последней операции: " << getLastOperDate() << endl
 			<< (active_flg ? "Активный" : "Пассивный") << endl;
 	}
 }
@@ -28,19 +87,24 @@ void NS_SMLVCH_IMP::TAccount::setName(const string& val)
 	//получение строки без пробелов в начале и конце
 	Trim(str);
 	//присвоение
-	name.setValue(str);
+	name = str;
 }
 
 void NS_SMLVCH_IMP::TAccount::addName(const string& val, const NS_Const::CtrlSym& delimeter)
 {
 	using NS_Const::TConstCtrlSym;
-	string str(name.ValueStr());
-	setName(val);
-	str += TConstCtrlSym::asStr(delimeter) + name.ValueStr();
-	name.setValue(str);
+	if (val.empty()) return;
+	name += TConstCtrlSym::asStr(delimeter) + val;
 }
 
-string NS_SMLVCH_IMP::TImportAccount::divide_str(const string& str, char delimeter, size_t& pos)
+bool NS_SMLVCH_IMP::TAccount::isValidStrArr(const StrArr& arr) noexcept(true)
+{
+	if (arr.empty() || arr[FieldIndexs::Account].empty())
+		return false;
+	return true;
+}
+
+string NS_SMLVCH_IMP::TImportBalance::divide_str(const string& str, char delimeter, size_t& pos) noexcept(false)
 {
 	//pos - начинается от позиции данных подстроки(без разделителя)
 	//позиция окончания подстроки:
@@ -52,7 +116,27 @@ string NS_SMLVCH_IMP::TImportAccount::divide_str(const string& str, char delimet
 	return str.substr(posb, pos - posb);
 }
 
-NS_SMLVCH_IMP::StrArr NS_SMLVCH_IMP::TImportAccount::ConvertOEM2Arr(const string& file) noexcept(true)
+ NS_SMLVCH_IMP::StrArr NS_SMLVCH_IMP::TImportBalance::divide_by_cols(const string& str, char delimeter) noexcept(true)
+{
+	using NS_Const::Trim;
+	StrArr arr;
+	size_t pos = 0;
+	while (pos < str.size())
+	{
+		string tmp = divide_str(str, delimeter, pos);
+		if (pos == string::npos) continue;
+		//необходимо проверить является ли первое считанное поле корректным:
+		//номер счета может быть пустым либо числовым значением
+		Trim(tmp);
+		//если считывается номер счета
+		//поле может быть либо пустым либо числовым значением
+		if (arr.size() == 0 and tmp.empty() == false and isdigit(unsigned char(tmp[0])) == 0) break;
+		arr.push_back(tmp);
+	}
+	return arr;
+}
+
+NS_SMLVCH_IMP::StrArr NS_SMLVCH_IMP::TImportBalance::ConvertOEM2ANSI(const string& file) noexcept(true)
 {
 	using NS_Const::TConstCtrlSym;
 	using std::ifstream;
@@ -75,7 +159,7 @@ NS_SMLVCH_IMP::StrArr NS_SMLVCH_IMP::TImportAccount::ConvertOEM2Arr(const string
 			//если строка не пустая:
 			if (tmp.empty() == false)
 			{
-				tmp = OEM2Char(tmp, OEM::MAX_LEN);
+				tmp = OEM2Char(tmp, Fields::OEM_MAX_LEN);
 				if (!tmp.empty())
 					Text.push_back(tmp);
 			}
@@ -105,37 +189,35 @@ NS_SMLVCH_IMP::StrArr NS_SMLVCH_IMP::TImportAccount::ConvertOEM2Arr(const string
 	return Text;
 }
 
-void NS_SMLVCH_IMP::TImportAccount::setNameByArr(const StrArr& Rows, size_t indx_row, 
-	const NS_SMLVCH_IMP::TImportAccount::TConditionStr& condition)
+string NS_SMLVCH_IMP::TImportBalance::getNameByArr(const StrArr& Rows, const NS_Tune::TConditionValue& condition) noexcept(true)
 {
-	if (indx_row > Rows.size() or indx_row < 0)
+	using NS_Tune::TConditionValue;
+	using NS_Tune::ConditionValues;
+	//если нет данных для определения имени группа
+	if (condition.isEmpty()) return string();
+	size_t index = condition.getColIndx();
+	if (index > Rows.size() or index < 0)
 	{
 		TLog("Указан не верный индекс! Имя файла не сформировано", "TImportAccount::setNameByArr").toErrBuff();
-		return;
+		return string();
 	}
-	if (Rows[indx_row].find(condition.first) != string::npos)
-		name = condition.second.first;
-	else
-		name = condition.second.second;
+	return condition.getResultValue(Rows[index]);
 }
 
-bool NS_SMLVCH_IMP::TImportAccount::ConvertOEM2File(const string& file, const NS_Const::CtrlSym& delimeter) noexcept(true)
+bool NS_SMLVCH_IMP::TImportBalance::ConvertOEM2File(const string& file, const NS_Tune::TConditionValue& condition,
+	const NS_Const::CtrlSym& delimeter) noexcept(true)
 {
 	using NS_Const::TConstCtrlSym;
 	using std::ofstream;
 	//получение строк файла
-	StrArr Text = ConvertOEM2Arr(file);
-	if (Text.empty()) return false;
-	string name;
-	if (Text[4].find_first_of("Внеб"))
-			name = "unbalance.txt";
-		else
-			name = "balance.txt";
+	StrArr arr = ConvertOEM2ANSI(file);
+	if (arr.empty()) return false;
+	string name = getNameByArr(arr, condition);
 	try
 	{
 	ofstream out_file(name, std::ios_base::out);
 	if (out_file.is_open())
-		for (const string& s : Text) out_file << s << std::endl;
+		for (const string& s : arr) out_file << s << std::endl;
 	else
 	{
 		TLog log("Не удалось открыть файл: ", "TImportAccount::ConvertOEMFile");
@@ -163,70 +245,69 @@ bool NS_SMLVCH_IMP::TImportAccount::ConvertOEM2File(const string& file, const NS
 	return false;
 }
 
-void NS_SMLVCH_IMP::TImportAccount::LoadFromOEMFile(const string& file, const NS_Const::CtrlSym& delimeter,
-	const NS_Const::CtrlSym& last_line)
+void NS_SMLVCH_IMP::TImportBalance::InitAccountsByParams(const StrArr& Rows, const NS_Tune::CellDataArr& params, char delimeter) noexcept(true)
 {
 	using NS_Const::TConstCtrlSym;
 	using NS_Const::Trim;
-	//!!!!Здесь нужно избавиться от номеров в массиве и использовать тип Настрока
-	//формируем массив из строк файла
-	StrArr Fields = ConvertOEM2Arr(file);
-	setNameByArr(Fields, 4, TConditionStr(std::make_pair("Внеб", std::make_pair("Внебалансовые счета", "Балансовые счета"))));
-	const char internal_d = TConstCtrlSym::asChr(delimeter);
-	const string external_d = TConstCtrlSym::asStr(last_line);
-	bool prev_Rec = false;
+	//разделитель для конца файла
+	//const string external_d = tune.getDelimeter(1);
+	//признак типа счета - актив/пассив:
+	bool typeFlg = false;
 	//проходим по каждой строке и формируем запись для TAccount
-	for (const string& str : Fields)
+	for (const string& str : Rows)
 	{
+		if (str[0] != delimeter) continue;
 		//столбцы строки
-		StrArr fields;
-		//позиция отсчета:
-		size_t pos = 0;
-		//проходим по полям строки
-		while (pos < str.size())
+		StrArr fields = divide_by_cols(str, delimeter);
+		if (fields.empty()) continue;
+		//если полученные поля валидны:
+		if (TAccount::isValidStrArr(fields))
 		{
-			//!!!!!!!!!Здесь можно доработать, чтобы отсеивать текстовые строки:
-			//типа итоги и заголовки
-			string tmp = divide_str(str, internal_d, pos);
-			if (pos == string::npos) continue;
-			Trim(tmp);
-			fields.push_back(tmp);
+			//инициализация счета:
+			TAccount acc(fields, params);
+			typeFlg = acc.isActive();
+			if (typeFlg)
+				active.push_back(acc);
+			else
+				passive.push_back(acc);
 		}
-		//если есть поля под запись:
-		if (!fields.empty())
+		//если поля не валидны:
+		else
 		{
-			//проверяем поле "Номер счета":
-			if (isdigit(unsigned char(fields[0][0])) > 0)
-			{
-				//формирование записи о счете:
-				bool isActive = false;
-				double sld = 0;
-				string saldo = fields[2];
-				NS_Converter::toDblType(saldo, &sld);
-				if (sld > 0)
-					isActive = true;
-				else
-					saldo = fields[3];
-				TAccount account(fields[0], fields[1], saldo, fields[4], isActive);
-				accs.push_back(account);
-				prev_Rec = true;
-				continue;
-			}
-			//если "Номер счета" - пуст, но это продолжение предыдущей записи:
-			if (fields[0].empty() and prev_Rec and !fields[1].empty())
-			{
-				accs[accs.size() - 1].addName(fields[1]);
-				continue;
-			}
-			prev_Rec = false;
+			//проверяем является ли данный массив продолжением информации по предыдущему счету:
+			string note = TAccount::getNameByArr(fields);
+			if (note.empty()) continue;
+			//добавление информации к предыдущему значению:
+			if (typeFlg)
+				active[active.size() - 1].addName(note);
+			else
+				passive[passive.size() - 1].addName(note);
 		}
 	}
 }
 
-NS_SMLVCH_IMP::TImportAccount::TImportAccount(const string& txt_file, const NS_Const::CtrlSym& delimeter,
-	const NS_Const::CtrlSym& last_line)
+void NS_SMLVCH_IMP::TImportBalance::InitByTune(const string& file, const NS_Tune::TBalanceTune& tune) noexcept(true)
 {
-	LoadFromOEMFile(txt_file, delimeter, last_line);
+	using NS_Tune::TSimpleTune;
+	using NS_Tune::TConditionValue;
+	//если настройки не заполнены или пустое имя файла - выход
+	if (tune.isEmpty() || file.empty() || tune.NoDelimeters()) return;
+	//конвертируем входной файл в кодировку ANSI в виде списка строк:
+	StrArr fields = ConvertOEM2ANSI(file);
+	//установка имени группы ипортируемых данных:
+	const TConditionValue& condition = tune.getCondition(Fields::COND_NAME_INDX);
+	name = getNameByArr(fields, condition);
+	//если имя пустое вставляем туда имя файла:
+	if (name.empty()) name = TSimpleTune::getOnlyName(file);
+	//инициалиазция массивов групп счетов:
+	const NS_Tune::CellDataArr& params = tune.getParams();
+	char delimeter = tune.getDelimeter(Delimiters::Internal)[0];
+	InitAccountsByParams(fields, params, delimeter);
+}
+
+NS_SMLVCH_IMP::TImportBalance::TImportBalance(const string& file, const NS_Tune::TBalanceTune& tune)
+{
+	InitByTune(file, tune);
 }
 
 string NS_SMLVCH_IMP::TRSBankClient::getAccData(char delimeter) const noexcept(true)
@@ -240,7 +321,7 @@ string NS_SMLVCH_IMP::TRSBankClient::getAccData(char delimeter) const noexcept(t
 string NS_SMLVCH_IMP::TRSBankClient::getOEMStr(const string& str, char delimeter) noexcept(true)
 {
 	using NS_Converter::ANSI2OEMStr;
-	string tmp = str + delimeter;
+	string tmp = delimeter ? str + delimeter : str;
 	if (tmp.size() > 1)
 		tmp = ANSI2OEMStr(tmp);
 	return tmp;
@@ -339,7 +420,7 @@ string NS_SMLVCH_IMP::TRSBankDoc::getAtrStr(char delimeter) const noexcept(true)
 	string tmp = getEmptyAttr(delimeter, FIRST_EMPTY_BLOCK);
 	ss << tmp << TRSBankClient::getOEMStr(GetMeth, delimeter);
 	tmp = getEmptyAttr(delimeter, SECOND_EMPTY_BLOCK);
-	ss << tmp << UsrCode << delimeter << TRSBankClient::getOEMStr(Note, delimeter);
+	ss << tmp << UsrCode << delimeter << TRSBankClient::getOEMStr(Note, '\0');
 	return ss.str();
 }
 

@@ -51,6 +51,11 @@ namespace NS_Const
 		//блок данных для объекта Колонка
 		CellsBegin, dst_index, dst_insert_index, src_param_index, src_val_index, 
 		in_data_type, out_data_type, CellsEnd,
+		//блок параметров для Смоленвича:
+		//отчет по Ведомости
+		SM_Balance_Begin, iftrue, iffalse, currency, rates, SM_Balance_End,
+		//импорт документов:
+		SM_Imp_Begin, pattern, fields, empty_block, SM_Imp_End,
 		Last
 	};
 
@@ -86,10 +91,7 @@ namespace NS_Const
 		Empty = EmptyType, EOL, Null, Space, NL, EndCommand, semicolon, colon,  EndCol, point, 
 		lbkt, rbkt, qlbkt, qrbkt, crwn, quotes, Tab, dash, quane, rangle, langle,
 		//используется для определения комнтариев
-		dies_comment, minus_comment, dash_comment,
-		//использование для разделения столбцов в текстовом файле:
-		txt_delimeter, txt_tbl_range,
-		Last };
+		dies_comment, minus_comment, dash_comment, Last };
 
 	//константы для выбора отчета:
 	enum class ReportCode: int
@@ -118,6 +120,8 @@ namespace NS_Const
 		ACCOUNT_BALANCE,//выписка по счету
 		ACCOUNT_BALANCE_STREAM,//потоковая выписка(считываем excel-файл и на его основании формируем выписку по каждому счету)
 		LOTS,//отчет по лотам для Смоленского Банка
+		SMLVCH_BALANCE,//Смоленвич отчет Ведомость остатков
+		SMLVCH_IMP,//Смолевич импорт документов
 		QUIT_REPORT,//выход из потока вывода отчетов
 		Last
 		};
@@ -134,7 +138,8 @@ namespace NS_Const
 	void Trim(string& str);
 	//функция получения текущего разделите целой и дробной части числа:
 	char getNLSNumPoint() noexcept(true);
-	
+	//функция округления числового значения до нужного знака:
+	double Round(double x, int sz = 100) noexcept(true);
 	//класс функций работы с датой:
 	namespace DateInteface
 	{
@@ -220,6 +225,7 @@ namespace NS_Const
 		//проверка содержания параметра в строке:
 		virtual bool StrInclude(const string& str) const;
 		//перевод значения в строку
+		static string description(const TuneField& code) noexcept(true);
 		static string asStr(const TuneField& code);
 		virtual string toStr() const { return asStr(Value()); };
 		//получение идентификатора настройки по ее коду:
@@ -239,6 +245,8 @@ namespace NS_Const
 		//перевод значения в строку
 		static string asStr(const DataType& code) noexcept(true);
 		virtual string toStr() const noexcept(true) { return asStr(Value()); }
+		//функция получения кода типа данных по наименованию:
+		static DataType getCodeByName(const string& name) noexcept(true);
 		//операция присвоения:
 		TConstType& operator=(const DataType& x) { DF_const::operator=(x); return *this; }
 	};
@@ -381,12 +389,15 @@ namespace NS_Const
 		TConstJson& operator=(const JsonParams & x) { JS_Const::operator=(x); return *this; }
 		//получение строкового значения по идентификтору:
 		static string asStr(const JsonParams& val) noexcept(true);
+		static string description(const JsonParams& val) noexcept(true);
 		static bool isObjectTag(const JsonParams& val) noexcept(true) { return inRange(val, JsonParams::ObjBegin, JsonParams::ObjEnd); }
 		static bool isFileTag(const JsonParams& val) noexcept(true) { return inRange(val, JsonParams::FileBegin, JsonParams::FileEnd); }
 		static bool isFilterTag(const JsonParams& val) noexcept(true) { return inRange(val, JsonParams::FilterBegin, JsonParams::FilterEnd); }
 		static bool isCellTag(const JsonParams& val) noexcept(true) { return inRange(val, JsonParams::CellsBegin, JsonParams::CellsEnd); }
 		static bool isMethTag(const JsonParams& val) noexcept(true) { return inRange(val, JsonParams::MethodBegin, JsonParams::MethodEnd); }
 		static bool isTag(const JsonParams& val) noexcept(true);
+		static bool isBalanceTag(const JsonParams& val) noexcept(true) { return inRange(val, JsonParams::SM_Balance_Begin, JsonParams::SM_Balance_End); }
+		static bool isImpDocsTag(const JsonParams& val) noexcept(true) { return inRange(val, JsonParams::SM_Imp_Begin, JsonParams::SM_Imp_End); }
 		static string Concate(const std::vector<JsonParams>& arr) noexcept(true);
 		string toStr() const noexcept(true) { return asStr(Value()); }
 		//сравнение:

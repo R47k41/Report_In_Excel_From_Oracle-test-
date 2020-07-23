@@ -10,6 +10,8 @@
 #include "TuneParam.h"
 #include "TConstants.h"
 #include "TOracle.h"
+#include "TSMLVCH_IMP.h"
+
 
 
 namespace NS_ExcelReport
@@ -69,6 +71,8 @@ namespace NS_ExcelReport
 	//класс функционала для формирования отчета для страницы:
 	class TBaseSheetReport
 	{
+	private:
+		enum Tune { DEF_TEMPL_SH_INDX = 0 };
 	protected:
 		TExcelBook& book;//ссылка на excel-файл
 		TExcelBookSheet sheet;//лист excel-книги(НУМЕРАЦИЯ ЛИСТОВ ИДЕТ ОТ 0!!!)
@@ -83,12 +87,15 @@ namespace NS_ExcelReport
 		bool setCellFormat(const NS_Excel::TExcelCell& cell, NS_Excel::TExcelBookFormat& format) noexcept(true);
 		bool setCellFormat(size_t Row, size_t Column, NS_Excel::TExcelBookFormat& format) noexcept(true);
 		//функция получения ссылки на форматы ячейки/колонки:
-		TCellFormatIndex& getFormatIndexByCell(size_t Column) noexcept(false) { return cells_format_indexs[Column]; }
+		TCellFormatIndex& getFormatIndexByColl(size_t Column) noexcept(false) { return cells_format_indexs[Column]; }
 		//функция получения ссылки на формат для указанной колонки:
 		NS_Excel::FormatPtr getCellFormatPtr(const NS_Excel::TExcelCell& cell) noexcept(true);
 		//функция уставноки формата для ячейки для элемента массива:
 		virtual bool setCellFormatByIndexArr(const NS_Excel::TExcelCell& cell) noexcept(true);
 		virtual bool setCellFormatByIndexArr(size_t Row, size_t IndexArr) noexcept(true);
+		//функция добавления формата ячейки по индексу из массива с обновлением форматов:
+		virtual bool addFillFormat(size_t init_format_index, const NS_Excel::TColor& color, bool font_flg,
+			size_t& AddedFormatIndex) noexcept(true);
 		//функция выставления форматов ячеек для строки из массива:
 		bool setRowCellsFormat(size_t Row) noexcept(true);
 		//проверка на необходимость создания новой страницы:
@@ -102,6 +109,11 @@ namespace NS_ExcelReport
 			const NS_Excel::TExcelCell& srcCell) const noexcept(false);
 		//функция добавления новой строки в лист отчета
 		bool InsNewRow(size_t curRow, size_t newRow) noexcept(true);
+		//функция закраски ячейки цветом из настройки:
+		bool setCellColorByFormatIndxArr(const NS_Excel::TExcelCell& cell, bool foundFlg) noexcept(true);
+		//функция инициализации страницы книги по шаблону:
+		virtual bool InitSheetByTemplate(const string& tmpl_name, const string& sh_name,
+			bool set_as_active = true, size_t tmpl_sh_index = Tune::DEF_TEMPL_SH_INDX) noexcept(true);
 	public:
 		//инициализация ссылкой на книгу и ссылкой на страницу данной книги:
 		explicit TBaseSheetReport(TExcelBook& book_ref, NS_Excel::SheetPtr sheet_ref = nullptr) :
@@ -227,9 +239,6 @@ namespace NS_ExcelReport
 		static void setDMLOutParam(NS_Oracle::TStatement& query, const TCellData& param) noexcept(false);
 		//функция установки параметров для выражения:
 		bool setStatementParam(NS_Oracle::TStatement& query, const NS_Tune::TCellData& value, size_t Row) const noexcept(true);
-		//функция установки параметров формата:
-		virtual bool addFillFormat(size_t init_format_index, bool find_flg, bool font_flg, 
-			size_t& AddedFormatIndex) noexcept(false);
 		//функция формирования формата для ячейки
 		virtual bool addCellFillFormat(size_t Row, size_t Col, bool font_flg) noexcept(true);
 		//функция инициализации формата ячейки:
@@ -450,6 +459,52 @@ namespace NS_ExcelReport
 		virtual bool crtSheet() noexcept(true);
 	};
 
+	//класс объектов для формирования отчетов по Смолевичу:
+	class TSmlvchReport : public TBaseSheetReport
+	{
+		protected:
+			const NS_Tune::TSharedTune& config;//ссылка на общие настройки отчета
+			//функция определения первой/последней строки:
+			virtual size_t getRow(bool first) const noexcept(false) { return TBaseSheetReport::getRow(first); }
+			//функция инициализации страницы для отчета:
+			virtual bool InitSheet(const string& sh_name, bool set_as_active = true) noexcept(true);
+		public:
+			//инициализация объекта:
+			TSmlvchReport(NS_Excel::TExcelBook& book_link, const NS_Tune::TSharedTune& tune) :
+				TBaseSheetReport(book_link), config(tune) {}
+			//функция формирования страницы отчета для импортируемого файла баланса:
+			//virtual bool crtSheet() const noexcept(true) = 0;
+	};
+
+	//Отчет по Ведомости остатков Смолевич:
+	class TSmlvchBalance: public TSmlvchReport
+	{
+		private:
+			using SubHeaderRows = std::vector<size_t>;
+			//функция установки форматов для ячейки из массива форматов отчета:
+			bool UpdFormatArrByColor(const NS_Excel::TColor& color, bool fnd_flg, bool font_flg) noexcept(true);
+			//обработка подзаголовков:
+			bool setSubHeadersFont(const SubHeaderRows& rows) noexcept(true);
+			//функция получения настроек для составления отчета:
+			NS_Tune::TBalanceTune getBalanceTune() const noexcept(true);
+			//функция записи итогов:
+			bool setTotalFields(size_t curRow, bool active_flg, double sld_rub, double sld_val, 
+				const NS_Tune::CellDataArr& params) noexcept(true);
+			//функция записи счета в строку excel-документа
+			bool setAccount2Row(size_t Row, const NS_SMLVCH_IMP::TAccount& acc, const NS_Tune::CellDataArr& params, 
+				const NS_Excel::TColor& color = NS_Excel::TColor::COLOR_NONE,	double rate = 1.0) noexcept(true);
+			//функция записи блока счетов на текущий лист, так же подаем первую и последнюю строчки для обрамления данных:
+			bool setAccounts2Sheet(size_t& curRow, const NS_SMLVCH_IMP::TAccounts& arr, const NS_Tune::CellDataArr& params,
+				const NS_Tune::TCurrencyBlock& rates, SubHeaderRows& headers, const string& row_name_grp, bool last_row_as_sum = true) noexcept(true);
+			//функция формирования страницы отчета для загружаемого файла:
+			bool crtSheet(const string& imp_file, const NS_Tune::TBalanceTune& tune) noexcept(true);
+		public:
+			//инициализация
+			TSmlvchBalance(NS_Excel::TExcelBook& book_link, const NS_Tune::TSharedTune& tune) : TSmlvchReport(book_link, tune) {}
+			//функция формирования страницы отчета для импортируемого файла баланса:
+			virtual bool crtReport() noexcept(true);
+	};
+
 	class TReport
 	{
 	private:
@@ -500,13 +555,12 @@ namespace NS_ExcelReport
 		void SubConfig_IniFile_Execute() const noexcept(true);
 		//функция загрузки данных из excel в базу данных:
 		void load2DBFromExcel() const noexcept(false);
+		//формирование ведомости остатков для Смолевича по OEM-файлу из RS-Bank
+		void Smolevich_Balance_Report() const noexcept(true);
 		//вызов функции, формирующей отчет по коду:
 		void Create_Report_By_Code(const NS_Const::ReportCode& code) const;
 		//формирование полного отчета по файлу main_config:
 		bool Execute() const noexcept(true);
-		//!!!Переделать!!!!
-		//формирование ведомости остатков для Смолевича по OEM-файлу из RS-Bank
-		static void Smolevich_Sld_Report(const string& path, const string& out_file_name);
 		//!!!Переделать!!!
 		//формирование файла с документами на импорт в RS Bank на основании excel-документа
 		static void Smolevich_Imp_Docs(const string& path, const string& out_file) noexcept(true);

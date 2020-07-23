@@ -222,6 +222,8 @@ namespace NS_Tune
 		string getOutFileBySheet() const noexcept(false);
 		//функция проверки значения bool-параметра:
 		bool useFlag(const TuneField& code) const noexcept(true);
+		//функция получения имени файла из пути:
+		static string getOnlyName(const string& file) noexcept(true);
 		//функция получения списка файлов в каталоге:
 		static vector<string> getFileLst(const string& file_dir, const string& file_ext = "", bool use_sort = true) noexcept(false);
 	};
@@ -266,6 +268,7 @@ namespace NS_Tune
 		//проверка существования директории - если не существует - создаем:
 		static bool CheckPath(const string& dir, bool crt_if_not_found = true);
 	};
+
 
 	//Настройки пользователя для страницы отчета
 	class TUserTune: public TSimpleTune
@@ -374,6 +377,7 @@ namespace NS_Tune
 		static string getStrValue(const ptree& parent_node, const JsonParams& tag) noexcept(true);
 		static bool setStrValue(const ptree& parent_node, const JsonParams& tag, const string& val) noexcept(true);
 		static TColor getColorValue(const ptree::value_type& parent_node, const JsonParams& tag) noexcept(true);
+		static TColor getColorValue(const ptree& parent_node, const JsonParams& tag) noexcept(true);
 		static JsonFilterOper getOperationCode(const ptree::value_type& parent_node, 
 			const JsonParams& tag) noexcept(true);
 		//инициализация
@@ -460,7 +464,7 @@ namespace NS_Tune
 		//деструктор
 		~TFilterData() {}
 		//проверка пустого значения
-		bool isEmpty() const noexcept(true) { return col_indx.isEmpty(); }
+		virtual bool isEmpty() const noexcept(true) { return col_indx.isEmpty(); }
 		//получение значение индекса
 		size_t getColIndx() const noexcept(true) { return col_indx.get(); }
 		//утсановка индекса
@@ -472,18 +476,18 @@ namespace NS_Tune
 		//установка кода операции:
 		void setOperationCode(const NS_Const::JsonFilterOper& code) noexcept(false) { operation = code; }
 		//получение значения фильтра строкой
-		inline string getValue() const noexcept(true) { return value; }
+		virtual inline string getValue() const noexcept(true) { return value; }
 		//получение признака значения, как строки:
-		inline bool ValueIsString() const noexcept(true) { return str_flg; }
+		virtual inline bool ValueIsString() const noexcept(true) { return str_flg; }
 		//установка значения для фильтра
-		inline void setValue(const string& val) noexcept(true) { value = val; }
+		virtual inline void setValue(const string& val) noexcept(true) { value = val; }
 		//проверка прохождения фильмтра(возможно не нужна - будем сверять на месте):
 		//bool operator==(const string& val) const noexcept(true);
 		//bool operator==(const TFilterData& src) const noexcept(true) { return operator==(src.value); }
 		//получение значений колонка/значение в виде пары:
 		//pair<size_t, string> getPair() const noexcept(true) { return std::make_pair(getColIndx(), getValue()); }
 		//вывод данных в поток:
-		void show(std::ostream& stream = std::cout) const noexcept(true);
+		virtual void show(std::ostream& stream = std::cout) const noexcept(true);
 		//функция сравнения значений:(Не понятно почему, но VS выдает ошибки на шаблоны!!!)
 		bool isFiltredDblValue(const double& val) const noexcept(true);
 		bool isFiltredBoolValue(const bool& val) const noexcept(true);
@@ -589,8 +593,8 @@ namespace NS_Tune
 		//вывод данных:
 		inline size_t DstIndex() const noexcept(true) { return dst_indx.get(); }
 		inline size_t InsIndex() const noexcept(true) { return dst_ins_indx.get(); }
-		inline size_t SrcParam() const noexcept(true) { return src_param_indx.get(); }
-		inline size_t SrcVal() const noexcept(true) { return src_val_indx.get(); }
+		inline size_t SrcParam(bool strt_from_one = true) const noexcept(true) { return strt_from_one ? src_param_indx.get() : src_param_indx.get()-1; }
+		inline size_t SrcVal(bool strt_from_one = true) const noexcept(true) { return strt_from_one ? src_val_indx.get() : src_val_indx.get() - 1; }
 		//оператор присвоения:
 		inline void setDstIndex(size_t val) noexcept(true) { dst_indx.set(val); }
 		inline void setInsIndex(size_t val) noexcept(true) { dst_ins_indx.set(val); }
@@ -702,6 +706,10 @@ namespace NS_Tune
 
 	using CellDataArr = vector<TCellData>;
 
+	//функция инициализации массива параметров:
+	void setCellDataArrByNode(CellDataArr& arr, ptree& node,
+		const NS_Const::JsonParams& tag = NS_Const::JsonParams::DataArr) noexcept(true);
+	
 	//структура обрабатываемых ячеек:
 	class TProcCell
 	{
@@ -718,8 +726,6 @@ namespace NS_Tune
 		//инициализация настроек соединения с БД
 		void InitDBTune(const ptree& node, const TSimpleTune* tune_ref,
 			const JsonParams& tag = JsonParams::DB_Config) noexcept(true);
-		//инициализация массива данных о колонках/столюцах:
-		void InitCellData(ptree& node, const JsonParams& tag = JsonParams::DataArr) noexcept(true);
 		//инициализация в зависимости от метода:
 		void InitByMethod(ptree& node, const TSimpleTune* tune_ref = nullptr) noexcept(true);
 	public:
@@ -746,6 +752,9 @@ namespace NS_Tune
 		vector<TUserTune> getDBTuneArr() const noexcept(true) { return db_tune; }
 		//отображение данных:
 		void show(std::ostream& stream = std::cout) const noexcept(true);
+		//дружественная функция:
+		friend void setCellDataArrByNode(CellDataArr& arr, ptree& node,
+			const NS_Const::JsonParams& tag) noexcept(true);
 	};
 
 	//структура данных на сравниваемых листах источника и приемника
@@ -788,7 +797,299 @@ namespace NS_Tune
 		//отображение данных:
 		void show(std::ostream& stream = std::cout) const noexcept(true);
 	};
-/**/
+	
+	//классы для работы с отчетами по Смолевичу:
+	//класс обработки данны по валютам: <код валюты, курс>
+	using CurRate = std::pair<std::string, double>;
+	
+	//массив валютных данных:
+	using CurRates = std::vector<CurRate>;
+	
+	//класс для Курсов валют - узел Rates (Смолевич)
+	class TCurRates
+	{
+	private:
+		CurRates arr;//массив курсов валют
+		TColor color;//цвет закраски
+		//инициализация массив параметров в теге "rates":
+		void InitRates(ptree& sub_node,
+			const NS_Const::JsonParams& root_tag = NS_Const::JsonParams::DataArr,
+			const NS_Const::JsonParams& code_tag = NS_Const::JsonParams::code,
+			const NS_Const::JsonParams& value_tag = NS_Const::JsonParams::value) noexcept(true);
+		//функция очистки данных:
+		void clear() noexcept(true) { arr.clear(); color = TColor::COLOR_NONE; }
+	public:
+		//инициализация по умолчанию
+		TCurRates() : arr(), color(TColor::COLOR_NONE) {}
+		//инициализация из дочернего тега rates
+		TCurRates(ptree::value_type& node, const NS_Const::JsonParams& rates_tag = NS_Const::JsonParams::rates,
+			const NS_Const::JsonParams& arr_tag = NS_Const::JsonParams::DataArr,
+			const NS_Const::JsonParams& color_tag = NS_Const::JsonParams::color_if_found,
+			const NS_Const::JsonParams& rate_code = NS_Const::JsonParams::code,
+			const NS_Const::JsonParams& rate_val = NS_Const::JsonParams::value);
+		//проверка на пустоту:
+		bool isEmpty() const noexcept(true) { return arr.empty(); }
+		//функция получения курса по счету:
+		double getRateByCode(const string& code) const noexcept(true);
+		//функция получения цыета заливки:
+		TColor getColor() const noexcept(true) { return color; }
+		//функция проверки установки цвета:
+		bool noColor() const noexcept(true) { return color == TColor::COLOR_NONE; }
+		//функция получения списка курсов:
+		const CurRates& getRates() const noexcept(true) { return arr; }
+		//функция получения курса из массива по индексу
+		CurRate operator[](size_t i) const noexcept(false) { return arr[i]; }
+		CurRate& operator[](size_t i) noexcept(false) { return arr[i]; }
+		//функция заполения данных из json-узла:
+		bool setByNode(ptree& node, const NS_Const::JsonParams& arr_tag = NS_Const::JsonParams::DataArr,
+			const NS_Const::JsonParams& color_tag = NS_Const::JsonParams::color_if_found,
+			const NS_Const::JsonParams& rate_code = NS_Const::JsonParams::code,
+			const NS_Const::JsonParams& rate_val = NS_Const::JsonParams::value) noexcept(true);
+		//установка цвета:
+		void setColor(const TColor& val) noexcept(true) { color = val; }
+		//функция вывода данных в объекте:
+		void show(std::ostream& stream = std::cout) const noexcept(true);
+	};
+
+	//класс блока данных по валютам(Смолевич)
+	class TCurrencyBlock
+	{
+	private:
+		string code;//код основной валюты
+		TCurRates curArr;//список курсов валют
+	public:
+		//инициализация по умолчанию
+		TCurrencyBlock() {}
+		//инициализация
+		TCurrencyBlock(ptree& parent_node, 
+			const NS_Const::JsonParams& main_tag = NS_Const::JsonParams::currency,
+			const NS_Const::JsonParams& code_tag = NS_Const::JsonParams::code,
+			const NS_Const::JsonParams& rates_tag = NS_Const::JsonParams::rates,
+			const NS_Const::JsonParams& arr_tag = NS_Const::JsonParams::DataArr,
+			const NS_Const::JsonParams& color_tag = NS_Const::JsonParams::color_if_found,
+			const NS_Const::JsonParams& rate_code = NS_Const::JsonParams::code,
+			const NS_Const::JsonParams& rate_val = NS_Const::JsonParams::value);
+		//проверка на пустоту:
+		bool isEmpty() const noexcept(true) { return code.empty(); }
+		bool NoRates() const noexcept(true) { return curArr.isEmpty(); }
+		bool NoColor() const noexcept(true) { return curArr.noColor(); }
+		//получение значений
+		string getMainCur() const { return code; }
+		TColor getColor() const noexcept(true) { return curArr.getColor(); }
+		const CurRates& getRates() const noexcept(true) { return curArr.getRates(); }
+		//функция получения курса по коду валюты:
+		double getCurRateByCode(const string& cur) const noexcept(true);
+		//получение значения в массиве
+		CurRate operator[](size_t index) const noexcept(false) { return curArr[index]; }
+		CurRate& operator[](size_t index) noexcept(false) { return curArr[index]; }
+		//установка значений:
+		void setMainCur(const string& val) noexcept(true) { code = val; }
+		void setColor(const TColor& val) noexcept(true) { curArr.setColor(val); }
+		//процедура отображения данных объекта:
+		void show(std::ostream& stream = std::cout) const noexcept(true);
+		//функция заполнения атрибутов объекта по json-дереву:
+		bool setByJson(ptree& parent_node,
+			const NS_Const::JsonParams& main_tag = NS_Const::JsonParams::currency,
+			const NS_Const::JsonParams& code_tag = NS_Const::JsonParams::code,
+			const NS_Const::JsonParams& rates_tag = NS_Const::JsonParams::rates,
+			const NS_Const::JsonParams& arr_tag = NS_Const::JsonParams::DataArr,
+			const NS_Const::JsonParams& color_tag = NS_Const::JsonParams::color_if_found,
+			const NS_Const::JsonParams& rate_code = NS_Const::JsonParams::code,
+			const NS_Const::JsonParams& rate_val = NS_Const::JsonParams::value) noexcept(true);
+	};
+
+	//Тип условных данных: <если условие выполнено, если не выполнено>
+	using CaseValue = std::pair<std::string, std::string>;
+
+	//класс формирования условного значения:
+	class TConditionValue : public TFilterData
+	{
+	private:
+		CaseValue vals;//значения для результатов проверки условия
+		//функция инициализации значений выбора:
+		void InitCaseVals(ptree::value_type& sub_node, const NS_Const::JsonParams& true_tag = NS_Const::JsonParams::iftrue,
+			const NS_Const::JsonParams& false_tag = NS_Const::JsonParams::iffalse) noexcept(true);
+	public:
+		//инициализация объекта:
+		TConditionValue(ptree::value_type& sub_node,
+			const NS_Const::JsonParams& true_tag = NS_Const::JsonParams::iftrue,
+			const NS_Const::JsonParams& false_tag = NS_Const::JsonParams::iffalse);
+		//проверка на пустоту:
+		virtual bool isEmpty() const noexcept(true) { return vals.first.empty() and vals.second.empty(); }
+		//функция получения результирующего значения:
+		string getResultValue(const string& str) const noexcept(true) { return isFiltredStrValue(str) ? vals.first : vals.second; }
+		//функция отображения данных:
+		void show(std::ostream& stream) const noexcept(true);
+	};
+
+	//массив условных значений:
+	using ConditionValues = std::vector<TConditionValue>;
+
+	//класс Ведомость остатков(Смолевич):
+	class TBalanceTune
+	{
+	private:
+		string source;//путь к файлу из которого грузим данные
+		StrArr delimeters;//массив разделителей полей
+		ConditionValues conditions;//массив условных значений
+		CellDataArr params;//параметры для заполнения значений
+		TCurrencyBlock cur;//массив курсов валют
+		//функция инициализации строкового массива:
+		void InitDelimeters(ptree& node, const NS_Const::JsonParams& del_tag = NS_Const::JsonParams::fields) noexcept(true);
+		//функция инициализации массива условных значений:
+		void InitConditions(ptree& node, const NS_Const::JsonParams& cond_tag = NS_Const::JsonParams::filter) noexcept(false);
+		//функция инициализации по json-дереву
+		void InitByJson(ptree& node, 
+			const NS_Const::JsonParams& code_tag = NS_Const::JsonParams::name,
+			const NS_Const::JsonParams& div_tag = NS_Const::JsonParams::fields,
+			const NS_Const::JsonParams& cond_tag = NS_Const::JsonParams::filter,
+			const NS_Const::JsonParams& param_tag = NS_Const::JsonParams::DataArr,
+			const NS_Const::JsonParams& cur_tag = NS_Const::JsonParams::currency) noexcept(true);
+	public:
+		//инициализация по умолчанию - пустой объект:
+		TBalanceTune() {}
+		//инициализация объекта:
+		explicit TBalanceTune(ptree& node,
+			const NS_Const::JsonParams& code_tag = NS_Const::JsonParams::name,
+			const NS_Const::JsonParams& div_tag = NS_Const::JsonParams::fields,
+			const NS_Const::JsonParams& cond_tag = NS_Const::JsonParams::filter,
+			const NS_Const::JsonParams& param_tag = NS_Const::JsonParams::DataArr,
+			const NS_Const::JsonParams& cur_tag = NS_Const::JsonParams::currency);
+		//инициализация объекта по имени json-файла:
+		explicit TBalanceTune(const string& json_file,
+			const NS_Const::JsonParams& code_tag = NS_Const::JsonParams::name,
+			const NS_Const::JsonParams& div_tag = NS_Const::JsonParams::fields,
+			const NS_Const::JsonParams& cond_tag = NS_Const::JsonParams::filter,
+			const NS_Const::JsonParams& param_tag = NS_Const::JsonParams::DataArr,
+			const NS_Const::JsonParams& cur_tag = NS_Const::JsonParams::currency);
+		//функция проверки на пустоту:
+		bool isEmpty() const { return source.empty(); }
+		//функция проверки наличия параметров:
+		bool NoParams() const noexcept(true) { return params.empty(); }
+		//функция проверки наличия условных значений:
+		bool NoConditionData() const noexcept(true) { return conditions.empty(); }
+		//функция получения пути/файла источника:
+		string getSource() const noexcept(true) { return source; }
+		//функиция получения раздилетеля по индексу:
+		string getDelimeter(size_t index) const noexcept(false) { return delimeters[index]; }
+		//функция получения числа разделителей:
+		size_t getDelimetersCnt() const noexcept(true) { return delimeters.size(); }
+		bool NoDelimeters() const noexcept(true) { return !getDelimetersCnt(); }
+		//функция получения условного значения по индексу:
+		TConditionValue getCondition(size_t i) const noexcept(false) { return conditions[i]; }
+		//функция получения массива условных значений:
+		const ConditionValues& getConditions() const noexcept(true) { return conditions; }
+		//функция получения условного значения по индексу в массиве:
+		string getResultVal(size_t i, const string& str) const noexcept(true) { return conditions[i].getResultValue(str); }
+		//функция получения параметра по индексу:
+		TCellData getParamByIndex(size_t i) const noexcept(true) { return params[i]; }
+		//функция получения ммассива параметров:
+		const CellDataArr& getParams() const noexcept(true) { return params; }
+		//функция проверки наличия данных о курсах:
+		bool NoCurrencyData() const noexcept(true) { return cur.isEmpty(); }
+		//функция получения кода основной валюты:
+		string getMainCurCode() const noexcept(true) { return cur.getMainCur(); }
+		//функция получения цвета заливки:
+		TColor getColor() const noexcept(true) { return cur.getColor(); }
+		//функция проверки наличия данных о курсах:
+		bool NoRatesData() const noexcept(true) { return cur.NoRates(); }
+		//функция получения курса валют по индексу:
+		CurRate getCurRate(size_t i) const noexcept(true) { return cur[i]; }
+		//функция получения курсов валют:
+		CurRates getCurRates() const noexcept(true) { return cur.getRates(); }
+		//функция получения ссылки на блок курсов:
+		const TCurrencyBlock& getCurrencyBlock() const noexcept(true) { return cur; }
+		//функция отображения данных объекта:
+		void show(std::ostream& stream = std::cout) const noexcept(true);
+		//функция получения списка файлов для импорта:
+		StrArr getImportFiles(const string& main_path = string()) const noexcept(true);
+		//дружественные функции:
+		friend void setCellDataArrByNode(CellDataArr& arr, ptree& node,	const NS_Const::JsonParams& tag) noexcept(true);
+	};
+
+	using IntArr = std::vector<size_t>;
+	
+	//функция заполнения числового массива из узла json-файла
+	void setIntArrByJson(IntArr& arr, ptree& node, const NS_Const::JsonParams& tag) noexcept(true);
+	//функция отображения массив данных:
+	void showIntArr(const IntArr& arr, std::ostream& stream) noexcept(true);
+
+	//Класс Данные шаблона импорта(Смоленвич)
+	class TImpPatternTune
+	{
+	private:
+		string source;//имя файла шаблона импорта
+		IntArr fields;//поля считываемые из шаблона
+		IntArr blocks;//массив пустых блоков с указание длины/числа элементов блока
+		//функция получения массива данных:
+		const IntArr& getArrData(bool byFields) const noexcept(true) { return byFields ? fields : blocks; }
+		//инициализация объекта по json-узлу:
+		void InitBySubNode(ptree::value_type& sub_node, const NS_Const::JsonParams& src_tag = NS_Const::JsonParams::name,
+			const NS_Const::JsonParams& fields_tag = NS_Const::JsonParams::fields,
+			const NS_Const::JsonParams& blocks_tag = NS_Const::JsonParams::empty_block) noexcept(true);
+	public:
+		//инициализация объекта:
+		TImpPatternTune() {};
+		TImpPatternTune(ptree::value_type& sub_node, const NS_Const::JsonParams& src_tag = NS_Const::JsonParams::name,
+			const NS_Const::JsonParams& fields_tag = NS_Const::JsonParams::fields,
+			const NS_Const::JsonParams& blocks_tag = NS_Const::JsonParams::empty_block);
+		TImpPatternTune(ptree& node, const NS_Const::JsonParams& main_tag = NS_Const::JsonParams::pattern,
+			const NS_Const::JsonParams& src_tag = NS_Const::JsonParams::name,
+			const NS_Const::JsonParams& fields_tag = NS_Const::JsonParams::fields,
+			const NS_Const::JsonParams& blocks_tag = NS_Const::JsonParams::empty_block);
+		//функция получения имени файла шаблона:
+		string getName() const noexcept(true) { return source; }
+		//фугкция проверки наличия данных о шаблоне:
+		bool isPatternEmpty() const noexcept(true) { return source.empty() && fields.empty(); }
+		//функция проверки наличия данных о пустых блоках:
+		bool NoEmptyBlocks() const noexcept(true) { return blocks.empty(); }
+		//функция проверки на пустоту:
+		bool isEmpty() const noexcept(true) { return isPatternEmpty() || NoEmptyBlocks(); }
+		//данные о поллях шаблона:
+		const IntArr& getFiedls() const noexcept(true) { return getArrData(true); }
+		//данные о пустых блоках:
+		const IntArr& getBlocks() const noexcept(true) { return getArrData(false); }
+		//функция отображения значений:
+		void show(std::ostream& stream)const noexcept(true);
+		//дружественные функции
+		friend void setIntArrByJson(IntArr& arr, ptree& node, const NS_Const::JsonParams& tag) noexcept(true);
+		friend void showIntArr(const IntArr& arr, std::ostream& stream) noexcept(true);
+	};
+
+	//класс настроек для импорта документов
+	class TImpDocsTune
+	{
+	private:
+		string load_src;//путь/файл для загрузки
+		TImpPatternTune pattern;//настройки шаблона загрузки
+	public:
+		//инициализация
+		TImpDocsTune(ptree& node, const NS_Const::JsonParams& src_tag = NS_Const::JsonParams::name,
+			const NS_Const::JsonParams& pattern_tag = NS_Const::JsonParams::pattern,
+			const NS_Const::JsonParams& ptrn_name_tag = NS_Const::JsonParams::name,
+			const NS_Const::JsonParams& ptrn_flds_tag = NS_Const::JsonParams::fields,
+			const NS_Const::JsonParams& ptrn_blck_tag = NS_Const::JsonParams::empty_block);
+		//проверка является ли объект пустым - считаем, что если нечего грузить - объект пустой:
+		bool isEmpty() const noexcept(true) { return load_src.empty(); }
+		//получение пути к источнику
+		string getSrc() const noexcept(true) { return load_src; }
+		//функции получения данных о шаблоне:
+		const TImpPatternTune& getPatternData() const noexcept(true) { return pattern; }
+		//функция получения имени файла шаблона:
+		string getTemlateName() const noexcept(true) { return pattern.getName(); }
+		//функция получения массива полей, заполняемых из шаблона:
+		const IntArr& getTemplateFields() const noexcept(true) { return pattern.getFiedls(); }
+		//функция получения массива пустых блоков для формирования шаблона:
+		const IntArr& getTemplateBlocks() const noexcept(true) { return pattern.getBlocks(); }
+		//функция проверки блоков на пустоту:
+		bool NoBlocks() const noexcept(true) { return pattern.NoEmptyBlocks(); }
+		//функция проверки наличия шаблона:
+		bool hasTemplate() const noexcept(true) { return pattern.isPatternEmpty(); }
+		//функция отображения содержимого объекта:
+		void show(std::ostream& stream) const noexcept(true);
+
+	};
 }
+
 
 #endif TUNE_PARAM_H_

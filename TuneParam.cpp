@@ -202,6 +202,16 @@ bool NS_Tune::TSubParam::setValByUser()
 	return true;
 }
 
+string NS_Tune::TSimpleTune::getOnlyName(const string& file) noexcept(true)
+{
+	using boost::filesystem::path;
+	using boost::filesystem::is_directory;
+	path tmp(file);
+	//если указанный файл - директория - выход
+	if (is_directory(tmp)) return string();
+	return tmp.filename().string();
+}
+
 vector<string> NS_Tune::TSimpleTune::getFileLst(const string& file_dir, const string& file_ext, bool use_sort) noexcept(false)
 {
 	using boost::filesystem::path;
@@ -1204,6 +1214,44 @@ NS_Tune::TColor NS_Tune::TIndex::getColorValue(const ptree::value_type& parent_n
 	return TColor::COLOR_NONE;
 }
 
+NS_Tune::TColor NS_Tune::TIndex::getColorValue(const ptree& parent_node, const JsonParams& tag) noexcept(true)
+{
+	using NS_Const::TConstJson;
+	using NS_Const::EmptyType;
+	using boost::property_tree::json_parser_error;
+	string v_tag = TConstJson::asStr(tag);
+	try
+	{
+		if (!TConstJson::isTag(tag))
+			throw TLog("Указанный тег не обрабатывается!", "getStrValue");
+		//если данные в корне пустые или тег не обрабатывается:
+		if (parent_node.empty())
+			throw TLog("Пустое содержимое в JSon-файле!", "getStrValue");
+		//получение строки в uncode-кодировке:
+		int val = parent_node.get_child(v_tag).get_value<int>();
+		if (val == EmptyType)
+			return TColor::COLOR_NONE;
+		else
+			return TColor(val);
+	}
+	catch (const json_parser_error& err)
+	{
+		TLog("Ошибка получения цвета для тега: " + v_tag + '\n' + err.what(), "TIndex::getColorValue").toErrBuff();
+	}
+	catch (TLog& er)
+	{
+		er << "(тег: " << v_tag << ")\n";
+		er.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка получения данных!", "getStrValue");
+		log << "\n(тег: " << v_tag << ")\n";
+		log.toErrBuff();
+	}
+	return TColor::COLOR_NONE;
+}
+
 NS_Const::JsonFilterOper NS_Tune::TIndex::getOperationCode(const ptree::value_type& parent_node, 
 	const NS_Const::JsonParams& tag) noexcept(true)
 {
@@ -1708,6 +1756,22 @@ bool NS_Tune::TCellMethod::isSuccess(size_t cnt, size_t fail) const noexcept(tru
 	return false;
 }
 
+void NS_Tune::setCellDataArrByNode(CellDataArr& arr, ptree& node,
+	const NS_Const::JsonParams& tag) noexcept(true)
+{
+	using NS_Const::TConstJson;
+	using NS_Tune::TCellData;
+	if (node.empty()) return;
+	string v_tag = TConstJson::asStr(tag);
+	for (const ptree::value_type& js : node.get_child(v_tag))
+	{
+		if (js.second.empty()) continue;
+		TCellData cd(js);
+		if (cd.isEmpty()) continue;
+		arr.push_back(cd);
+	}
+}
+
 void NS_Tune::TProcCell::InitSrcFile(ptree& node, const JsonParams& tag, const string& main_path) noexcept(true)
 {
 	using NS_Const::TConstJson;
@@ -1751,20 +1815,6 @@ void NS_Tune::TProcCell::InitDBTune(const ptree& node, const TSimpleTune* tune_r
 	}
 }
 
-void NS_Tune::TProcCell::InitCellData(ptree& node, const JsonParams& tag) noexcept(true)
-{
-	using NS_Const::TConstJson;
-	if (node.empty()) return;
-	string v_tag = TConstJson::asStr(tag);
-	for (const ptree::value_type& js : node.get_child(v_tag))
-	{
-		if (js.second.empty()) continue;
-		TCellData cd(js);
-		if (cd.isEmpty()) continue;
-		cel_arr.push_back(cd);
-	}
-}
-
 void NS_Tune::TProcCell::InitByMethod(ptree& node, const TSimpleTune* tune_ref) noexcept(true)
 {
 	using NS_Const::JSonMeth;
@@ -1779,7 +1829,7 @@ void NS_Tune::TProcCell::InitByMethod(ptree& node, const TSimpleTune* tune_ref) 
 			InitDBTune(node, tune_ref);
 		}
 		//инициализаци ячеек
-		InitCellData(node);
+		setCellDataArrByNode(cel_arr, node);
 	}
 	catch (const TLog& er)
 	{
@@ -1958,4 +2008,414 @@ void NS_Tune::TExcelProcData::show(std::ostream& stream) const noexcept(true)
 	}
 }
 
-/**/
+void NS_Tune::TCurRates::InitRates(ptree& sub_node, const NS_Const::JsonParams& root_tag,
+	const NS_Const::JsonParams& code_tag,	const NS_Const::JsonParams& value_tag) noexcept(true)
+{
+	using NS_Const::TConstJson;
+	string main_tag = TConstJson::asStr(root_tag);
+	string val_tag = TConstJson::asStr(value_tag);
+	//проходим по элемента массива узла rates
+	for (ptree::value_type& node : sub_node.get_child(main_tag))
+	{
+		string code;
+		double val = 0;
+		//получение данных узла rates\code
+		code = TIndex::getStrValue(node.second, code_tag);
+		if (code.empty()) continue;
+		//получение данных узла rates\value
+		val = node.second.get_child(val_tag).get_value<double>(0);
+		//если значение считаны - заполняем массив:
+		if (val > 0)
+			arr.push_back(std::make_pair(code, val));
+	}
+}
+
+NS_Tune::TCurRates::TCurRates(ptree::value_type& node, const NS_Const::JsonParams& rates_tag, 
+	const NS_Const::JsonParams& arr_tag, const NS_Const::JsonParams& color_tag, 
+	const NS_Const::JsonParams& rate_code, const NS_Const::JsonParams& rate_val): color(TColor::COLOR_NONE)
+{
+	using NS_Const::TConstJson;
+	//если пустой json-узел - выход
+	if (node.second.empty()) return;
+	string tag = TConstJson::asStr(rates_tag);
+	//получение информации о массиве курсов:
+	InitRates(node.second.get_child(tag), arr_tag, rate_code, rate_val);
+	//получение данных по цвету:
+	color = TIndex::getColorValue(node, color_tag);
+}
+
+bool NS_Tune::TCurRates::setByNode(ptree& node, const NS_Const::JsonParams& arr_tag,
+	const NS_Const::JsonParams& color_tag, const NS_Const::JsonParams& rate_code,
+	const NS_Const::JsonParams& rate_val) noexcept(true)
+{
+	using boost::property_tree::json_parser_error;
+	if (node.empty()) return false;
+	try
+	{
+		//зачистка предыдущих данных:
+		clear();
+		color = TIndex::getColorValue(node, color_tag);
+		//заполнение структуры:
+		InitRates(node, arr_tag, rate_code, rate_val);
+		return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (const json_parser_error& err)
+	{
+		TLog(err.what(), "TCurRates::setByNode").toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка установки Объкта Курсы для узла!", "TCurRates::setByNode").toErrBuff();
+	}
+	return false;
+}
+
+void NS_Tune::TCurRates::show(std::ostream& stream) const noexcept(true)
+{
+	using std::endl;
+	if (!stream) return;
+	for (const CurRate& cur : arr)
+	{
+		stream << "Код валюты: " << cur.first << "\tКурс: " << cur.second << '\n';
+	}
+	if (color == TColor::COLOR_NONE)
+		stream << "Пустой цвет заливки!";
+	else
+		stream << "Код цвета заливки: " << color;
+	stream << '\n';
+}
+
+double NS_Tune::TCurRates::getRateByCode(const string& code) const noexcept(true)
+{
+	//проходим по всем курсам и сравниваем коды
+	for (size_t i = 0; i < arr.size(); i++)
+		if (arr[i].first == code) return arr[i].second;
+	return 0;
+}
+
+bool NS_Tune::TCurrencyBlock::setByJson(ptree& parent_node, const NS_Const::JsonParams& main_tag,
+	const NS_Const::JsonParams& code_tag, const NS_Const::JsonParams& rates_tag,
+	const NS_Const::JsonParams& arr_tag, const NS_Const::JsonParams& color_tag,
+	const NS_Const::JsonParams& rate_code, const NS_Const::JsonParams& rate_val) noexcept(true)
+{
+	using NS_Const::TConstJson;
+	string tag = TConstJson::asStr(main_tag);
+	//получение узлов объекта currency
+	ptree& sub_node = parent_node.get_child(tag);
+	if (sub_node.empty()) return false;
+	//получение кода основной валюты:
+	code = TIndex::getStrValue(sub_node, code_tag);
+	//получение узла rates
+	tag = TConstJson::asStr(rates_tag);
+	sub_node = sub_node.get_child(tag);
+	//инициализация структуры Массив курсов:
+	curArr.setByNode(sub_node, arr_tag, color_tag, rate_code, rate_val);
+	return true;
+}
+
+
+NS_Tune::TCurrencyBlock::TCurrencyBlock(ptree& parent_node, const NS_Const::JsonParams& main_tag,
+	const NS_Const::JsonParams& code_tag, const NS_Const::JsonParams& rates_tag,
+	const NS_Const::JsonParams& arr_tag, const NS_Const::JsonParams& color_tag,
+	const NS_Const::JsonParams& rate_code, const NS_Const::JsonParams& rate_val)
+{
+	setByJson(parent_node, main_tag, code_tag, rates_tag, arr_tag, color_tag, rate_code, rate_val);
+}
+
+double NS_Tune::TCurrencyBlock::getCurRateByCode(const string& cur) const noexcept(true)
+{
+	//если курс совпадает с базовым - то не умножаем
+	if (code == cur) return 1;
+	//ищем курс в массиве
+	return curArr.getRateByCode(cur);
+}
+
+void NS_Tune::TCurrencyBlock::show(std::ostream& stream) const noexcept(true)
+{
+	if (!stream) return;
+	stream << "Код основной валюты: " << code << '\n';
+	curArr.show(stream);
+}
+
+void NS_Tune::TConditionValue::InitCaseVals(ptree::value_type& sub_node, const NS_Const::JsonParams& true_tag,
+	const NS_Const::JsonParams& false_tag) noexcept(true)
+{
+	//получение данных аттрибутов iftrue и iffalse:
+	vals.first = TIndex::getStrValue(sub_node, true_tag);
+	vals.second = TIndex::getStrValue(sub_node, false_tag);
+}
+
+NS_Tune::TConditionValue::TConditionValue(ptree::value_type& sub_node,
+	const NS_Const::JsonParams& true_tag,
+	const NS_Const::JsonParams& false_tag): TFilterData(sub_node)
+{
+	//инициализация доп параметров:
+	InitCaseVals(sub_node, true_tag, false_tag);
+}
+
+void NS_Tune::TConditionValue::show(std::ostream& stream) const noexcept(true)
+{
+	//отображение родитесльских данных
+	TFilterData::show(stream);
+	//отображение собственных данных:
+	stream << "Если строка содежржит значение: " << getValue() << " - " << vals.first;
+	stream << ", иначе - " << vals.second << std::endl;
+}
+
+void NS_Tune::TBalanceTune::InitDelimeters(ptree& node, const NS_Const::JsonParams& div_tag) noexcept(true)
+{
+	using NS_Const::JsonParams;
+	using NS_Converter::UTF8ToANSI;
+	//получение наименования тега:
+	string tag = TConstJson::asStr(div_tag);
+	//проходим по узлу и добавляем данные
+	for (ptree::value_type& sub_node : node.get_child(tag))
+	{
+		//получение строки из массива разделителей
+		string s = sub_node.second.get_value<string>("");
+		if (s.empty()) continue;
+		UTF8ToANSI(s);
+		delimeters.push_back(s);
+	}
+}
+
+void NS_Tune::TBalanceTune::InitConditions(ptree& node, const NS_Const::JsonParams& cond_tag) noexcept(false)
+{
+	using NS_Const::TConstJson;
+	//получение наименования тега:
+	string tag = TConstJson::asStr(cond_tag);
+	//проходим по каждому элементу массива:
+	for (ptree::value_type& sub_node : node.get_child(tag))
+	{
+		TConditionValue cond(sub_node);
+		if (cond.isEmpty()) continue;
+		//берем только результирующее значение, чтобы не хранить всю структуру
+		conditions.push_back(cond);
+	}
+}
+
+void NS_Tune::TBalanceTune::InitByJson(ptree& node, const NS_Const::JsonParams& code_tag,
+	const NS_Const::JsonParams& div_tag, const NS_Const::JsonParams& cond_tag,
+	const NS_Const::JsonParams& param_tag, const NS_Const::JsonParams& cur_tag) noexcept(true)
+{
+	if (node.empty()) return;
+	//инициализаци пути к файлам загрузки:
+	source = TIndex::getStrValue(node, code_tag);
+	//инициализация массива разделителей:
+	InitDelimeters(node, div_tag);
+	//инициализация условных значений:
+	InitConditions(node, cond_tag);
+	//инициализация параметров:
+	setCellDataArrByNode(params, node, param_tag);
+}
+
+
+NS_Tune::TBalanceTune::TBalanceTune(ptree& node, const NS_Const::JsonParams& code_tag,
+	const NS_Const::JsonParams& div_tag, const NS_Const::JsonParams& cond_tag, 
+	const NS_Const::JsonParams& param_tag, const NS_Const::JsonParams& cur_tag): cur(node, cur_tag)
+{
+	InitByJson(node, code_tag, div_tag, cond_tag, param_tag, cur_tag);
+}
+
+NS_Tune::TBalanceTune::TBalanceTune(const string& json_file,
+	const NS_Const::JsonParams& code_tag,
+	const NS_Const::JsonParams& div_tag, const NS_Const::JsonParams& cond_tag, 
+	const NS_Const::JsonParams& param_tag, const NS_Const::JsonParams& cur_tag)
+{
+	using boost::property_tree::ptree;
+	using boost::property_tree::file_parser_error;
+	using boost::property_tree::json_parser_error;
+	using boost::property_tree::json_parser::read_json;
+	if (json_file.empty()) return;
+	try
+	{
+		ptree js;
+		read_json(json_file, js);
+		if (js.empty()) throw TLog("Пустой json-файл: " + json_file + "!", "TBalanceTune::TBalanceTune");
+		//инициализация параметров по lson-дереву
+		InitByJson(js, code_tag, div_tag, cond_tag, param_tag, cur_tag);
+		//инициализация курсов:
+		cur.setByJson(js, cur_tag);
+	}
+	catch (const json_parser_error& err)
+	{
+		TLog(err.what()).toErrBuff();
+	}
+	catch (const std::exception& err)
+	{
+		TLog(err.what()).toErrBuff();
+	}
+	catch (const TLog& er)
+	{
+		er.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при инициализации объектов json!", "TExcelProcData::InitExcelProcData").toErrBuff();
+	}
+}
+
+void NS_Tune::TBalanceTune::show(std::ostream& stream) const noexcept(true)
+{
+	using std::endl;
+	if (!stream) return;
+	stream << "Путь к файлу(ам) источникам:" << source << endl;
+	stream << "Условные значения: ";
+	if (conditions.empty())
+		stream << "не заполнены!";
+	else
+	{
+		stream << endl;
+		for (const TConditionValue& v: conditions)
+			v.show(stream);
+	}
+	stream << "Данные по параметрам:";
+	if (params.empty())
+		 stream << " не заполнены!" << endl;
+	else
+	{
+		stream << endl;
+		for (const TCellData& val : params)
+			val.show(stream);
+	}
+	stream << "Данные по курсам валют: ";
+	if (cur.isEmpty())
+		stream << "не заполнены!";
+	else
+	{
+		stream << endl;
+		cur.show(stream);
+	}
+}
+
+NS_Tune::StrArr NS_Tune::TBalanceTune::getImportFiles(const string& main_path) const noexcept(true)
+{
+	using NS_Tune::TSimpleTune;
+	try
+	{
+		return TSimpleTune::getFileLst(main_path + source);
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка получения списка файлов по пути: ", "TBalanceTune::getImportFiles");
+		log << source;
+		log.toErrBuff();
+	}
+	return StrArr();
+}
+
+void NS_Tune::setIntArrByJson(IntArr& arr, ptree& node, const NS_Const::JsonParams& tag) noexcept(true)
+{
+	using NS_Const::TConstJson;
+	using NS_Const::JsonParams;
+	if (node.empty()) return;
+	string v_tag = TConstJson::asStr(tag);
+	if (v_tag.empty()) return;
+	for (const ptree::value_type& js : node.get_child(v_tag))
+	{
+		if (js.second.empty()) continue;
+		//получение значения:
+		size_t val = js.second.get_value<size_t>(TIndex::EmptyIndex);
+		//если значение пустое - выход
+		if (val == TIndex::EmptyIndex) continue;
+		arr.push_back(val);
+	}
+}
+
+void NS_Tune::showIntArr(const IntArr& arr, std::ostream& stream) noexcept(true)
+{
+	try
+	{
+		size_t i = 0;
+		stream << "[";
+		while (i < arr.size() - 1)
+			stream << arr[i++];
+		stream << arr[i] << "]";
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при вывода массива!", "NS_Tune::showIntArr");
+	}
+}
+
+void NS_Tune::TImpPatternTune::InitBySubNode(ptree::value_type& sub_node, const NS_Const::JsonParams& src_tag,
+	const NS_Const::JsonParams& fields_tag, const NS_Const::JsonParams& blocks_tag) noexcept(true)
+{
+	//получение имени источника для загрузки:
+	source = TIndex::getStrValue(sub_node, src_tag);
+	//заполнение массива индексов полей шаблона:
+	setIntArrByJson(fields, sub_node.second, fields_tag);
+	//заполнение массива размера пустых блоков:
+	setIntArrByJson(blocks, sub_node.second, blocks_tag);
+}
+
+NS_Tune::TImpPatternTune::TImpPatternTune(ptree::value_type& sub_node, const NS_Const::JsonParams& src_tag,
+	const NS_Const::JsonParams& fields_tag, const NS_Const::JsonParams& blocks_tag)
+{
+	InitBySubNode(sub_node, src_tag, fields_tag, blocks_tag);
+}
+
+NS_Tune::TImpPatternTune::TImpPatternTune(ptree& node, const NS_Const::JsonParams& main_tag,
+	const NS_Const::JsonParams& src_tag, const NS_Const::JsonParams& fields_tag,
+	const NS_Const::JsonParams& blocks_tag)
+{
+	using NS_Const::TConstJson;
+	//получение наименования тега:
+	string tag = TConstJson::asStr(main_tag);
+	for (ptree::value_type& sub_node : node.get_child(tag))
+	{
+		if (sub_node.second.empty()) return;
+		InitBySubNode(sub_node, src_tag, fields_tag, blocks_tag);
+	}
+}
+
+void NS_Tune::TImpPatternTune::show(std::ostream& stream)const noexcept(true)
+{
+	using std::endl;
+	//если поток поврежден - выход
+	if (!stream) return;
+	stream << "Имя шаблона файла загрузки: ";
+	if (source.empty())
+		stream << "не указано!";
+	else
+	 stream << source;
+	stream << endl << "Поля заполняемые из шаблона: ";
+	if (fields.empty())
+		stream << "не заполнены!";
+	else
+		showIntArr(fields, stream);
+	stream << endl << "Данные о пустых блоках в шаблоне: ";
+	if (NoEmptyBlocks())
+		stream << "не заполнены!";
+	else
+		showIntArr(blocks, stream);
+}
+
+NS_Tune::TImpDocsTune::TImpDocsTune(ptree& node, const NS_Const::JsonParams& src_tag,
+	const NS_Const::JsonParams& pattern_tag, const NS_Const::JsonParams& ptrn_name_tag,
+	const NS_Const::JsonParams& ptrn_flds_tag, const NS_Const::JsonParams& ptrn_blck_tag) : 
+		pattern(node, pattern_tag, ptrn_name_tag, ptrn_flds_tag, ptrn_blck_tag)
+{
+	//получение имени/пути файлов загрузки:
+	load_src = TIndex::getStrValue(node, src_tag);
+}
+
+void NS_Tune::TImpDocsTune::show(std::ostream& stream) const noexcept(true)
+{
+	using std::endl;
+	if (!stream) return;
+	stream << "Файл/директория для загрузки: ";
+	if (load_src.empty())
+		stream << "не указана!";
+	stream << load_src;
+	stream << endl << "Данные о шаблоне: " << endl;
+	pattern.show(stream);
+}

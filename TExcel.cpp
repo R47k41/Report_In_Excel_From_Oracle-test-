@@ -1,6 +1,7 @@
 #include <iostream>
 #include <sstream>
 #include <math.h>
+#include <limits>
 #include "TExcel.h"
 #include "Logger.hpp"
 
@@ -174,6 +175,23 @@ bool NS_Excel::TExcelBookFormat::setFont(TExcelBookFont& fnt) noexcept(false)
 		return pformat->setFont(fnt.pfont);
 	return false;
 }
+
+bool NS_Excel::TExcelBookFormat::isDoubleVal() const noexcept(true)
+{
+	try
+	{
+		size_t frmt_code = getNumFormat();
+		if (frmt_code == libxl::NumFormat::NUMFORMAT_NUMBER_SEP_D2 ||
+			frmt_code == libxl::NumFormat::NUMFORMAT_NUMBER_D2) 
+			return true;
+	}
+	catch (...)
+	{
+		TLog("Ќе обработанна€ ошибка получени€ формата!", "isDoubleVal").toErrBuff();
+	}
+	return false;
+}
+
 
 int NS_Excel::TExcelBookFormat::getNumFormat() const
 {
@@ -393,38 +411,55 @@ bool NS_Excel::TExcelBookSheet::isEmptyCell(const TExcelCell& cell) const noexce
 	return  dt == TDataType::CELLTYPE_ERROR or dt == TDataType::CELLTYPE_EMPTY;
 }
 
+bool NS_Excel::TExcelBookSheet::WriteAsString(size_t Row, size_t Col, const string& val, 
+	FormatPtr format, const TDataType& type) noexcept(true)
+{
+	try
+	{
+		return sheet->writeStr(Row, Col, val.c_str(), format, type);
+	}
+	catch (...)
+	{
+		TLog log("Ќе обработанна€ ошибка записи: ", "WriteAsString");
+		log << val << " в €чейку(" << Row << ", " << Col << ")";
+		log.toErrBuff();
+	}
+	return false;
+}
+
 bool NS_Excel::TExcelBookSheet::WriteAsString(const TExcelCell& cell, const string& val, FormatPtr format, const TDataType& type)
 {
 	if (cell.isValid())
 	{
-		return sheet->writeStr(cell.getRow(), cell.getCol(), val.c_str(), format, type);
+		return WriteAsString(cell.getRow(), cell.getCol(), val, format, type);
 	}
 	return false;
+}
+
+std::string NS_Excel::TExcelBookSheet::ReadAsString(size_t Row, size_t Col, FormatPtr format) const noexcept(false)
+{
+	FormatPtr* format_ref = format ? &format : 0;
+	const char* val = sheet->readStr(Row, Col, format_ref);
+	if (val) return string(val);
+	TLog log("ѕустое занчение считываемой €чейки(", "TExcelBookSheet::ReadAsString");
+	log << Row << ", " << Col << ")!";
+	throw log;
 }
 
 std::string NS_Excel::TExcelBookSheet::ReadAsString(const TExcelCell& cell, FormatPtr format) const noexcept(false)
 {
 	if (isValid())
 	{
-		if (isEmptyCell(cell)) return string();
-		FormatPtr* format_ref = format ? &format : 0;
-		/*
-		FormatPtr* format_ref = 0;
-		if (format)
-			format_ref = &format;
-		else
-		{
-			FormatPtr tmp = getCellFormatPtr(cell);
-			format_ref = &tmp;
-		}
-		/**/
-		const char* val = sheet->readStr(cell.getRow(), cell.getCol(), format_ref);
-		if (val) return string(val);
-		TLog log("ѕустое занчение считываемой €чейки: ", "TExcelBookSheet::ReadAsString");
-		log << "(" << cell.getRow() << ", " << cell.getCol() << ")\n";
-		throw log;
+		return ReadAsString(cell.getRow(), cell.getCol(), format);
 	}
 	throw TLog("ќбъект не валиден - лист не создан!", "TExcelBookSheet::ReadAsString");
+}
+
+double NS_Excel::TExcelBookSheet::ReadAsNumber(size_t Row, size_t Col, FormatPtr format) const
+{
+	FormatPtr* format_ref = format ? &format : 0;
+	double result = sheet->readNum(Row, Col, format_ref);
+	return result;
 }
 
 double NS_Excel::TExcelBookSheet::ReadAsNumber(const TExcelCell& cell, FormatPtr format) const
@@ -433,18 +468,21 @@ double NS_Excel::TExcelBookSheet::ReadAsNumber(const TExcelCell& cell, FormatPtr
 	{
 		if (isEmptyCell(cell)) 
 			throw TLog("”казанна€ €чейка: " + cell.getName() + " пуста!", "TExcelBookSheet::ReadAsNumber");
-		FormatPtr* format_ref = format ? &format : 0;
-		double result = sheet->readNum(cell.getRow(), cell.getCol(), format_ref);
-		return result;
+		return ReadAsNumber(cell.getRow(), cell.getCol(), format);
 	}
 	throw TLog("—траница не создана!", "TExcelBookSheet::ReadAsNumber");
+}
+
+bool NS_Excel::TExcelBookSheet::WriteAsNumber(size_t Row, size_t Col, double val, FormatPtr format)
+{
+	return sheet->writeNum(Row, Col, val, format);
 }
 
 bool NS_Excel::TExcelBookSheet::WriteAsNumber(const TExcelCell& cell, double val, FormatPtr format)
 {
 	if (isValid())
 	{
-		return sheet->writeNum(cell.getRow(), cell.getCol(), val, format);
+		return WriteAsNumber(cell.getRow(), cell.getCol(), val, format);
 	}
 	return false;
 }
@@ -461,11 +499,16 @@ bool NS_Excel::TExcelBookSheet::ReadAsBool(const TExcelCell& cell, FormatPtr for
 	throw TLog("—траница не создана!", "TExcelBookSheet::ReadAsBool");
 }
 
+bool NS_Excel::TExcelBookSheet::WriteAsBool(size_t Row, size_t Col, bool val, FormatPtr format) const
+{
+	return sheet->writeBool(Row, Col, val, format);
+}
+
 bool NS_Excel::TExcelBookSheet::WriteAsBool(const TExcelCell& cell, bool val, FormatPtr format) const
 {
 	if (isValid())
 	{
-		return sheet->writeBool(cell.getRow(), cell.getCol(), val, format);
+		return WriteAsBool(cell.getRow(), cell.getCol(), val, format);
 	}
 	return false;
 }
@@ -526,6 +569,11 @@ bool NS_Excel::TExcelBookSheet::WirteFormulaStrAsDef(const TExcelCell& cell, con
 	return false;
 }
 
+bool NS_Excel::TExcelBookSheet::isDoubleValInCell(const TExcelCell& cell) const noexcept(true)
+{
+	return getCellFormat(cell).isDoubleVal();
+}
+
 string NS_Excel::TExcelBookSheet::ReadAsString(const NS_Excel::TExcelCell& cell, NS_Excel::TExcelBook& book,
 	const std::string& DateFormat) const noexcept(true)
 {
@@ -553,7 +601,16 @@ string NS_Excel::TExcelBookSheet::ReadAsString(const NS_Excel::TExcelCell& cell,
 					return exl_date.toStr(DateFormat);
 				throw TLog("ќшибка преобразовани€ даты!", "TExcelBookSheet::ReadAsString");
 			}
+			//получение числового формата €чейки:
 			stringstream ss;
+			//провер€ем хранитьс€ ли в €чейке значение в виде double
+			if (isDoubleValInCell(cell))
+			{
+				//установка точности
+				ss.precision(2);
+				//установка считывани€ данных полностью
+				ss << std::fixed;
+			}
 			ss << srcVal;
 			return ss.str();
 		}
@@ -1478,6 +1535,7 @@ NS_Excel::FormatPtr NS_Excel::TExcelBook::AddFormatPtr(FormatPtr initFormat, boo
 			frmat_arr.insert(format);
 			return format;
 		}
+		throw TLog("”казанный формат уже содержитс€ в книге!", "AddFormatPtr");
 	}
 	throw TLog(" нига не инициализирована!", "TExcelBook::AddFormatPtr");
 }

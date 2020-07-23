@@ -104,6 +104,14 @@ char NS_Const::getNLSNumPoint() noexcept(true)
 	return numsep.decimal_point();
 }
 
+double NS_Const::Round(double x, int sz) noexcept(true)
+{
+	if (x > 0)
+		return ((std::floor(x) * sz)+0.5) / sz;
+	else
+		return ((std::ceil(x) * sz)-0.5) / sz;
+}
+
 bool NS_Const::DateInteface::set_stream_date_format(std::ostream& stream, const string& format) noexcept(true)
 {
 	using std::locale;
@@ -217,6 +225,55 @@ bool NS_Const::TConstField::StrInclude(const string& str) const
 	return false;
 }
 
+string NS_Const::TConstField::description(const TuneField& code) noexcept(true)
+{
+	switch (code)
+	{
+		//Shared, Paths, Report_Code
+	case TuneField::Shared: return "Блок с общими настройками для отчетов";
+	case TuneField::Paths: return "Блок с кодами отчетов и их параметрами";
+	case TuneField::DataBase: return "Блок настроек БД";
+	case TuneField::AddDateToOutFileName: return "Добавление даты к имени выходного файла";
+	case TuneField::AddDateToSheetName: return "Добавление даты к названию страницы/листа";
+	case TuneField::AddDateToOutPath: return "Добавление даты к пути";
+	case TuneField::ConfigPath: return "Путь с настройками отчета обычно ini-файлы";
+	case TuneField::ConfigFileExt: return "Расширение файлов настроек";
+	case TuneField::SubTunePath: return "Путь к дополнительным настройкам отчета: обычно json-файлы";
+	case TuneField::SubTuneFileExt: return "Расширение файлов с доп. настройками";
+	case TuneField::SqlPath: return "Путь к файлам sql-команд";
+	case TuneField::SqlFileExt: return "Расширение файлов sql-команд";
+	case TuneField::TemplatePath: return "Путь к файлам шаблона отчета";
+	case TuneField::TemplateFileExt: return "Расширение файла шаблона";
+	case TuneField::OutDirectory: return "Путь для расположения выходного файла";
+	case TuneField::MainPath: return "Путь к корневой директории отчета";
+	case TuneField::OutFileName: return "Имя выходного файла";
+	case TuneField::UserName: return "Имя пользователя БД";
+	case TuneField::Password: return "Пароль пользователя БД";
+	case TuneField::TNS: return "TNS";
+	case TuneField::Report: return "Блок настроек для отчета ini-файла";
+	case TuneField::SheetName: return "Имя листа/страницы отчета в ini-файле";
+	case TuneField::TemplateName: return "Имя файла шаблона в ini-файле";
+	case TuneField::SqlFirst: return "Признак первоочердного выполнения DQL-команд иначе первой выполняется DML-команда";
+	case TuneField::SqlFile: return "Путь/имя для файлов DQL-команд";
+	case TuneField::SqlText: return "Текст DQL-команды";
+	case TuneField::UseSqlParser: return "Признак использования SQL-парсера(Не используется, т.к. появились более сложные запросы)";
+	case TuneField::DMLText: return "Текст DML-команды";
+	case TuneField::DMLFile: return "Путь/файл с DML-командами";
+	case TuneField::ClearSLQText: return "Текст команды для очистки таблиц(Используется перед вставкой/импортом)";
+	case TuneField::ClearSQLFile: return "Файл/Путь к командам для очистки таблиц";
+	case TuneField::Columns: return "Блок данных о колонках excel-отчета";
+	case TuneField::Column: return "Заголовок с которого идет считывание наименований колонок отчета";
+	case TuneField::SqlParams: return "Блок статических параметров для отчета(действует на протяжении всего отчета)";
+	case TuneField::SqlParam: return "Имя поля Param с которого считываются данные параметров";
+	case TuneField::SqlParamQuane: return "Очередность параметра";
+	case TuneField::SqlParamType: return "Тип данных параметра";
+	case TuneField::SqlParamNote: return "Описание параметра(выводится, если его надо задать пользователю)";
+	case TuneField::SqlParamValue: return "Значение параметра(если не указано - заполняет пользователь)";
+	case TuneField::Block_End: return "Блок завершения группы параметров блока [БЛОК]. Обязателен для парсинга";
+	default: return "Указанный объект " + asStr(code) + " не описан!";
+	}
+}
+
 string NS_Const::TConstField::asStr(const TuneField& val)
 {
 	switch (val)
@@ -297,6 +354,19 @@ string NS_Const::TConstType::asStr(const DataType& dt) noexcept(true)
 	}
 	return string();
 }
+
+NS_Const::DataType NS_Const::TConstType::getCodeByName(const string& name) noexcept(true)
+{
+	if (name.empty()) return DataType::ErrorType;
+	TConstType dt(DataType::ErrorType);
+	string tmp = LowerCase(name);
+	Trim(tmp);
+	//проходим по всем полям типов данных
+	while (dt.Next() != DataType::Last or dt.toStr() != tmp) ;
+	if (dt.Value() == DataType::Last) return DataType::ErrorType;
+	return dt.Value();	
+}
+
 
 string NS_Const::TConstExclTune::asStr(const TExclBaseTune& val) noexcept(true)
 {
@@ -389,6 +459,8 @@ string NS_Const::TConstReportCode::toStr() const
 	case ReportCode::ACCOUNT_BALANCE: return "ACCOUNT_BALANCE";
 	case ReportCode::ACCOUNT_BALANCE_STREAM: return "ACCOUNT_BALANCE_STREAM";
 	case ReportCode::LOTS: return "LOTS";
+	case ReportCode::SMLVCH_BALANCE: return "SMLVCH_BALANCE";
+	case ReportCode::SMLVCH_IMP: return "SMLVCH_IMP";
 	case ReportCode::QUIT_REPORT: return "QUIT_REPORT";
 	}
 	return  string();
@@ -421,6 +493,8 @@ string NS_Const::TConstReportCode::getName() const
 	case ReportCode::ACCOUNT_BALANCE: return "Выписка по счету";
 	case ReportCode::ACCOUNT_BALANCE_STREAM: return "Потоковая выписка по списку счетов";
 	case ReportCode::LOTS: return "Ермакова: Лоты";
+	case ReportCode::SMLVCH_BALANCE: return "Смолевич: Ведомость остатков";
+	case ReportCode::SMLVCH_IMP: return "Смолевич: Сформировать документы для импорта";
 	case ReportCode::QUIT_REPORT: return "Выход";
 	}
 	return  string();
@@ -471,8 +545,6 @@ string NS_Const::TConstCtrlSym::asStr(const CtrlSym& val)
 	case CtrlSym::dies_comment: return "#";
 	case CtrlSym::minus_comment: return "--";
 	case CtrlSym::dash_comment: return "//";
-	case CtrlSym::txt_delimeter: return "¦";
-	case CtrlSym::txt_tbl_range: return "+--";
 	}
 	return string();
 }
@@ -621,6 +693,50 @@ bool NS_Const::TSymGroup::IsCorrectSym(const string& str, std::size_t pos, const
 	return true;
 }
 
+string NS_Const::TConstJson::description(const JsonParams& val) noexcept(true)
+{
+	switch (val)
+	{
+	case JsonParams::Null: return "null";
+	case JsonParams::False: return "значение false";
+	case JsonParams::True: return "значение true";
+	case JsonParams::DstFile: return "Объект файл Приемник";
+	case JsonParams::Sheet: return "Объект Страница";
+	case JsonParams::Cells: return "Объект Параметры обработки ячеек";
+	case JsonParams::Method: return "Объект Метод обработки";
+	case JsonParams::SrcFile: return "Объект файл Источник";
+	case JsonParams::DataArr: return "Объект Параметры колонок для обработки";
+	case JsonParams::DB_Config: return "Путь к файлу/директории настроек для связи с БД";
+	case JsonParams::name: return "Наименование";
+	case JsonParams::list_index: return "индекс страницы";
+	case JsonParams::col_id: return "индекс ячейки ID";
+	case JsonParams::first_row: return "строка с которой идет считывание";
+	case JsonParams::last_row: return "строка по которую идет считывание";
+	case JsonParams::filter: return "Объект Фильтр";
+	case JsonParams::column_index: return "индекс колонки";
+	case JsonParams::operation: return "Код операции";
+	case JsonParams::value: return "Значение";
+	case JsonParams::dst_index: return "Индекс для считывания в приемнике";
+	case JsonParams::dst_insert_index: return "Индекс для вставки в приемнике";
+	case JsonParams::src_param_index: return "Индекс для считывания обрабатываемого значения в источнике";
+	case JsonParams::src_val_index: return "Индекс считываемого значения в источнике, которое вставляется в приемник";
+	case JsonParams::in_data_type: return "Тип входных данных";
+	case JsonParams::out_data_type: return "Тип данных, которые записываются";
+	case JsonParams::code: return "Код/Наименование";
+	case JsonParams::color_if_found: return "Индекс цвета, если значение найдено";
+	case JsonParams::color_not_found: return "Индекс цвета, если значение не найдено";
+	case JsonParams::fill_type: return "Объект Тип заливки";
+	case JsonParams::iftrue: return "Строковое значение, если условие выполнено";
+	case JsonParams::iffalse: return "Строковое значение, если условие не выполнено";
+	case JsonParams::currency: return "Объект Валюта";
+	case JsonParams::rates: return "Массив Курсы валют";
+	case JsonParams::pattern: return "Объект Шаблон";
+	case JsonParams::fields: return "Числовой массив индексов полей";
+	case JsonParams::empty_block: return "Объект Пустой блок";
+	}
+	return "Указанный параметр" + asStr(val) + " не описан!";
+}
+
 string NS_Const::TConstJson::asStr(const JsonParams& val) noexcept(true)
 {
 	switch (val)
@@ -654,6 +770,13 @@ string NS_Const::TConstJson::asStr(const JsonParams& val) noexcept(true)
 	case JsonParams::color_if_found: return "color_if_found";
 	case JsonParams::color_not_found: return "color_not_found";
 	case JsonParams::fill_type: return "fill_type";
+	case JsonParams::iftrue: return "iftrue";
+	case JsonParams::iffalse: return "iffalse";
+	case JsonParams::currency: return "currency";
+	case JsonParams::rates: return "rates";
+	case JsonParams::pattern: return "pattern";
+	case JsonParams::fields: return "fields";
+	case JsonParams::empty_block: return "empty_block";
 	}
 	return string();
 }
@@ -666,7 +789,8 @@ bool NS_Const::TConstJson::inRange(const JsonParams& val, const JsonParams& b, c
 
 bool NS_Const::TConstJson::isTag(const JsonParams& val) noexcept(true)
 {
-	return isObjectTag(val) || isFileTag(val) || isFilterTag(val) || isCellTag(val) || isMethTag(val);
+	return isObjectTag(val) || isFileTag(val) || isFilterTag(val) || isCellTag(val) || isMethTag(val) || 
+		isBalanceTag(val) || isImpDocsTag(val);
 }
 
 string& NS_Const::operator<<(string& str, const JsonParams& param)
@@ -973,11 +1097,11 @@ bool NS_Const::TConstJSFilterOper::StringBaseOperation(const std::string& val1,
 			string v2 = LowerCase(val2);
 			Trim(v2);
 			if (oper_code == JsonFilterOper::LikeNoCase)
-				return v1.find(v2, 0) >= 0;
+				return v1.find(v2, 0) != string::npos;
 			else
 				return v1 == v2;
 		}
-	case JsonFilterOper::Like: return val1.find(val2, 0) >= 0;
+	case JsonFilterOper::Like: return val1.find(val2, 0) != 0;
 	case JsonFilterOper::NotLike: return val1.find(val2, 0) == string::npos;
 	default:
 	{
