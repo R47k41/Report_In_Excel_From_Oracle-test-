@@ -496,13 +496,14 @@ namespace NS_Tune
 	};
 
 	using FilterArr = vector<TFilterData>;
+	using SheetArr = std::vector<TSheetData>;
 	
 	//структура общих данных для файлов сверки:
 	class TShareData
 	{
 	private:
 		string name;//имя файла
-		vector<TSheetData> sh_params;//список параметров страницы
+		SheetArr sh_params;//список параметров страницы
 		FilterArr fltr;//данные для фильтрации
 		//функция установки значений параметров по json-узлу
 		//заполнение массива значений:
@@ -517,9 +518,12 @@ namespace NS_Tune
 		//инициализация именем файла(для открытия файла excel), номером листа(соответтствует ограничениям excel),
 		//номер строки отсчета(сопостовимо с форматом excel) и массив фильтров значений
 		//считывание из основного дерева:
-		explicit TShareData(ptree& main_node, const string& main_path = "");
+		explicit TShareData(ptree& main_node, const string& main_path = "", 
+			const JsonParams& src_tag = NS_Const::JsonParams::DstFile);
 		//считывание из поддерева:
 		explicit TShareData(const ptree::value_type& parent_node, const string& main_path = "");
+		//пустой инициализатор:
+		TShareData() {}
 		//деструктор
 		~TShareData() {}
 		//проверка на пустоту:
@@ -531,10 +535,10 @@ namespace NS_Tune
 		//проверка пустоты фильтра:
 		inline bool isEmptyFilter() const noexcept(true) { return fltr.empty(); }
 		//получение массива параметров страниц:
-		vector<TSheetData> getSheetParams() const noexcept(true) { return sh_params; }
-		const TSheetData& getSheetParam(size_t page) const noexcept(false) { return sh_params[page]; }
+		const SheetArr& getSheetParams() const noexcept(true) { return sh_params; }
+		const TSheetData& getSheetParam(size_t index) const noexcept(false) { return sh_params[index]; }
 		//получение массива фильтрации:
-		FilterArr getFilterLst() const noexcept(true) { return fltr; }
+		const FilterArr& getFilterLst() const noexcept(true) { return fltr; }
 		//получение значения фильтра по индексу в массиве:
 		TFilterData getFilterByIndex(size_t index) const noexcept(true) { return fltr[index]; }
 		void setFilter(const FilterArr& filter) noexcept(true) { fltr = filter; }
@@ -710,6 +714,9 @@ namespace NS_Tune
 	void setCellDataArrByNode(CellDataArr& arr, ptree& node,
 		const NS_Const::JsonParams& tag = NS_Const::JsonParams::DataArr) noexcept(true);
 	
+	//функция отображения массива параметров:
+	void showCellDataArr(const CellDataArr& arr, std::ostream& stream = std::cout) noexcept(true);
+
 	//структура обрабатываемых ячеек:
 	class TProcCell
 	{
@@ -755,6 +762,7 @@ namespace NS_Tune
 		//дружественная функция:
 		friend void setCellDataArrByNode(CellDataArr& arr, ptree& node,
 			const NS_Const::JsonParams& tag) noexcept(true);
+		friend  void showCellDataArr(const CellDataArr& arr, std::ostream& stream) noexcept(true);
 	};
 
 	//структура данных на сравниваемых листах источника и приемника
@@ -1005,6 +1013,7 @@ namespace NS_Tune
 		StrArr getImportFiles(const string& main_path = string()) const noexcept(true);
 		//дружественные функции:
 		friend void setCellDataArrByNode(CellDataArr& arr, ptree& node,	const NS_Const::JsonParams& tag) noexcept(true);
+		friend  void showCellDataArr(const CellDataArr& arr, std::ostream& stream) noexcept(true);
 	};
 
 	using IntArr = std::vector<size_t>;
@@ -1060,19 +1069,38 @@ namespace NS_Tune
 	class TImpDocsTune
 	{
 	private:
-		string load_src;//путь/файл для загрузки
+		TShareData src_data;//данные о загружаемом файле/файлах
+		CellDataArr params;//данные о считываемх полях
 		TImpPatternTune pattern;//настройки шаблона загрузки
+		//функция инициализации по json-файлу:
+		void InitByJsonFile(const string& json_file, const string& main_path = string(),
+			const NS_Const::JsonParams& src_tag = NS_Const::JsonParams::SrcFile,
+			const NS_Const::JsonParams& par_tag = NS_Const::JsonParams::DataArr,
+			const NS_Const::JsonParams& pattern_tag = NS_Const::JsonParams::pattern,
+			const NS_Const::JsonParams& ptrn_name_tag = NS_Const::JsonParams::name,
+			const NS_Const::JsonParams& ptrn_flds_tag = NS_Const::JsonParams::fields,
+			const NS_Const::JsonParams& ptrn_blck_tag = NS_Const::JsonParams::empty_block) noexcept(true);
 	public:
 		//инициализация
-		TImpDocsTune(ptree& node, const NS_Const::JsonParams& src_tag = NS_Const::JsonParams::name,
+		TImpDocsTune(ptree& node, const string& main_path = string(),
+			const NS_Const::JsonParams& src_tag = NS_Const::JsonParams::SrcFile,
+			const NS_Const::JsonParams& par_tag = NS_Const::JsonParams::DataArr,
+			const NS_Const::JsonParams& pattern_tag = NS_Const::JsonParams::pattern,
+			const NS_Const::JsonParams& ptrn_name_tag = NS_Const::JsonParams::name,
+			const NS_Const::JsonParams& ptrn_flds_tag = NS_Const::JsonParams::fields,
+			const NS_Const::JsonParams& ptrn_blck_tag = NS_Const::JsonParams::empty_block);
+		//инициализация файлом настроек:
+		TImpDocsTune(const string& json_file, const string& main_path = string(),
+			const NS_Const::JsonParams& src_tag = NS_Const::JsonParams::SrcFile,
+			const NS_Const::JsonParams& par_tag = NS_Const::JsonParams::DataArr,
 			const NS_Const::JsonParams& pattern_tag = NS_Const::JsonParams::pattern,
 			const NS_Const::JsonParams& ptrn_name_tag = NS_Const::JsonParams::name,
 			const NS_Const::JsonParams& ptrn_flds_tag = NS_Const::JsonParams::fields,
 			const NS_Const::JsonParams& ptrn_blck_tag = NS_Const::JsonParams::empty_block);
 		//проверка является ли объект пустым - считаем, что если нечего грузить - объект пустой:
-		bool isEmpty() const noexcept(true) { return load_src.empty(); }
+		bool isEmpty() const noexcept(true) { return src_data.isEmpty() or params.empty(); }
 		//получение пути к источнику
-		string getSrc() const noexcept(true) { return load_src; }
+		string getSrc() const noexcept(true) { return src_data.getName(); }
 		//функции получения данных о шаблоне:
 		const TImpPatternTune& getPatternData() const noexcept(true) { return pattern; }
 		//функция получения имени файла шаблона:
@@ -1085,9 +1113,23 @@ namespace NS_Tune
 		bool NoBlocks() const noexcept(true) { return pattern.NoEmptyBlocks(); }
 		//функция проверки наличия шаблона:
 		bool hasTemplate() const noexcept(true) { return pattern.isPatternEmpty(); }
+		//функция получения параметров страницы:
+		const SheetArr& getSheetTune() const noexcept(true) { return src_data.getSheetParams(); }
+		//функция проверки наличи праметров для фильтрации данных:
+		bool NoFilterData() const noexcept(true) { return src_data.isEmptyFilter(); }
+		//функция получения ссылки на общие параметры страницы:
+		const NS_Tune::TShareData& getShareData() const noexcept(true) { return src_data; }
+		//получени массива данных о фильмтрации:
+		const FilterArr& getFiltersTune() const noexcept(true) { return src_data.getFilterLst(); }
+		//функция проверки наличия параметров считывания/записи ячеек строки:
+		bool NoParams() const noexcept(true) { return params.empty(); }
+		//функция получения ссылки на массив параметров:
+		const CellDataArr& getParams() const noexcept(true) { return params; }
 		//функция отображения содержимого объекта:
 		void show(std::ostream& stream) const noexcept(true);
-
+		//дружественные функции:
+		friend void setCellDataArrByNode(CellDataArr& arr, ptree& node, const NS_Const::JsonParams& tag) noexcept(true);
+		friend  void showCellDataArr(const CellDataArr& arr, std::ostream& stream) noexcept(true);
 	};
 }
 

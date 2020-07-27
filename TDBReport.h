@@ -505,6 +505,28 @@ namespace NS_ExcelReport
 			virtual bool crtReport() noexcept(true);
 	};
 
+	//класс реализации импорта документов в RS Bank:
+	class TSmlvchImp : public TSmlvchReport
+	{
+	private:
+		NS_SMLVCH_IMP::TRSBankImp imp_data;//данные для импорта
+		NS_Tune::TImpDocsTune imp_tune;//настройки импорта данных:
+		//функция считывания данных из строки:
+		bool readRowData(size_t curRow) noexcept(true);
+		//функция считывания страницы книги:
+		bool readSheet(size_t first_row, size_t last_row) noexcept(true);
+		//функция заполнения массива документов для одного excel-файла:
+		bool readFile(const string& file) noexcept(true);
+	public:
+		//инициализация
+		TSmlvchImp(NS_Excel::TExcelBook& book_lnk, const NS_Tune::TSharedTune& tune_lnk, const string& json_file);
+		//функция счиытвания excel-файлов в структуру:
+		bool setDocsByFiles() noexcept(true);
+		//функция записи данных в файл:
+		bool crtOutFile() const noexcept(true);
+	};
+
+
 	class TReport
 	{
 	private:
@@ -557,6 +579,8 @@ namespace NS_ExcelReport
 		void load2DBFromExcel() const noexcept(false);
 		//формирование ведомости остатков для Смолевича по OEM-файлу из RS-Bank
 		void Smolevich_Balance_Report() const noexcept(true);
+		//формирование файла списка документов для загрузки в RS-Bank:
+		bool Smolevich_Docs_Import() const noexcept(true);
 		//вызов функции, формирующей отчет по коду:
 		void Create_Report_By_Code(const NS_Const::ReportCode& code) const;
 		//формирование полного отчета по файлу main_config:

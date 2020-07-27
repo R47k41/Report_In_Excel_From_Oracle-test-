@@ -628,6 +628,8 @@ string NS_Tune::TSimpleTune::getNameByCode(const Types& code) const noexcept(tru
 			name += TConstExclTune::asStr(TExclBaseTune::DefExt);
 			return name;
 		}
+		//если не заполнены доп. параметры в имени - выход
+		if (sub_name.empty()) return name;
 		size_t pos = name.rfind(".");
 		if (pos == string::npos)
 		{
@@ -1499,12 +1501,12 @@ void NS_Tune::TShareData::setData(const ptree::value_type& parent_node,
 	setArrayByJson<TFilterData>(parent_node, fltr_tag, fltr);
 }
 
-NS_Tune::TShareData::TShareData(ptree& main_node, const string& main_path)
+NS_Tune::TShareData::TShareData(ptree& main_node, const string& main_path, const JsonParams& src_tag)
 {
 	using boost::property_tree::ptree;
 	using NS_Const::JsonParams;
 	using NS_Const::TConstJson;
-	string tag = TConstJson::asStr(JsonParams::DstFile);
+	string tag = TConstJson::asStr(src_tag);
 	if (tag.empty()) return;
 	const ptree::value_type& sub_node = main_node.find(tag).dereference();
 	setData(sub_node);
@@ -1770,6 +1772,14 @@ void NS_Tune::setCellDataArrByNode(CellDataArr& arr, ptree& node,
 		if (cd.isEmpty()) continue;
 		arr.push_back(cd);
 	}
+}
+
+void NS_Tune::showCellDataArr(const CellDataArr& arr, std::ostream& stream) noexcept(true)
+{
+	using NS_Tune::TCellData;
+	if (arr.empty() or !stream) return;
+	for (const TCellData& param : arr)
+		param.show(stream);
 }
 
 void NS_Tune::TProcCell::InitSrcFile(ptree& node, const JsonParams& tag, const string& main_path) noexcept(true)
@@ -2279,8 +2289,7 @@ void NS_Tune::TBalanceTune::show(std::ostream& stream) const noexcept(true)
 	else
 	{
 		stream << endl;
-		for (const TCellData& val : params)
-			val.show(stream);
+		showCellDataArr(params, stream);
 	}
 	stream << "ƒанные по курсам валют: ";
 	if (cur.isEmpty())
@@ -2321,7 +2330,7 @@ void NS_Tune::setIntArrByJson(IntArr& arr, ptree& node, const NS_Const::JsonPara
 	if (v_tag.empty()) return;
 	for (const ptree::value_type& js : node.get_child(v_tag))
 	{
-		if (js.second.empty()) continue;
+		//if (js.second.empty()) continue;
 		//получение значени€:
 		size_t val = js.second.get_value<size_t>(TIndex::EmptyIndex);
 		//если значение пустое - выход
@@ -2370,11 +2379,10 @@ NS_Tune::TImpPatternTune::TImpPatternTune(ptree& node, const NS_Const::JsonParam
 	using NS_Const::TConstJson;
 	//получение наименовани€ тега:
 	string tag = TConstJson::asStr(main_tag);
-	for (ptree::value_type& sub_node : node.get_child(tag))
-	{
-		if (sub_node.second.empty()) return;
-		InitBySubNode(sub_node, src_tag, fields_tag, blocks_tag);
-	}
+	//обработка элементов одиночной структуры
+	ptree::value_type& sub_node = node.find(tag).dereference();
+	if (sub_node.second.empty()) return;
+	InitBySubNode(sub_node, src_tag, fields_tag, blocks_tag);
 }
 
 void NS_Tune::TImpPatternTune::show(std::ostream& stream)const noexcept(true)
@@ -2399,23 +2407,84 @@ void NS_Tune::TImpPatternTune::show(std::ostream& stream)const noexcept(true)
 		showIntArr(blocks, stream);
 }
 
-NS_Tune::TImpDocsTune::TImpDocsTune(ptree& node, const NS_Const::JsonParams& src_tag,
-	const NS_Const::JsonParams& pattern_tag, const NS_Const::JsonParams& ptrn_name_tag,
-	const NS_Const::JsonParams& ptrn_flds_tag, const NS_Const::JsonParams& ptrn_blck_tag) : 
-		pattern(node, pattern_tag, ptrn_name_tag, ptrn_flds_tag, ptrn_blck_tag)
+NS_Tune::TImpDocsTune::TImpDocsTune(ptree& node, const string& main_path, const NS_Const::JsonParams& src_tag,
+	const NS_Const::JsonParams& par_tag, const NS_Const::JsonParams& pattern_tag, 
+	const NS_Const::JsonParams& ptrn_name_tag,	const NS_Const::JsonParams& ptrn_flds_tag, 
+	const NS_Const::JsonParams& ptrn_blck_tag) : 
+	//инициализаци€ параметров страницы и шаблонных значений:
+	src_data(node, main_path, src_tag), 
+	pattern(node, pattern_tag, ptrn_name_tag, ptrn_flds_tag, ptrn_blck_tag)
 {
-	//получение имени/пути файлов загрузки:
-	load_src = TIndex::getStrValue(node, src_tag);
+	//инициализаци€ параметров полей дл€ считывани€ из excel-файла
+	setCellDataArrByNode(params, node, par_tag);
 }
+
+void NS_Tune::TImpDocsTune::InitByJsonFile(const string& json_file, const string& main_path, 
+	const NS_Const::JsonParams& src_tag, const NS_Const::JsonParams& par_tag,
+	const NS_Const::JsonParams& pattern_tag, const NS_Const::JsonParams& ptrn_name_tag,
+	const NS_Const::JsonParams& ptrn_flds_tag, const NS_Const::JsonParams& ptrn_blck_tag) noexcept(true)
+{
+	using boost::property_tree::ptree;
+	using boost::property_tree::file_parser_error;
+	using boost::property_tree::json_parser_error;
+	using boost::property_tree::json_parser::read_json;
+	if (json_file.empty()) return;
+	try
+	{
+		//инициализируем json-файл дл€ считывани€:
+		ptree js;
+		read_json(json_file, js);
+		//если данных нет
+		if (js.empty()) throw TLog("ѕустые данные в файле: " + json_file, "TImpDocsTune::InitByJsonFile");
+		//инициализаци€ параметров страниц
+		src_data = TShareData(js, main_path, src_tag);
+		//инициализаци€ параметров шаблонов:	
+		pattern = TImpPatternTune(js, pattern_tag, ptrn_name_tag, ptrn_flds_tag, ptrn_blck_tag);
+		//инициализаци€ параметров €чеек строки страницы:
+		setCellDataArrByNode(params, js, par_tag);
+	}
+	catch (const json_parser_error& err)
+	{
+		TLog(err.what(), "InitByJsonFile").toErrBuff();
+	}
+	catch (const file_parser_error& err)
+	{
+		TLog(err.what(), "InitByJsonFile").toErrBuff();
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Ќе обработанна€ ошибка при считывании json-файла: " + json_file, "TImpDocsTune::InitByJsonFile").toErrBuff();
+	}
+}
+
+NS_Tune::TImpDocsTune::TImpDocsTune(const string& json_file, const string& main_path,
+	const NS_Const::JsonParams& src_tag, const NS_Const::JsonParams& par_tag,
+	const NS_Const::JsonParams& pattern_tag, const NS_Const::JsonParams& ptrn_name_tag,
+	const NS_Const::JsonParams& ptrn_flds_tag, const NS_Const::JsonParams& ptrn_blck_tag)
+{
+	//инициализаци€ по json-файлу
+	InitByJsonFile(json_file, main_path);
+}
+
 
 void NS_Tune::TImpDocsTune::show(std::ostream& stream) const noexcept(true)
 {
 	using std::endl;
 	if (!stream) return;
-	stream << "‘айл/директори€ дл€ загрузки: ";
-	if (load_src.empty())
-		stream << "не указана!";
-	stream << load_src;
+	stream << "ѕараметры файлов дл€ загрузки: ";
+	if (src_data.isEmpty())
+		stream << "не указаны!";
+	else
+		src_data.show(stream << '\n');
+	stream << "ƒанные о параметрах считывани€: ";
+	if (params.empty())
+		stream << "не установлены!";
+	else
+		showCellDataArr(params, stream << '\n');
 	stream << endl << "ƒанные о шаблоне: " << endl;
 	pattern.show(stream);
 }

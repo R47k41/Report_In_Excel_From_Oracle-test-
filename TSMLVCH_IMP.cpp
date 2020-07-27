@@ -314,7 +314,7 @@ string NS_SMLVCH_IMP::TRSBankClient::getAccData(char delimeter) const noexcept(t
 {
 	using std::stringstream;
 	stringstream ss;
-	ss << Account << delimeter << AccNum << delimeter << Code << delimeter << Inn << delimeter << InnSub << delimeter;
+	ss << BIK << Account << delimeter << AccNum << delimeter << CorAcc << delimeter << Inn << delimeter << KPP << delimeter;
 	return ss.str();
 }
 
@@ -337,38 +337,24 @@ string NS_SMLVCH_IMP::TRSBankClient::getNameData(char delimeter) const noexcept(
 
 void NS_SMLVCH_IMP::TRSBankClient::setByDefault(const TRSBankClient& dflt) noexcept(true)
 {
+	if (BIK.empty()) BIK = dflt.BIK;
+	if (CorAcc.empty()) CorAcc = dflt.CorAcc;
 	if (Inn.empty()) Inn = dflt.Inn;
-	if (InnSub.empty()) InnSub = dflt.InnSub;
+	if (KPP.empty()) KPP = dflt.KPP;
 	if (Name.empty()) Name = dflt.Name;
 	if (Bank.empty()) Bank = dflt.Bank;
 }
 
-bool NS_SMLVCH_IMP::TRSBankDoc::InitByStrArr(const StrArr& arr) noexcept(true)
+bool NS_SMLVCH_IMP::TRSBankDoc::InitByStrArr(const StrArr& arr, const IntArr& indxs) noexcept(true)
 {
-	try
+	if (indxs.empty()) return false;
+	for (const size_t& i : indxs)
 	{
-		TypeDoc = arr[2];
-		Shifr = arr[3];
-		payer.Inn = arr[8];
-		payer.InnSub = arr[9];
-		recipient.Inn = arr[14];
-		recipient.InnSub = arr[15];
-		HardFlag = arr[17];
-		Pachka = arr[18];
-		SymKas = arr[19];
-		queue = arr[20];
-		payer.Name = arr[21];
-		payer.Bank = arr[22];
-		recipient.Name = arr[23];
-		recipient.Bank = arr[24];
-		GetMeth = arr[28];
-		return true;
+		//нулевой индекс не обрабатываем:
+		if (i == 0 or i > arr.size()) continue;
+		//вычетаем 1 т.к. начиниается с 0 и еще 1, т.к. не считывали пустое поле
+		setField(arr[i-2], i);
 	}
-	catch (...)
-	{
-		TLog("Ошибка при установке атрибутов из шаблона!", "InitByStrArr").toErrBuff();
-	}
-	return false;
 }
 
 bool NS_SMLVCH_IMP::TRSBankDoc::isEmptyDocAtr() const noexcept(true)
@@ -398,10 +384,10 @@ bool NS_SMLVCH_IMP::TRSBankDoc::isValid() const noexcept(true)
 {
 	if (isEmpty()) return false;
 	TLog log("", "TRSBankDoc::isValid");
-	if (TypeDoc.empty()) log << "Не указан Тип документа!\n";
 	if (Shifr.empty()) log << "Не указан Шифр документа!\n";
-	if (queue.empty()) log << "Не указана Очередность платежа!\n";
-	if (GetMeth.empty()) log << "Не указан Метод передачи документа!\n";
+	if (KindOp.empty()) log << "Не указан Вид операции документа!\n";
+	if (Queue.empty()) log << "Не указана Очередность платежа!\n";
+	if (Dispatch.empty()) log << "Не указан Способ отправки документа!\n";
 	if (log.isEmpty()) return true;
 	log.toErrBuff();
 	return false;
@@ -412,15 +398,28 @@ string NS_SMLVCH_IMP::TRSBankDoc::getAtrStr(char delimeter) const noexcept(true)
 	using std::stringstream;
 	if (isValid() == false) return string();
 	stringstream ss;
-	ss << Num << delimeter << Date << delimeter << TypeDoc << delimeter;
-	ss << Shifr << delimeter << CreaterState << delimeter << payer.getAccData(delimeter);
-	ss << payerBIK_Filial << delimeter << recipient.getAccData(delimeter) << Summa << delimeter;
-	ss << HardFlag << delimeter << Pachka << delimeter << SymKas << delimeter << queue << delimeter;
+	ss << Num << delimeter << Date << delimeter << Shifr << delimeter;
+	ss << KindOp << delimeter << payer.getAccData(delimeter);
+	ss << recipient.getAccData(delimeter) << Summa << delimeter;
+	ss << Pachka << delimeter << CurCode << delimeter << SymKas << delimeter << Queue << delimeter;
 	ss << payer.getNameData(delimeter) << recipient.getNameData(delimeter);
 	string tmp = getEmptyAttr(delimeter, FIRST_EMPTY_BLOCK);
-	ss << tmp << TRSBankClient::getOEMStr(GetMeth, delimeter);
+	ss << tmp << TRSBankClient::getOEMStr(Dispatch, delimeter);
 	tmp = getEmptyAttr(delimeter, SECOND_EMPTY_BLOCK);
 	ss << tmp << UsrCode << delimeter << TRSBankClient::getOEMStr(Note, '\0');
+	return ss.str();
+}
+
+string NS_SMLVCH_IMP::TRSBankDoc::getDocReq(char delimeter) const noexcept(true)
+{
+	using std::stringstream;
+	if (isValid() == false) return string();
+	size_t i = size_t(RSDocField::Numb_Doc);
+	size_t last = size_t(RSDocField::Note);
+	stringstream ss;
+	for (; i < last; i++)
+		ss << getField(i, delimeter);
+	ss << getField(last, '\0');
 	return ss.str();
 }
 
@@ -428,24 +427,267 @@ void NS_SMLVCH_IMP::TRSBankDoc::setDefaultAtr(const TRSBankDoc& dflt) noexcept(t
 {
 	//проверяем основные аттрибуты документа:
 	//Вид документа:
-	if (TypeDoc.empty()) TypeDoc = dflt.TypeDoc;
-	//Шифр документа:
 	if (Shifr.empty()) Shifr = dflt.Shifr;
+	//Шифр документа:
+	if (KindOp.empty()) KindOp = dflt.KindOp;
 	//Информация о плательщике:
 	payer.setByDefault(dflt.payer);
 	//Информация о получателе:
 	recipient.setByDefault(dflt.recipient);
 	//сложная проводка
-	HardFlag = dflt.HardFlag;
+	CurCode = dflt.CurCode;
 	//пачка
 	if (Pachka.empty()) Pachka = dflt.Pachka;
 	//кассовый символ
 	SymKas = dflt.SymKas;
 	//очередность
-	queue = dflt.queue;
+	Queue = dflt.Queue;
+	//филиал:
+	Filial = dflt.Filial;
 	//метод получения
-	GetMeth = dflt.GetMeth;
+	Dispatch = dflt.Dispatch;
+	//тип операции
+	RsltCarry = dflt.RsltCarry;
 }
+
+bool NS_SMLVCH_IMP::TRSBankDoc::setField(const string& val, size_t index) noexcept(true)
+{
+	try
+	{
+		switch (RSDocField(index))
+		{
+			case RSDocField::Numb_Doc:
+				Num = val;
+				break;
+			case RSDocField::DocDate:
+				Date = val;
+				break;
+			case RSDocField::ShifrOper:
+				Shifr = val;
+				break;
+			case RSDocField::KindOper:
+				KindOp = val;
+				break;
+			case RSDocField::BIK_Payer:
+				payer.BIK = val;
+				break;
+			case RSDocField::Acc_Payer:
+			case RSDocField::DT_Acc:
+			{
+				//потому что они одинаковые
+				payer.AccNum = val;
+				payer.Account = val;
+				break;
+			}
+			case RSDocField::INN_Payer:
+				payer.Inn = val;
+				break;
+			case RSDocField::KPP_Payer:
+				payer.KPP = val;
+				break;
+			case RSDocField::BIK_Receiver:
+				recipient.BIK = val;
+				break;
+			case RSDocField::Acc_Receiver:
+			case RSDocField::KT_Acc:
+			{
+				recipient.AccNum = val;
+				recipient.Account = val;
+				break;
+			}
+			case RSDocField::INN_Receiver:
+				recipient.Inn = val;
+				break;
+			case RSDocField::KPP_Receiver:
+				recipient.KPP = val;
+				break;
+			case RSDocField::Summa:
+				Summa = val;
+				break;
+			case RSDocField::Pachka:
+				Pachka = val;
+				break;
+			case RSDocField::Currency:
+				CurCode = val;
+				break;
+			case RSDocField::Symbol_Cach:
+				SymKas = val;
+				break;
+			case RSDocField::Payment:
+				Queue = val;
+				break;
+			case RSDocField::Payer:
+				payer.Name = val;
+				break;
+			case RSDocField::Bank_Payer:
+				payer.Bank = val;
+				break;
+			case RSDocField::Receiver:
+				recipient.Name = val;
+				break;
+			case RSDocField::Bank_Receiver:
+				recipient.Bank = val;
+				break;
+			case RSDocField::Depart:
+				Filial = val;
+				break;
+			case RSDocField::Dispatch:
+				Dispatch = val;
+				break;
+			case RSDocField::Rslt_Carry:
+				RsltCarry = val;
+				break;
+			case RSDocField::UsrCode:
+				UsrCode = val;
+				break;
+			case RSDocField::Note:
+				Note = val;
+				break;
+			default:
+	/*
+			case RSDocField::CorAccPayer:
+			case RSDocField::CorAccReceiver:
+			case RSDocField::TypeDoc:
+			case RSDocField::UsrDocType:
+			case RSDocField::CompState:
+			case RSDocField::BudjCode:
+			case RSDocField::OKATO:
+			case RSDocField::TaxNote:
+			case RSDocField::TaxPeriod:
+			case RSDocField::TaxNum:
+			case RSDocField::TaxDate:
+			case RSDocField::TaxType:
+			case RSDocField::UsrF1:
+			case RSDocField::UsrF2:
+			case RSDocField::UsrF3:
+			case RSDocField::UsrF4:
+	/**/		
+			{
+				TLog log("Указанное поле: ", "TRSBankDoc::setField");
+				log << index << " НЕ обрабатывается!";
+				log.toErrBuff();
+				return false;
+			}
+		}
+		return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка установки значения: ", "TRSBankDoc::setField");
+		log << val << " для параметра: " << index;
+		log.toErrBuff();
+	}
+	return false;
+}
+
+string NS_SMLVCH_IMP::TRSBankDoc::getField(size_t indx, char delimeter) const noexcept(true)
+{
+	try
+	{
+		string rslt;
+		rslt.push_back(delimeter);
+		switch (RSDocField(indx))
+		{
+		case RSDocField::CorAccPayer:
+		case RSDocField::CorAccReceiver:
+		case RSDocField::TypeDoc:
+		case RSDocField::UsrDocType:
+		case RSDocField::CompState:
+		case RSDocField::BudjCode:
+		case RSDocField::OKATO:
+		case RSDocField::TaxNote:
+		case RSDocField::TaxPeriod:
+		case RSDocField::TaxNum:
+		case RSDocField::TaxType:
+		case RSDocField::TaxDate:
+		case RSDocField::UsrF1:
+		case RSDocField::UsrF2:
+		case RSDocField::UsrF3:
+		case RSDocField::UsrF4:
+			return rslt;
+		case RSDocField::Numb_Doc:
+			return Num + delimeter;
+		case RSDocField::DocDate:
+			return Date + delimeter;
+		case RSDocField::ShifrOper:
+			return Shifr + delimeter;
+		case RSDocField::KindOper:
+			return KindOp + delimeter;
+		case RSDocField::BIK_Payer:
+			return payer.BIK + delimeter;
+		case RSDocField::Acc_Payer:
+			return payer.AccNum + delimeter;
+		case RSDocField::DT_Acc:
+			return payer.Account + delimeter;
+		case RSDocField::INN_Payer:
+			return payer.Inn + delimeter;
+		case RSDocField::KPP_Payer:
+			return payer.KPP + delimeter;
+		case RSDocField::BIK_Receiver:
+			return recipient.BIK + delimeter;
+		case RSDocField::Acc_Receiver:
+			return recipient.AccNum + delimeter;
+		case RSDocField::KT_Acc:
+			return recipient.Account + delimeter;
+		case RSDocField::INN_Receiver:
+			return recipient.Inn + delimeter;
+		case RSDocField::KPP_Receiver:
+			return recipient.KPP + delimeter;
+		case RSDocField::Summa:
+			return Summa + delimeter;
+		case RSDocField::Pachka:
+			return Pachka + delimeter;
+		case RSDocField::Currency:
+			return CurCode + delimeter;
+		case RSDocField::Symbol_Cach:
+			return SymKas + delimeter;
+		case RSDocField::Payment:
+			return Queue + delimeter;
+		case RSDocField::Payer:
+			return TRSBankClient::getOEMStr(payer.Name, delimeter);
+		case RSDocField::Bank_Payer:
+			return TRSBankClient::getOEMStr(payer.Bank, delimeter);
+		case RSDocField::Receiver:
+			return TRSBankClient::getOEMStr(recipient.Name, delimeter);
+		case RSDocField::Bank_Receiver:
+			return TRSBankClient::getOEMStr(recipient.Bank, delimeter);
+		case RSDocField::Depart:
+			return Filial + delimeter;
+		case RSDocField::Dispatch:
+			return TRSBankClient::getOEMStr(Dispatch, delimeter);
+		case RSDocField::Rslt_Carry:
+			return RsltCarry + delimeter;
+		case RSDocField::UsrCode:
+			return UsrCode + delimeter;
+		case RSDocField::Note:
+			return TRSBankClient::getOEMStr(Note, delimeter);
+		default:
+		{
+			//TLog log("Указанное поле: ", "TRSBankDoc::setField");
+			//log << indx << " НЕ обрабатывается!";
+			//log.toErrBuff();
+			return rslt;
+		}
+		}
+		return rslt;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка при получении значения аттрибута: ", "TRSBankDoc::setField");
+		log << indx;
+		log.toErrBuff();
+	}
+	return string();
+}
+
 
 string NS_SMLVCH_IMP::TRSBankDoc::getEmptyAttr(char delimeter, size_t count) noexcept(true)
 {
@@ -454,7 +696,7 @@ string NS_SMLVCH_IMP::TRSBankDoc::getEmptyAttr(char delimeter, size_t count) noe
 	return str;
 }
 
-bool NS_SMLVCH_IMP::TRSBankImp::InitDefaultAttr(const string& file) noexcept(true)
+bool NS_SMLVCH_IMP::TRSBankImp::InitDefaultAttr(const string& file, const IntArr& indxs) noexcept(true)
 {
 	using std::ifstream;
 	if (file.empty())
@@ -474,7 +716,7 @@ bool NS_SMLVCH_IMP::TRSBankImp::InitDefaultAttr(const string& file) noexcept(tru
 	//получение первого символа из файла - это и есть разделитель
 	setDelimiter(tmpl.get());
 	//массив параметров шаблона:
-	StrArr attrs(1);
+	StrArr attrs;
 	string str;
 	//считывание только первой строки до Enter
 	while (tmpl)
@@ -491,7 +733,7 @@ bool NS_SMLVCH_IMP::TRSBankImp::InitDefaultAttr(const string& file) noexcept(tru
 	//закрываем файл
 	tmpl.close();
 	//производим считывание шаблонной строки:
-	if (tmp_doc.InitByStrArr(attrs))
+	if (tmp_doc.InitByStrArr(attrs, indxs))
 	{
 		TLog("Шаблон для формирования документов заполнен успешно!", "TRSBankImp::InitDefaultAttr").toErrBuff();
 		return true;
@@ -500,13 +742,27 @@ bool NS_SMLVCH_IMP::TRSBankImp::InitDefaultAttr(const string& file) noexcept(tru
 	return false;
 }
 
-NS_SMLVCH_IMP::TRSBankImp::TRSBankImp(const string& file): delimeter('\0')
+bool NS_SMLVCH_IMP::TRSBankImp::setDefaultAttrByFile(const string& template_file, const IntArr& indxs, char def_div, bool clr_DocsArr) noexcept(true)
 {
-	if (file.empty()) return;
-	InitDefaultAttr(file);
+	//чтение данных из файла шаблона
+	if (!template_file.empty())
+		InitDefaultAttr(template_file, indxs);
+	//установка разделителя пользователем
+	if (NoDelimeter() and def_div != '\0')
+		delimeter = def_div;
+	//очистка данных о документах
+	if (clr_DocsArr)
+		docs.clear();
+	return true;
 }
 
-bool NS_SMLVCH_IMP::TRSBankImp::CreateFile4Import(const string& file) const noexcept(true)
+NS_SMLVCH_IMP::TRSBankImp::TRSBankImp(const string& file, const IntArr& indxs): delimeter('\0')
+{
+	if (file.empty()) return;
+	InitDefaultAttr(file, indxs);
+}
+
+bool NS_SMLVCH_IMP::TRSBankImp::CreateFile4Import(const string& file, const std::ios_base::openmode& mode) const noexcept(true)
 {
 	using std::ofstream;
 	//using NS_Converter::ANSI2OEMStr;
@@ -526,7 +782,7 @@ bool NS_SMLVCH_IMP::TRSBankImp::CreateFile4Import(const string& file) const noex
 		return false;
 	}
 	//инициализация файла для записи:
-	ofstream out(file, std::ios_base::out);
+	ofstream out(file, mode);
 	if (!out.is_open())
 	{
 		log << "Не удалось открыть файл " << file << " для записи!";
@@ -537,7 +793,7 @@ bool NS_SMLVCH_IMP::TRSBankImp::CreateFile4Import(const string& file) const noex
 	size_t count = 0;
 	for (const TRSBankDoc& doc : docs)
 	{
-		string str = doc.getAtrStr(delimeter);
+		string str = doc.getDocReq(delimeter);
 		//преобразование строки в OEM-кодировку
 		if (!str.empty())
 		{

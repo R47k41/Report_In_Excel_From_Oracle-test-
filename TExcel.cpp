@@ -1236,8 +1236,10 @@ bool NS_Excel::TExcelBook::loadFromFile(const TLoadParam& param, const LoadType&
 		raise_app_err(log, raise_err);
 	}
 	else
+	{
 		//инициализация форматов книги:
 		InitFormatArr();
+	}
 	return result;
 }
 

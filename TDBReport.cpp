@@ -3059,6 +3059,199 @@ bool NS_ExcelReport::TSmlvchBalance::crtReport() noexcept(true)
 	return false;
 }
 
+NS_ExcelReport::TSmlvchImp::TSmlvchImp(NS_Excel::TExcelBook& book_lnk, const NS_Tune::TSharedTune& tune_lnk, const string& json_file) :
+	TSmlvchReport(book_lnk, tune_lnk), imp_data(), imp_tune(json_file, tune_lnk.getMainPathVal())
+{
+	//если настройки пустые
+	if (imp_tune.isEmpty())
+	{
+		TLog("Не удалось инициализировать настройки импорта для файла: " + json_file, "TSmlvchImp").toErrBuff();
+		return;
+	}
+	//получение имени шаблона:
+	string name = config.getMainPathVal() + imp_tune.getTemlateName();
+	//инициалиазция структуры импорта документов:
+	imp_data.setDefaultAttrByFile(name, imp_tune.getTemplateFields());
+}
+
+bool NS_ExcelReport::TSmlvchImp::readRowData(size_t curRow) noexcept(true)
+{
+	using NS_SMLVCH_IMP::TRSBankDoc;
+	using NS_Excel::TExcelCell;
+	using NS_Tune::CellDataArr;
+	using NS_Tune::TCellData;
+	try
+	{
+		//получение ссылки на параметры ячеек строки:
+		const CellDataArr& params = imp_tune.getParams();
+		//инициализация структуры документа импорта:
+		TRSBankDoc doc;
+		//проходим по параметрам считывания:
+		for (const TCellData& param : params)
+		{
+			//параметры, где не указан индекс данных источника - пропускаем:
+			if (param.EmptySrcParam() || param.EmptyDstIndx()) continue;
+			//инициализация ячейки
+			TExcelCell cell(curRow, param.SrcParam(), false);
+			//считывание данных из ячейки:
+			string data = sheet.ReadAsString(cell, book);
+			//если данные пустые - выход
+			if (data.empty()) return false;
+			doc.setField(data, param.DstIndex());
+		}
+		//добавление документа в массив:
+		return imp_data.AddDoc(doc);
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog log("Не обработанная ошибка при считывании параметров из строки: ", "TSmlvchImp::readRowData");
+		log << curRow;
+		log.toErrBuff();
+	}
+	return false;
+}
+
+bool NS_ExcelReport::TSmlvchImp::readSheet(size_t first_row, size_t last_row) noexcept(true)
+{
+	try
+	{
+		size_t lst_row = sheet.getLastRow()+1;
+		//если первая строка для считывания превышает индекс последней строки с данными на листе:
+		if (first_row > lst_row)
+			throw TLog("Первая строка для считывания не может превышать последнюю строку с данными!", "TSmlvchImp::readSheet");
+		//определение последней строки:
+		if (lst_row < last_row) lst_row = last_row;
+		size_t errCnt = 0;
+		//проходим по всем строкам страницы:
+		for (size_t curRow = first_row; curRow < lst_row; curRow++)
+		{
+			if (readRowData(curRow) == false)
+			{
+				TLog log("Ошибка при формировании документа для строки: ", "TSmlvchImp::readSheet");
+				log << curRow;
+				log.toErrBuff();
+				errCnt++;
+			}
+		}
+		if (errCnt >= lst_row - first_row)
+			throw TLog("Документы не импортированы!", "TSmlvchImp::readSheet");
+		if (errCnt > 0)
+		{
+			TLog log("При импорте документов произшло: ", "TSmlvchImp::readSheet");
+			log << errCnt << " ошибок!";
+			throw log;
+		}
+		return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при чтении данных страницы!", "TSmlvchImp::readSheet").toErrBuff();
+	}
+	return false;
+}
+
+bool NS_ExcelReport::TSmlvchImp::readFile(const string& file) noexcept(true)
+{
+	using NS_Tune::TSheetData;
+	using NS_Tune::SheetArr;
+	if (file.empty()) return false;
+	try
+	{
+		//если имеются настроки фильтрации данных:
+		if (imp_tune.getFiltersTune().size() > 0)
+			throw TLog("Функционал обработки фильтрации считываемых строк НЕ реализован!", "TSmlvchImp::readFile");
+		//инициализация настроек страниц книги:
+		const SheetArr& tune_shts = imp_tune.getSheetTune();
+		size_t errCnt = 0;
+		//проходим по всем страницам из настроек
+		for (const TSheetData& sh : tune_shts)
+		{
+			//получение строки с которой идет считывание:
+			size_t curtRow = sh.getStartRow();
+			//получение строки по которую идет считывание:
+			size_t lstRow = sh.getLastRow();
+			//открываем книгу на заданной странице:
+			if (book.loadSheetOnly(file, sh.getListIndex()-1))
+			{
+				//инициализация страницы
+				sheet = book.getActiveSheet();
+				//считывание данных из книги по заданным параметрам::
+				if (readSheet(curtRow, lstRow) == true) continue;
+			}
+			//если страница не загрузилась или произошли ошибки при считывании страницы:
+			errCnt++;
+		}
+		return errCnt == 0 ? true : false;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка загрузки файла: " + file, "readFile").toErrBuff();
+	}
+	return false;
+}
+
+bool NS_ExcelReport::TSmlvchImp::setDocsByFiles() noexcept(true)
+{
+	using NS_Tune::StrArr;
+	using NS_Tune::TSimpleTune;
+	try
+	{
+		//считываем расширение для загружаемых файлов:
+		string load_ext = config.getFieldValueByCode(NS_Const::TuneField::TemplateFileExt);
+		//считывание пути загрузки:
+		string load_path = imp_tune.getSrc();
+		//получение файлов для считывания:
+		StrArr arr = TSimpleTune::getFileLst(load_path, load_ext);
+		//если нет файлов для загрузки:
+		if (arr.empty()) return false;
+		//проходим по каждому файлу и считываем из него параметры документов:
+		for (const string& file : arr)
+		{
+			//загрузка excel-файла для считывания:
+			if (readFile(file))
+			{
+				TLog log("Считывание файла: " + file + " прошло успешно!\nВыполняю удаление файла: " + file, "TSmlvchImp::setDocsByFiles");
+				if (std::remove(file.c_str()) == 0)
+					log << "\nФайл: " << file << " успешно удален!";
+				else
+					log << "\nОшибка удаления файла: " << file;
+				log.toErrBuff();
+			}
+		}
+		return true;
+	}
+	catch (const TLog& err)
+	{
+		err.toErrBuff();
+	}
+	catch (...)
+	{
+		TLog("Не обработанная ошибка при загрузке данных!", "setDocsByFiles").toErrBuff();
+	}
+	return false;
+}
+
+bool NS_ExcelReport::TSmlvchImp::crtOutFile() const noexcept(true)
+{
+	using std::ifstream;
+	string file = config.getOutFile();
+	//проверка существования файла:
+	std::ios_base::openmode mode = ifstream(file) ? std::ios_base::ate : std::ios_base::out;
+	return imp_data.CreateFile4Import(file, mode);
+}
+
 void TReport::saveReport(TExcelBook& book, const string& file_name) const noexcept(false)
 {
 	//проверка существования директории:
@@ -3619,6 +3812,9 @@ void TReport::Create_Report_By_Code(const NS_Const::ReportCode& code) const
 	case ReportCode::SMLVCH_BALANCE:
 		Smolevich_Balance_Report();
 		break;
+	case ReportCode::SMLVCH_IMP:
+		Smolevich_Docs_Import();
+		break;
 	case ReportCode::QUIT_REPORT:
 		break;
 	default:
@@ -3682,6 +3878,31 @@ void TReport::Smolevich_Balance_Report() const noexcept(true)
 	saveReport(book);
 }
 
+bool NS_ExcelReport::TReport::Smolevich_Docs_Import() const noexcept(true)
+{
+	using NS_Tune::StrArr;
+	using NS_Excel::TExcelBook;
+	using NS_SMLVCH_IMP::TRSBankDocs;
+	using NS_Tune::TImpDocsTune;
+	//получение пути к файлу с настроками:
+	StrArr tune_files = config.getConfFileLst();
+	//инициализация путой книги:
+	string exl_ext = config.getFieldValueByCode(NS_Const::TuneField::TemplateFileExt);
+	TExcelBook book(exl_ext);
+	//выполнение прохода по каждому json-файлу настроек импорта
+	for (const string& file : tune_files)
+	{
+		//инициализация объекта для иморта:
+		TSmlvchImp imp(book, config, file);
+		//формирование документов на импорт
+		if (imp.setDocsByFiles() == false) return false;
+		//формирование файла импорта:
+		imp.crtOutFile();
+	}
+	return true;
+}
+
+/*
 void NS_ExcelReport::TReport::Smolevich_Imp_Docs(const string& path, const string& out_file) noexcept(true)
 {
 	using NS_SMLVCH_IMP::TRSBankDoc;
@@ -3780,3 +4001,4 @@ void NS_ExcelReport::TReport::Smolevich_Imp_Docs(const string& path, const strin
 	}
 	docs.CreateFile4Import(out_file);
 }
+/**/
