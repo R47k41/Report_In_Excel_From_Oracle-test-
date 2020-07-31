@@ -484,21 +484,17 @@ void excel_example(void)
 	using namespace libxl;
 	using std::cout;
 	using std::endl;
-	Example e;
-	e.run();
-	return;
 	libxl::Book* book = xlCreateBook();
-	book->load("C:\\1.xls");
+	book->load("C:\\original.xls");
 	if (book)
 	{
 		cout << "book is load" << endl;
-		libxl::Sheet* sheet = book->addSheet("MyList");
+		libxl::Sheet* sheet = book->getSheet(1);
 		if (sheet)
 		{
 			cout << "open sheet and write text!" << endl;
-			sheet->writeStr(1, 1, "Hello World!");
-			sheet->writeNum(2, 1, 112);
-			sheet->writeNum(3, 1, 2.5);
+			sheet->insertRow(845, 846, false);
+			sheet->insertRow(8645, 8646, false);
 			libxl::Font* font = book->addFont();
 			font->setColor(COLOR_RED);
 			font->setBold(true);

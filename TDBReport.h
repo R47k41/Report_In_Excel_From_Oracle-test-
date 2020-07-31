@@ -42,6 +42,11 @@ namespace NS_ExcelReport
 	//был vector
 	using TRowsFlag = std::map<size_t, bool>;//массив строк с признаком обработки
 	using TRowsTNS = std::pair<std::string, TRowsFlag>;
+	//массив строк дл€ вставки строк в файл(т.к. библиотека сильно долго добавл€ет новую строку в файл)
+	//строка дл€ вставки: приемник, источник
+	using Row4Insert = std::pair<size_t, size_t>;
+	//массив из строк приемника и источника
+	using Rows4Insert = std::map<size_t, size_t>;
 //	using TFillFormat = std::pair<size_t, size_t>;
 //	using TFillFrmts = std::vector<TFillFormat>;
 //	using TConvertType = std::pair<NS_Oracle::TType, size_t>;
@@ -102,6 +107,8 @@ namespace NS_ExcelReport
 		virtual bool NeedNewPage(size_t item_cnt, bool byRows = true) const noexcept(false);
 		//функци€ получени€ первой/последней строки страницы:
 		virtual size_t getRow(bool first) const noexcept(false) = 0;
+		//функци€ определени€ €вл€етс€ ли строка строкой форматов данных:
+		virtual bool isDataFormatRow(size_t curRow) const noexcept(false);
 		//функци€ открыти€ указанной книги на указанной странице:
 		virtual bool OpenBookSheet(const string& srcName, size_t page) noexcept(true);
 		//проверка типов данных в €чейках разных листов:
@@ -182,6 +189,11 @@ namespace NS_ExcelReport
 		virtual bool isCorrectFilter(size_t curRow) const noexcept(true);
 		//формирование массива отфильтрованных строк дл€ указанных услови фильтрации:
 		TRowsFlag setFiltredRowsArr() const noexcept(true);
+		//функци€ копировани€ массива отфильтрованных строк:
+		static bool copyRowsArr(TRowsFlag& dst, NS_ExcelReport::TRowsFlag& src, 
+			size_t key_to, bool only_true = true) noexcept(true);
+		//функци€ увеличени€ значени€ ключей массива строк(используетс€ при вставке строки):
+		static bool IncRowsArrKey(TRowsFlag& arr, size_t from_key, size_t increment = 1) noexcept(true);
 		//функци€ поиска данных о €чейке приемника в текущей строке источника
 		bool CheckInCell(const NS_Excel::TExcelBookSheet& dstSheet, const NS_Excel::TExcelCell& dstCell,
 			const NS_Excel::TExcelCell& srcCell, bool NoSpaceNoCase = true) const noexcept(true);
@@ -298,7 +310,7 @@ namespace NS_ExcelReport
 		std::string getServerNameByTuneIndex(size_t val) const noexcept(true);
 		//функци€ обработки строки источника и строки приемника:
 		bool procFindRow(const TExtendSheetReport& srcSheet, const CellDataArr& params,
-			size_t dstRow, size_t srcRow) noexcept(true);
+			size_t dstRow, size_t srcRow) noexcept(true);//!!!!, TRowsFlag& RowsArr) noexcept(true);
 		//функци€ обработки €чеек приемника и источника:
 		bool procFindCell(const TExtendSheetReport& srcSheet, const NS_Tune::TCellData& param, 
 			size_t dstRow, size_t srcRow) noexcept(true);
@@ -312,6 +324,9 @@ namespace NS_ExcelReport
 		static size_t get_SrcRow_By_Dst_Params(const TJsonReport& Dst, const TExtendSheetReport& Src,
 			TRowsFlag& DstRows, TRowsFlag& SrcRows, const NS_Tune::CellDataArr& original_params,
 			bool NoSpaceNoCase = true) noexcept(false);
+		//функци€ добавлени€ новых строк в файл:
+		bool InsertNewRows4Books(const TExtendSheetReport& srcSheet, const NS_Tune::CellDataArr& params,
+			const Rows4Insert& newRowsArr) noexcept(true);
 		//функци€ обработки метода поиска b обработки строки приемника на странице источника
 		bool Execute_Seek_Dst_Row_In_Src_Sht(const TExtendSheetReport& srcSheet, TRowsFlag& DstRows,
 			TRowsFlag& SrcRows, const CellDataArr& params, bool NoSpaceNoCase = true) noexcept(false);
