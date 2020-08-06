@@ -23,7 +23,6 @@ template NS_Const::TConstant<NS_Const::JSonMeth, NS_Const::JSonMeth::Null, NS_Co
 template NS_Const::TConstant<NS_Const::JsonCellFill, NS_Const::JsonCellFill::Null, NS_Const::JsonCellFill::Last>;
 template NS_Const::TConstant<NS_Const::JsonFilterOper, NS_Const::JsonFilterOper::Null, NS_Const::JsonFilterOper::Last>;
 
-
 //добавление фунцкии в область DateInterface
 namespace NS_Const
 {
@@ -102,14 +101,6 @@ char NS_Const::getNLSNumPoint() noexcept(true)
 	//инициализация фасета числа:
 	const std::numpunct<char>& numsep = std::use_facet<std::numpunct<char> >(loc);
 	return numsep.decimal_point();
-}
-
-double NS_Const::Round(double x, int sz) noexcept(true)
-{
-	if (x > 0)
-		return ((std::floor(x) * sz)+0.5) / sz;
-	else
-		return ((std::ceil(x) * sz)-0.5) / sz;
 }
 
 bool NS_Const::DateInteface::set_stream_date_format(std::ostream& stream, const string& format) noexcept(true)
@@ -500,13 +491,27 @@ string NS_Const::TConstReportCode::getName() const
 	return  string();
 }
 
+bool NS_Const::TConstReportCode::NotShow(const ReportCode& x) noexcept(true)
+{
+	//функционал не отлажен!!!
+	//не трогать без автора!!!!
+	if (x == ReportCode::SMLVCH_IMP
+		|| x == ReportCode::FILE_COMPARE_RIB || x == ReportCode::FILE_COMPARE_RTBK)
+		return DbgMode;
+	return true;
+}
+
 void NS_Const::TConstReportCode::show() noexcept(true)
 {
 	using std::cout;
 	using std::endl;
 	TConstReportCode report(ReportCode::Empty);
 	while (report.Next().Value() < ReportCode::Last)
+	{
+		//исключаю не отлаженные отчеты!!!
+		if (NotShow(report.Value()) == false) continue;
 		cout << report.toInt() << ". " << report.getName() << endl;
+	}
 }
 
 NS_Const::ReportCode NS_Const::TConstReportCode::getIDByCode(const string& code, const ReportCode& bval, const ReportCode& eval)

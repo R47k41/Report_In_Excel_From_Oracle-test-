@@ -1,6 +1,7 @@
 //модуль определения функционала для TDBReport
 #include <iostream>
 #include <fstream>
+#include <math.h>
 #include "TDBReport.h"
 #include "TSQLParser.h"
 #include "Logger.hpp"
@@ -34,6 +35,42 @@ void raise_app_err(const TLog& log, bool as_raise = true);
 void raise_app_err(const TLog& log, bool as_raise)
 {
 	as_raise ? throw log : log.toErrBuff();
+}
+
+//функция получения числа для 10 в степени x:
+long get10(int val = 0) noexcept(true);
+
+//округление числа до указанной точности:
+double Round(double x, int sz = 0) noexcept(true);
+
+long get10(int val) noexcept(true)
+{
+	long x10 = 1;
+	while (val-- > 0) x10 *= 10;
+	return x10;
+}
+
+double Round(double x, int sz) noexcept(true)
+{
+	using std::floor;
+	using std::ceil;
+	try
+	{
+
+		if (x == 0) return x;
+		long d = get10(sz);
+		if (x > 0)
+			return floor((x * d) + 0.5) / d;
+		else
+			return ceil((x * d) - 0.5) / d;
+	}
+	catch (...)
+	{
+		TLog log("Не обработаная ошибка: ", "Round");
+		log << "Round(" << x << ", " << sz << ")!";
+		log.toErrBuff();
+	}
+	return x;
 }
 
 TCellFormatIndex::TCellFormatIndex(size_t par_Curent) :
@@ -2853,6 +2890,7 @@ bool NS_ExcelReport::TSmlvchBalance::setAccount2Row(size_t Row, const NS_SMLVCH_
 {
 	using NS_Excel::TExcelCell;
 	using NS_SMLVCH_IMP::TAccount;
+	using std::stringstream;
 	if (params.empty()) return false;
 	try
 	{
@@ -2887,7 +2925,12 @@ bool NS_ExcelReport::TSmlvchBalance::setAccount2Row(size_t Row, const NS_SMLVCH_
 				{
 					double sld_val = acc.getSldRub();
 					//если курс не 0 и не 1 - вычисляем остаток
-					if (rate > 0 and rate != 1)	sld_val /= rate;
+					if (rate > 0 and rate != 1)
+					{
+						sld_val /= rate;
+						//округляем
+						sld_val = Round(sld_val, 2);
+					}
 					//запись остатка в валюте счета - на ячейку меньше:
 					sheet.WriteAsNumber(cell.getRow(), cell.getCol() - 1, sld_val);
 				}
@@ -3055,6 +3098,7 @@ bool NS_ExcelReport::TSmlvchBalance::crtSheet(const string& imp_file, const NS_T
 	}
 	catch (const TLog& err)
 	{
+		err.toErrBuff();
 	}
 	catch (...)
 	{

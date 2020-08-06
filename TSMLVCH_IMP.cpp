@@ -355,6 +355,7 @@ bool NS_SMLVCH_IMP::TRSBankDoc::InitByStrArr(const StrArr& arr, const IntArr& in
 		//вычетаем 1 т.к. начиниается с 0 и еще 1, т.к. не считывали пустое поле
 		setField(arr[i-2], i);
 	}
+	return true;
 }
 
 bool NS_SMLVCH_IMP::TRSBankDoc::isEmptyDocAtr() const noexcept(true)

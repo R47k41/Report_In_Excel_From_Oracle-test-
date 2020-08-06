@@ -138,8 +138,6 @@ namespace NS_Const
 	void Trim(string& str);
 	//функция получения текущего разделите целой и дробной части числа:
 	char getNLSNumPoint() noexcept(true);
-	//функция округления числового значения до нужного знака:
-	double Round(double x, int sz = 100) noexcept(true);
 	//класс функций работы с датой:
 	namespace DateInteface
 	{
@@ -279,6 +277,9 @@ namespace NS_Const
 	//класс для работы с константными полями:
 	class TConstReportCode : public RC_Const
 	{
+	private:
+		//отображение записей для отладки:
+		static bool NotShow(const ReportCode& x) noexcept(true);
 	public:
 		explicit TConstReportCode(const ReportCode& x) : RC_Const(x) { }
 		explicit TConstReportCode(int x) : RC_Const(x) { }
@@ -294,6 +295,8 @@ namespace NS_Const
 		//получение идентификатора отчета по коду:
 		static ReportCode getIDByCode(const string& code, const ReportCode& bval, const ReportCode& eval);
 		friend bool operator==(const string& str, const TConstReportCode& val) { return val.operator==(str); }
+		static bool setDbgMode(bool flg = false) { DbgMode = flg; return DbgMode; }
+		static bool DbgMode;
 	};
 
 	//класс группы символов

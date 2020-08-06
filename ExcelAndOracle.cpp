@@ -65,6 +65,7 @@ void JsonParse(const std::string& filename);
 //функционал обработки данных по Смолевичу
 //считываени txt файла
 
+bool NS_Const::TConstReportCode::DbgMode = false;
 
 int main()
 {
@@ -363,6 +364,7 @@ void CreateReport(const std::string& file_name, const string& code) noexcept(tru
 	using std::endl;
 	using std::getline;
 	using NS_Const::LowerCase;
+	using NS_Const::TConstReportCode;
 	using NS_Tune::TSharedTune;
 	char answer;
 	do

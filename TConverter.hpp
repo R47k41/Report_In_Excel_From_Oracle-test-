@@ -78,7 +78,6 @@ bool NS_Converter::toBoolType(const std::string& str, bool* val) noexcept(true)
 	return false;
 }
 
-
 //конвертация ansi-строки в unicode
 std::wstring NS_Converter::MByteToUnicode(const std::string& str, size_t toCodePage) noexcept(false)
 {

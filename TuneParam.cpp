@@ -728,17 +728,30 @@ string NS_Tune::TSharedTune::getCodeFromtUI() noexcept(true)
 	using std::cin;
 	using NS_Const::ReportCode;
 	using NS_Const::TConstReportCode;
+	const char DBG_SYM = -59;
 	TConstReportCode report(ReportCode::Empty);
 	do
 	{
 		TConstReportCode::show();
-		size_t val = 0;
+		char ch = 0;
 		cout << endl << "Укажите код отчета:\t";
+		cin >> ch;
+		//отладка для нестабильных отчетов!!!
+		//не трогать!!!
+		if (ch == DBG_SYM)
+		{
+			TConstReportCode::setDbgMode(true);
+			continue;
+			//report = ReportCode::QUIT_REPORT;
+		}
+		if (isdigit(ch) == 0) continue;
+		cin.putback(ch);
+		size_t val = 0;
 		cin >> val;
 		report = val;
+		//убираем мусор из буфера
+		while (!cin.get() && !cin.eof()) ;
 	} while (report.isEmpty() or !report.isValid(true));
-	//убираем мусор из буфера
-	while (!cin.get());
 	//если хотим выйти
 	if (report == ReportCode::QUIT_REPORT)
 		cout << "Выход из программы!" << endl;
