@@ -3205,7 +3205,12 @@ bool NS_ExcelReport::TSmlvchImp::readRowData(size_t curRow) noexcept(true)
 			//считывание данных из ячейки:
 			string data = sheet.ReadAsString(cell, book);
 			//если данные пустые - выход
-			if (data.empty()) return false;
+			if (data.empty())
+			{
+				TLog log("Не указаны данные для обязательного поля: ", "readRowData");
+				log << cell.getName();
+				throw log;
+			}
 			doc.setField(data, param.DstIndex());
 		}
 		//добавление документа в массив:
@@ -3328,6 +3333,7 @@ bool NS_ExcelReport::TSmlvchImp::setDocsByFiles() noexcept(true)
 		//проходим по каждому файлу и считываем из него параметры документов:
 		for (const string& file : arr)
 		{
+			TLog("Процесс считвания файла: " + file).toErrBuff();
 			//загрузка excel-файла для считывания:
 			if (readFile(file))
 			{

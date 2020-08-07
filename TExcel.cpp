@@ -357,7 +357,7 @@ string NS_Excel::TBaseObj::getName(bool row) const
 			ss << "R";
 		else
 			ss << "C";
-		ss << val;
+		ss << (from_zero ? val: val+1);
 		return ss.str();
 	}
 	return string();
